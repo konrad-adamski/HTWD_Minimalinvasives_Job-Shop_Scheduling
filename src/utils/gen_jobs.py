@@ -2,6 +2,32 @@ import src.utils.gen_interarrival as gen_interarrival
 import pandas as pd
 import random
 
+def filter_ops_and_jobs_by_ready_time(df_jobs: pd.DataFrame, df_ops: pd.DataFrame, 
+                              ready_time_col = "Ready Time", ready_time: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+    # Jobs zeitlich filtern
+    time_filter = df_jobs[ready_time_col] == ready_time
+    df_jobs_filtered = df_jobs[time_filter].copy()
+
+    # Operationen nach (gefilterten) Jobs filtern
+    jobs = df_jobs_filtered["Job"]
+    df_ops_filtered = df_ops[df_ops["Job"].isin(jobs)].copy()
+    return df_jobs_filtered, df_ops_filtered
+
+
+def filter_plan_for_today(df_plan, latest_op_start: int = 0): # exclusive
+    filt = (df_plan.Start < latest_op_start)
+    return df_plan[filt].sort_values(by="Job").reset_index(drop=True)
+
+
+
+def filter_plan_for_future(df_plan, earliest_op_start: int = 0):
+    filt = (df_plan.Start >= earliest_op_start)
+    return df_plan[filt].sort_values(by=["Job", "Start"]).reset_index(drop=True)
+
+# OLD_________________________________________________________________________________________________________________________________
+
+
 def create_jobs_for_days(df_template: pd.DataFrame, day_count: int = 1, u_b_mmax: float = 0.9,
                          shuffle: bool = False, job_seed: int = 50, arrival_seed: int = 122) -> pd.DataFrame:
     """
