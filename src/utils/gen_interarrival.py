@@ -1,5 +1,65 @@
 import pandas as pd
 import numpy as np
+import math
+
+
+
+def generate_job_times(df_jssp, start_time: int = 0, u_b_mmax: float = 0.9,
+                       shift_length: int = 1440, seed: int = 122) -> pd.DataFrame:
+    """
+    Berechnet ein DataFrame mit Arrival, Ready Time und Earliest End.
+
+    Parameter:
+    - df_jssp: DataFrame mit ['Job', 'Machine', 'Processing Time']
+    - start_time: Produktionsstartzeit in Minuten
+    - u_b_mmax: Ziel-Auslastung der Engpassmaschine
+    - shift_length: Schichtlänge in Minuten
+    - seed: Zufalls-Seed für Ankunftszeiten
+
+    Rückgabe:
+    - DataFrame mit Spalten ['Job', 'Arrival', 'Ready Time', 'Processing Time', 'Earliest End']
+    """
+    # 1. Mittelwert der Interarrival-Zeiten berechnen
+    t_a = calculate_mean_interarrival_time(df_jssp, u_b_mmax=u_b_mmax)
+
+    # 2. Jobliste und Arrivals generieren
+    job_order = df_jssp['Job'].drop_duplicates().tolist()
+    arrivals = calculate_arrivals(df_jssp, mean_interarrival_time=t_a, start_time=start_time, random_seed=seed)
+
+    # 3. Gesamte Processing Time pro Job berechnen
+    processing_times = df_jssp.groupby('Job')['Processing Time'].sum()
+
+    # 4. DataFrame zusammenbauen
+    data = []
+    for job, arrival in zip(job_order, arrivals):
+        ready_time = math.ceil((arrival + 1) / shift_length) * shift_length
+        processing_time = processing_times[job]
+        earliest_end = ready_time + processing_time
+        data.append({
+            'Job': job,
+            'Arrival': arrival,
+            'Ready Time': ready_time,
+            'Processing Time': processing_time,
+            'Earliest End': earliest_end
+        })
+
+    return pd.DataFrame(data)
+
+
+def calculate_arrivals(df_jobs: pd.DataFrame, mean_interarrival_time: float, 
+                       start_time: float = 0.0, random_seed: int = 122) -> pd.DataFrame:
+    # 1) Seed setzen für Reproduzierbarkeit
+    np.random.seed(random_seed)
+
+    # 2) Interarrival-Zeiten erzeugen
+    jobs = df_jobs['Job'].unique().tolist()
+    interarrival_times = np.random.exponential(scale=mean_interarrival_time, size=len(jobs))
+    interarrival_times[0] = start_time
+
+    # 3) Kumulieren ab start_time
+    new_arrivals = np.floor(start_time + np.cumsum(interarrival_times)).astype(int)
+
+    return new_arrivals
 
 # Generierung der Ankunftszeiten für geg. Job-Matrix ------------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------------------------------------------

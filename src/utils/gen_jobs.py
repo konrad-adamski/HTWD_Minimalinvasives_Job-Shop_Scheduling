@@ -25,6 +25,30 @@ def filter_plan_for_future(df_plan, earliest_op_start: int = 0):
     filt = (df_plan.Start >= earliest_op_start)
     return df_plan[filt].sort_values(by=["Job", "Start"]).reset_index(drop=True)
 
+
+# neu
+def create_jobs_for_shifts(df_template: pd.DataFrame, shift_count: int = 1, u_b_mmax: float = 0.9, 
+                                  shift_length: int = 1440, shuffle: bool = False, job_seed: int = 50, arrival_seed: int = 120) -> pd.DataFrame:
+
+    # 1) Aufträge generieren
+    repetitions = 4 * shift_count
+    df_jssp = create_multiple_jobs(df_template, repetitions=repetitions, shuffle=shuffle, seed=job_seed)
+
+
+    # 2) Zeit-Informationen erzeugen (ab Tag 0)
+    df_jobs_times = gen_interarrival.generate_job_times(df_jssp, start_time=0.0, u_b_mmax=u_b_mmax, shift_length = shift_length, seed = arrival_seed)
+    
+
+    # 3) Nur Jobs behalten, deren Ankunft im Zeitfenster liegt
+    time_limit = shift_length * shift_count
+    df_jobs_times = df_jobs_times[df_jobs_times['Arrival'] < time_limit].reset_index(drop=True)
+    
+    valid_jobs = set(df_jobs_times['Job'])
+    df_jssp = df_jssp[df_jssp['Job'].isin(valid_jobs)].reset_index(drop=True)
+
+    return df_jssp, df_jobs_times
+    
+
 # OLD_________________________________________________________________________________________________________________________________
 
 
