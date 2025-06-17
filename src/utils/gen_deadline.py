@@ -1,6 +1,50 @@
 import pandas as pd
 import numpy as np 
 
+# neu
+def assign_deadlines_with_global_lognormal_mode(df, sigma=0.5, basic_slack=0, seed=50, global_modus=2880, log=False):
+    """
+    Deadline-Samples basieren auf einer globalen Lognormalverteilung.
+    Der globale Modus ist standardmäßig 2880 oder kann explizit übergeben werden.
+
+    Jeder Sample wird individuell so verschoben, dass der Modus pro Job = Earliest End + basic_slack ist.
+
+    Parameter:
+    - sigma: Streuung der Lognormalverteilung
+    - basic_slack: Puffer zum 'Earliest End'
+    - global_modus: fixer Modus der Verteilung vor Verschiebung (Standard: 2880)
+    - seed: Zufalls-Seed
+    - log: ob Anzahl der Fallbacks ausgegeben wird
+    """
+    fallback_count = 0
+    np.random.seed(seed)
+    df = df.copy()
+    deadlines = []
+
+    log_mean = np.log(global_modus) + sigma**2  # ergibt Modus = global_modus
+
+    for i in range(len(df)):
+        earliest_end = df.loc[i, "Earliest End"]
+        basic_deadline = earliest_end + basic_slack
+
+        for _ in range(6):
+            sample = np.random.lognormal(mean=log_mean, sigma=sigma)
+            shifted_sample = sample - global_modus + basic_deadline
+            if shifted_sample >= earliest_end:
+                deadlines.append(int(np.ceil(shifted_sample)))
+                break
+        else:
+            deadlines.append(int(np.ceil(earliest_end)))
+            fallback_count += 1
+
+    if fallback_count > 0 and log:
+        print(f"Fallback count: {fallback_count}")
+
+    df["Deadline"] = deadlines
+    return df
+
+
+# alt ----------------------------------------------------------------------------------------------------------------
 def get_times_df(df_jssp: pd.DataFrame,
                  arrivals: pd.DataFrame,
                  schedule_func,
