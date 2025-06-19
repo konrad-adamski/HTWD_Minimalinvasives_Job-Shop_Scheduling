@@ -6,22 +6,21 @@ def jssp_dict_to_df(jobs_dict: dict) -> pd.DataFrame:
 
     Parameter:
     - jobs_dict: dict
-        Schlüssel sind Job-Bezeichnungen (z.B. 'job 0'),
+        Schlüssel sind Job-Indizes (z.B. 0, 1, 2),
         Werte sind Listen von [Machine, Processing Time].
 
     Rückgabe:
-    - pd.DataFrame mit Spalten ['Job', 'Operation', 'Machine', 'Processing Time'].
-      Die Spalte 'Operation' enthält die Reihenfolge der Operation innerhalb des Jobs.
+    - pd.DataFrame mit Spalten ['Production_Plan_ID', 'Operation', 'Machine', 'Processing Time'].
+      Die Spalte 'Operation' enthält die Reihenfolge der Operation innerhalb des Plans.
     """
     records = []
-    for job, ops in jobs_dict.items():
+    for plan_id, ops in jobs_dict.items():
         for op_idx, (machine_idx, proc_time) in enumerate(ops):
             records.append({
-                'Job': job,
+                'Production_Plan_ID': plan_id,
                 'Operation': op_idx,
-                'Machine': f'M{machine_idx}',
+                'Machine': f'M{machine_idx:02d}',
                 'Processing Time': proc_time
             })
-    # DataFrame mit definierter Spaltenreihenfolge erzeugen
-    df = pd.DataFrame(records, columns=['Job', 'Operation', 'Machine', 'Processing Time'])
+    df = pd.DataFrame(records, columns=['Production_Plan_ID', 'Operation', 'Machine', 'Processing Time'])
     return df

@@ -124,8 +124,6 @@ def create_multiple_jobs(df_template: pd.DataFrame,
     return pd.concat(all_jobs, ignore_index=True)
 
 
-
-
 def create_jobs(df_template: pd.DataFrame,
                 offset: int = 0,
                 shuffle: bool = False,
