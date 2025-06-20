@@ -137,7 +137,7 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(df_jssp: pd.DataFrame, df_
 
     # === Lösung extrahieren ===
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        df_schedule = get_records_from_cp(
+        records = get_records_from_cp(
             jobs=jobs,
             all_ops=all_ops,
             starts=starts,
@@ -147,6 +147,7 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(df_jssp: pd.DataFrame, df_
             job_column=job_column,
             df_times=df_times
         )
+        df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
         print("\nSolver-Status         :", solver.StatusName(status))
         print("No feasible solution found!")

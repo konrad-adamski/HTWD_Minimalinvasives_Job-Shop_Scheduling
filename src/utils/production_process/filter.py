@@ -1,5 +1,24 @@
 import pandas as pd
 
+
+def jobs_by_ready_time(df_jobs: pd.DataFrame, df_ops: pd.DataFrame, 
+                              ready_time_col = "Ready Time", ready_time: int = 0, verbose = False) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+    # Jobs zeitlich filtern
+    time_filter = df_jobs[ready_time_col] == ready_time
+    df_jobs_filtered = df_jobs[time_filter].copy()
+
+    # Operationen nach (gefilterten) Jobs filtern
+    jobs = df_jobs_filtered["Job"].unique()
+    df_ops_filtered = df_ops[df_ops["Job"].isin(jobs)].copy()
+
+    if verbose:
+        print(f"[INFO] Anzahl Jobs mit {ready_time_col} {ready_time}: {len(jobs)}")
+        
+    return df_ops_filtered,df_jobs_filtered
+
+
+
 # I) Init Filtern nach Teitfenster -------------------------------------------------------------------
 def jobs_by_arrival_window(df_times: pd.DataFrame, df_jssp: pd.DataFrame,
                            day_start: float = 0, planning_end: float | None = None,
