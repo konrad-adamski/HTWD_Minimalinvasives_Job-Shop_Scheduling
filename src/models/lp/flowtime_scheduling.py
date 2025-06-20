@@ -119,27 +119,8 @@ def solve_jssp(df_jssp: pd.DataFrame, df_arrivals: pd.DataFrame,
     objective_value = pulp.value(prob.objective)
 
     # 7) Ergebnisse extrahieren
-    records = []
-    for j, job in enumerate(jobs):
-        for o, (op_id, m, d) in enumerate(all_ops[j]):
-            st = starts[(j, o)].varValue
-            ed = st + d
-            records.append({
-                job_column: job,
-                "Operation": op_id,
-                "Arrival": arrival[job],
-                "Machine": m,
-                "Start": round(st, 2),
-                "Processing Time": d,
-                "Flow time": round(ed - arrival[job], 2),
-                "End": round(ed, 2)
-            })
-
-    df_schedule = (
-        pd.DataFrame(records)
-        .sort_values(["Start", job_column, "Operation"])
-        .reset_index(drop=True)
-    )
+    records = get_records(jobs, all_ops, starts, arrival, job_column, df_arrivals)
+    df_schedule = pd.DataFrame(records).sort_values([job_column, "Operation"]).reset_index(drop=True)
 
     # 8) Logging
     solving_duration = time.time() - start_time
@@ -277,27 +258,8 @@ def solve_jssp_weighted_arrival(df_jssp: pd.DataFrame, df_arrivals: pd.DataFrame
     objective_value = pulp.value(prob.objective)
 
     # 7) Ergebnisse extrahieren
-    records = []
-    for j, job in enumerate(jobs):
-        for o, (op_id, m, d) in enumerate(all_ops[j]):
-            st = starts[(j, o)].varValue
-            ed = st + d
-            records.append({
-                job_column: job,
-                "Operation": op_id,
-                "Arrival": arrival[job],
-                "Machine": m,
-                "Start": round(st, 2),
-                "Processing Time": d,
-                "Flow time": round(ed - arrival[job], 2),
-                "End": round(ed, 2)
-            })
-
-    df_schedule = (
-        pd.DataFrame(records)
-        .sort_values(["Start", job_column, "Operation"])
-        .reset_index(drop=True)
-    )
+    records = get_records(jobs, all_ops, starts, arrival, job_column, df_arrivals)
+    df_schedule = pd.DataFrame(records).sort_values([job_column, "Operation"]).reset_index(drop=True)
 
     # 8) Logging
     solving_duration = time.time() - start_time
@@ -309,4 +271,36 @@ def solve_jssp_weighted_arrival(df_jssp: pd.DataFrame, df_arrivals: pd.DataFrame
     print(f"  Laufzeit                 : ~{solving_duration:.2f} Sekunden")
 
     return df_schedule
+
+
+
+
+def get_records(jobs, all_ops, starts, arrival, job_column="Job", df_arrivals=None):
+    # Optional: Mapping von Job → Production_Plan_ID
+    if df_arrivals is not None and "Production_Plan_ID" in df_arrivals.columns:
+        job_production_plan = df_arrivals.set_index(job_column)["Production_Plan_ID"].to_dict()
+    else:
+        job_production_plan = {}
+
+    records = []
+    for j, job in enumerate(jobs):
+        for o, (op_id, m, d) in enumerate(all_ops[j]):
+            st = starts[(j, o)].varValue
+            ed = st + d
+            record = {
+                job_column: job,
+            }
+            if job in job_production_plan:
+                record["Production_Plan_ID"] = job_production_plan[job]
+            record.update({
+                "Operation": op_id,
+                "Arrival": arrival[job],
+                "Machine": m,
+                "Start": round(st, 2),
+                "Processing Time": d,
+                "Flow time": round(ed - arrival[job], 2),
+                "End": round(ed, 2)
+            })            
+            records.append(record)
+    return records
 

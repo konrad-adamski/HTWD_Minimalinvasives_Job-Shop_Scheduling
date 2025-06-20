@@ -75,8 +75,8 @@ class ProductionDaySimulation:
             with machine.request() as req:
                 yield req
                 sim_start = self.env.now
-                if sim_start + (planned_duration/10) >= self.end_time:
-                    # print(f"[{get_time_str(sim_start)}] Job {job_id} too late for {machine.name}")
+                if sim_start >= self.end_time:
+                    print(f"[{get_time_str(sim_start)}] Job {job_id} too late for {machine.name}")
                     self.check_and_finish_simulation()
                     return
 
@@ -88,21 +88,14 @@ class ProductionDaySimulation:
 
                 self.job_finished_on_machine(sim_end, job_id, machine, sim_duration)
 
-            entry = {
+            self.finished_log.append({
                 self.job_column: job_id,
-            }
-            if "Production_Plan_ID" in op:
-                entry["Production_Plan_ID"] = op["Production_Plan_ID"]
-
-            entry.update({
                 "Operation": op_id,
                 "Machine": machine.name,
-                "Arrival": op["Arrival"],
                 "Start": round(sim_start, 2),
                 "Processing Time": sim_duration,
                 "End": round(sim_end, 2)
             })
-            self.finished_log.append(entry)
 
             del self.starting_times_dict[(job_id, machine.name)]
             self.check_and_finish_simulation()
