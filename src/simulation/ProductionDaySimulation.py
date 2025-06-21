@@ -76,7 +76,6 @@ class ProductionDaySimulation:
                 yield req
                 sim_start = self.env.now
                 if sim_start + (planned_duration/10) >= self.end_time:
-                    # print(f"[{get_time_str(sim_start)}] Job {job_id} too late for {machine.name}")
                     self.check_and_finish_simulation()
                     return
 

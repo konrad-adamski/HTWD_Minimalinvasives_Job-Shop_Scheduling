@@ -1,4 +1,4 @@
-from src.simulation.ProductionDaySimulation import ProductionDaySimulation
+from src.simulation.ProductionSimulation import ProductionSimulation
 from configs.config import get_path
 import pandas as pd
 
@@ -11,8 +11,8 @@ print("\n", "---"*60)
 
 
 print("Simulation:")
-simulation = ProductionDaySimulation(df_schedule, vc=0.45)
-df_execution = simulation.run(start_time = 0, end_time=1440)
+simulation = ProductionSimulation(df_schedule, vc=0.45)
+df_execution = simulation.run(start_time = 0, end_time=None)
 print(df_execution)
 print("\n", "---"*60)
 
