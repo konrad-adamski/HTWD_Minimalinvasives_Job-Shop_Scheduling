@@ -1,55 +1,27 @@
-import math
-import random
+from src.simulation.Machine import Machine
+from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
+
 import time
 import simpy
 import pandas as pd
 
-from src.simulation.Machine import Machine
-
-# --- Hilfsfunktionen ---
-
-def get_time_str(minutes_in):
-    minutes_total = int(minutes_in)
-    seconds = int((minutes_in - minutes_total) * 60)
-    hours = minutes_total // 60
-    minutes = minutes_total % 60
-    return f"{hours:02}:{minutes:02}:{seconds:02}"
-
-def get_duration(minutes_in):
-    minutes = int(minutes_in)
-    seconds = int(round((minutes_in - minutes) * 60))
-    parts = []
-    if minutes:
-        parts.append(f"{minutes:02} minute{'s' if minutes != 1 else ''}")
-    if seconds:
-        parts.append(f"{seconds:02} second{'s' if seconds != 1 else ''}")
-    return " ".join(parts) if parts else ""
-
-def duration_log_normal(duration, vc=0.2):
-    sigma = vc
-    mu = math.log(duration)
-    result = random.lognormvariate(mu, sigma)
-    return round(result, 2)
-
-
 # --- Simulationsklasse ---
-
-class ProductionDaySimulation:
-    def __init__(self, dframe_schedule_plan, job_column: str ='Job', vc=0.2):
+class ProductionSimulation:
+    def __init__(self, dframe_schedule_plan, job_column: str ='Job',earliest_start_column='Arrival', vc=0.2):
         self.vc = vc
         self.dframe_schedule_plan = dframe_schedule_plan
 
         self.job_column = job_column
+        self.earliest_start_column = earliest_start_column
         self.jobs = self._init_jobs()
-        self.machines = None
 
+        self.machines = None
         self.start_time = 0
-        self.end_time = 1440
+        self.end_time = None
         self.starting_times_dict = {}
         self.finished_log = []
 
         self.controller = None
-
         self.env = None
         self.stop_event = None
 
@@ -59,46 +31,62 @@ class ProductionDaySimulation:
         return {m: Machine(self.env, m) for m in unique_machines}
 
     def _init_jobs(self):
-        return self.dframe_schedule_plan.groupby(self.job_column)
+        df = self.dframe_schedule_plan.copy()
+        df = df.sort_values([self.job_column, "Operation"])  # Sortiere technologisch korrekt
+        return df.groupby(self.job_column)
 
     def job_process(self, job_id, job_operations):
+        earliest_start_time = job_operations[0][self.earliest_start_column]
+        delay = max(earliest_start_time - self.env.now, 0)
+        yield self.env.timeout(delay)
+
         for op in job_operations:
             machine = self.machines[op["Machine"]]
-            planned_start = op["Start"]
             planned_duration = op["Processing Time"]
-            op_id = op["Operation"]
 
-            sim_duration = duration_log_normal(planned_duration, vc=self.vc)
+            planned_start = op["Start"] if "Start" in op else self.start_time
             delay = max(planned_start - self.env.now, 0)
             yield self.env.timeout(delay)
 
             with machine.request() as req:
                 yield req
                 sim_start = self.env.now
-                if sim_start >= self.end_time:
-                    print(f"[{get_time_str(sim_start)}] Job {job_id} too late for {machine.name}")
-                    self.check_and_finish_simulation()
+
+                if self.end_time is not None and sim_start + (planned_duration * 0.10) >= self.end_time: # 10 % der geplanten Zeit als Schwellwert
+                    self.check_stop_event()
                     return
 
                 self.job_started_on_machine(sim_start, job_id, machine)
                 self.starting_times_dict[(job_id, machine.name)] = round(sim_start, 2)
 
+                sim_duration = duration_log_normal(planned_duration, vc=self.vc)
                 yield self.env.timeout(sim_duration)
                 sim_end = self.env.now
 
                 self.job_finished_on_machine(sim_end, job_id, machine, sim_duration)
 
-            self.finished_log.append({
+            entry = {
                 self.job_column: job_id,
-                "Operation": op_id,
-                "Machine": machine.name,
-                "Start": round(sim_start, 2),
-                "Processing Time": sim_duration,
-                "End": round(sim_end, 2)
-            })
+            }
+            if "Production_Plan_ID" in op:
+                entry["Production_Plan_ID"] = op["Production_Plan_ID"]
+
+            entry["Operation"] = op["Operation"]
+            entry["Machine"] = machine.name
+            entry["Arrival"] = op["Arrival"]
+
+            # Zusätzlich earliest_start_column, wenn es nicht Arrival ist
+            if self.earliest_start_column != "Arrival":
+                entry[self.earliest_start_column] = earliest_start_time
+
+            entry["Start"] = round(sim_start, 2)
+            entry["Processing Time"] = sim_duration
+            entry["End"] = round(sim_end, 2)
+
+            self.finished_log.append(entry)
 
             del self.starting_times_dict[(job_id, machine.name)]
-            self.check_and_finish_simulation()
+            self.check_stop_event()
 
 
     def end_trigger_process(self):
@@ -114,9 +102,7 @@ class ProductionDaySimulation:
             print(f"\n[{get_time_str(self.env.now)}] Simulation ended by fallback after end_time.")
             self.stop_event.succeed()
 
-
-
-    def run(self, start_time=0, end_time=1440):
+    def run(self, start_time=0, end_time=None):
         self.start_time = start_time
         self.end_time = end_time
         self.env = simpy.Environment(initial_time=start_time)
@@ -125,10 +111,13 @@ class ProductionDaySimulation:
         for job_id, group in self.jobs:
             operations = group.sort_values("Start").to_dict("records")
             self.env.process(self.job_process(job_id, operations))
-        self.env.process(self.end_trigger_process())
 
-        self.stop_event = self.env.event()
-        self.env.run(until=self.stop_event)
+        if self.end_time is None:
+            self.env.run()
+        else:
+            self.env.process(self.end_trigger_process())
+            self.stop_event = self.env.event()
+            self.env.run(until=self.stop_event)
 
         dframe_execution = pd.DataFrame(self.finished_log)
         return dframe_execution.sort_values(by=[self.job_column, "Operation"]).reset_index(drop=True)
@@ -145,8 +134,8 @@ class ProductionDaySimulation:
             self.controller.job_finished_on_machine(time_stamp, job_id, machine, sim_duration)
             time.sleep(0.14)
 
-    def check_and_finish_simulation(self):
-        if self.env.now >= self.end_time and not self.starting_times_dict:
+    def check_stop_event(self):
+        if self.stop_event and self.env.now >= self.end_time and not self.starting_times_dict:
             if not self.stop_event.triggered:
                 print(f"\n[{get_time_str(self.env.now)}] Simulation ended! There are no more active Operations")
                 self.stop_event.succeed()
