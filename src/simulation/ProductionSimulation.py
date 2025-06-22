@@ -1,5 +1,5 @@
-from src.simulation.Machine import Machine
 from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
+from src.simulation.Machine import Machine
 
 import time
 import simpy
@@ -7,12 +7,14 @@ import pandas as pd
 
 # --- Simulationsklasse ---
 class ProductionSimulation:
-    def __init__(self, dframe_schedule_plan, job_column: str ='Job',earliest_start_column='Arrival', sigma=0.2):
-        self.sigma = sigma
+    def __init__(self, dframe_schedule_plan, job_column: str ='Job',earliest_start_column='Arrival', verbose=True, sigma=0.2):
         self.dframe_schedule_plan = dframe_schedule_plan
-
         self.job_column = job_column
         self.earliest_start_column = earliest_start_column
+        self.verbose = verbose
+
+        self.sigma = sigma
+
 
         self.machines = None
         self.start_time = 0
@@ -118,13 +120,15 @@ class ProductionSimulation:
         return dframe_execution.sort_values(by=[self.job_column, "Operation"]).reset_index(drop=True)
 
     def job_started_on_machine(self, time_stamp, job_id, machine):
-        print(f"[{get_time_str(time_stamp)}] Job {job_id} started on {machine.name}")
+        if self.verbose:
+            print(f"[{get_time_str(time_stamp)}] Job {job_id} started on {machine.name}")
         if self.controller:
             self.controller.job_started_on_machine(time_stamp, job_id, machine)
             time.sleep(0.05)
 
     def job_finished_on_machine(self, time_stamp, job_id, machine, sim_duration):
-        print(f"[{get_time_str(time_stamp)}] Job {job_id} finished on {machine.name} (after {get_duration(sim_duration)})")
+        if self.verbose:
+            print(f"[{get_time_str(time_stamp)}] Job {job_id} finished on {machine.name} (after {get_duration(sim_duration)})")
         if self.controller:
             self.controller.job_finished_on_machine(time_stamp, job_id, machine, sim_duration)
             time.sleep(0.14)
