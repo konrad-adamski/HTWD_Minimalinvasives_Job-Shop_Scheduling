@@ -11,7 +11,7 @@ print("\n", "---"*60)
 
 
 print("Simulation:")
-simulation = ProductionSimulation(df_schedule, vc=0.45)
+simulation = ProductionSimulation(df_schedule, sigma=0.45)
 df_execution = simulation.run(start_time = 0, end_time=None)
 print(df_execution)
 print("\n", "---"*60)

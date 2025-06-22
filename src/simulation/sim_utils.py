@@ -22,8 +22,30 @@ def get_duration(minutes_in):
         parts.append(f"{seconds:02} second{'s' if seconds != 1 else ''}")
     return " ".join(parts) if parts else ""
 
-def duration_log_normal(duration, vc=0.2):
+def duration_log_normal_vc(duration, vc=0.2):
     sigma = vc
     mu = math.log(duration)
     result = random.lognormvariate(mu, sigma)
     return round(result, 2)
+
+
+def duration_log_normal(duration: float, sigma: float = 0.2) -> float:
+    """
+    Gibt eine lognormalverteilte Dauer zurück, basierend auf:
+    - gegebenem sigma (Standardabweichung im Log-Raum)
+    - gegebenem erwarteten Mittelwert duration (im Realraum)
+
+    Der Mittelwert der resultierenden Verteilung ist dann ≈ duration.
+    """
+    sigma =max(sigma, - sigma)
+
+    # Berechne mu so, dass E[X] ≈ duration im Realraum
+    mu = math.log(duration) - 0.5 * sigma ** 2
+
+    # Generiere eine Zufallsdauer aus der Lognormalverteilung
+    result = random.lognormvariate(mu, sigma)
+
+    return round(result, 2)
+
+
+print(duration_log_normal(50, 0.2))
