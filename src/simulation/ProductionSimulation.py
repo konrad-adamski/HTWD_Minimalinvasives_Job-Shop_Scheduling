@@ -7,13 +7,12 @@ import pandas as pd
 
 # --- Simulationsklasse ---
 class ProductionSimulation:
-    def __init__(self, dframe_schedule_plan, job_column: str ='Job',earliest_start_column='Arrival', vc=0.2):
-        self.vc = vc
+    def __init__(self, dframe_schedule_plan, job_column: str ='Job',earliest_start_column='Arrival', sigma=0.2):
+        self.sigma = sigma
         self.dframe_schedule_plan = dframe_schedule_plan
 
         self.job_column = job_column
         self.earliest_start_column = earliest_start_column
-        self.jobs = self._init_jobs()
 
         self.machines = None
         self.start_time = 0
@@ -29,11 +28,6 @@ class ProductionSimulation:
     def _init_machines(self):
         unique_machines = self.dframe_schedule_plan["Machine"].unique()
         return {m: Machine(self.env, m) for m in unique_machines}
-
-    def _init_jobs(self):
-        df = self.dframe_schedule_plan.copy()
-        df = df.sort_values([self.job_column, "Operation"])  # Sortiere technologisch korrekt
-        return df.groupby(self.job_column)
 
     def job_process(self, job_id, job_operations):
         earliest_start_time = job_operations[0][self.earliest_start_column]
@@ -59,7 +53,7 @@ class ProductionSimulation:
                 self.job_started_on_machine(sim_start, job_id, machine)
                 self.starting_times_dict[(job_id, machine.name)] = round(sim_start, 2)
 
-                sim_duration = duration_log_normal(planned_duration, vc=self.vc)
+                sim_duration = duration_log_normal(planned_duration, sigma=self.sigma)
                 yield self.env.timeout(sim_duration)
                 sim_end = self.env.now
 
@@ -108,8 +102,9 @@ class ProductionSimulation:
         self.env = simpy.Environment(initial_time=start_time)
         self.machines = self._init_machines()
 
-        for job_id, group in self.jobs:
-            operations = group.sort_values("Start").to_dict("records")
+        jobs_grouped = self.dframe_schedule_plan.groupby(self.job_column)
+        for job_id, group in jobs_grouped:
+            operations = group.sort_values("Operation").to_dict("records")
             self.env.process(self.job_process(job_id, operations))
 
         if self.end_time is None:
