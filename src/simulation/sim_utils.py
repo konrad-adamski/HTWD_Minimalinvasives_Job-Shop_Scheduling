@@ -48,4 +48,5 @@ def duration_log_normal(duration: float, sigma: float = 0.2) -> float:
     return round(result, 2)
 
 
-print(duration_log_normal(50, 0.2))
+if __name__ == "__main__":
+    print(duration_log_normal(50, 0.2))
