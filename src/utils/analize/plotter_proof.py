@@ -54,9 +54,9 @@ def proof_of_concept_v2(dev_A, dev_B,
     unit = "%" if as_percentage else "Minuten"
 
     t_A = np.array(tardiness_A) * factor
-    e_A = -np.array(earliness_A) * factor
+    e_A = np.array(earliness_A) * factor
     t_B = np.array(tardiness_B) * factor
-    e_B = -np.array(earliness_B) * factor
+    e_B = np.array(earliness_B) * factor
 
     ax2.plot(days, t_A, marker='o', color=color_tard_A, label=f"{label_A} – Tardiness")
     ax2.plot(days, e_A, marker='s', color=color_early_A, label=f"{label_A} – Earliness")

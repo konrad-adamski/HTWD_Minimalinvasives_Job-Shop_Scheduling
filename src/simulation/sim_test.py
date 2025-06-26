@@ -1,5 +1,5 @@
 from src.simulation.ProductionSimulation import ProductionSimulation
-from configs.config import get_path
+from configs.path_manager import get_path
 import pandas as pd
 
 basic_data_path = get_path("data", "basic")

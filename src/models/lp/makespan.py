@@ -3,7 +3,6 @@ import pandas as pd
 import pulp
 import time
 
-
 def solve_jssp(df_jssp: pd.DataFrame, job_column: str = 'Job', 
                         solver: str = 'CBC', epsilon: float = 0.0, var_cat: str = 'Continuous',
                         time_limit: int | None = 10800, **solver_args):
@@ -76,6 +75,7 @@ def solve_jssp(df_jssp: pd.DataFrame, job_column: str = 'Job',
         
     solver_args.setdefault('msg', True)
 
+
     solver = solver.upper()
     if solver in ['CBC', 'BRANCH AND CUT']:
         cmd = pulp.PULP_CBC_CMD(**solver_args)
@@ -85,6 +85,7 @@ def solve_jssp(df_jssp: pd.DataFrame, job_column: str = 'Job',
         raise ValueError("Solver must be 'CBC' or 'HiGHS'")
 
     prob.solve(cmd)
+
 
     solving_duration = time.time() - starting_time
     makespan_value = pulp.value(prob.objective)

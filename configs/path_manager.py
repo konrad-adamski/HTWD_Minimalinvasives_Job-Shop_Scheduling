@@ -29,7 +29,7 @@ def get_path(*keys: str) -> Path | None:
 def list_keys(*keys: str) -> list[str] | None:
     """
     Returns a list of available subkeys at the specified key path.
-    Example: list_keys("data") → ["basic", "processed"]
+    Example: list_keys("data") → ["basic", "logs"]
     """
     node = _paths
     for key in keys:
