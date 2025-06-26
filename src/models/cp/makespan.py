@@ -1,9 +1,12 @@
-from ortools.sat.python import cp_model
 # pip install ortools==9.8.3296# pip install ortools==9.8.3296
+import os
+from ortools.sat.python import cp_model
 import pandas as pd
+import contextlib
 
 def solve_jssp(df_jssp: pd.DataFrame, job_column = 'Job', 
-               time_limit: int | None = 10800, msg: bool = False, gapRel: float | None = None) -> pd.DataFrame:
+               time_limit: int | None = 10800, msg: bool = False, gapRel: float | None = None,
+               log_file: str | None= None) -> pd.DataFrame:
     """
     Minimiert den Makespan eines klassischen Job-Shop-Problems (JSSP) mit einem CP-Modell.
 
@@ -16,6 +19,7 @@ def solve_jssp(df_jssp: pd.DataFrame, job_column = 'Job',
     Rückgabe:
     - df_schedule: Zeitplan mit Start- und Endzeiten sowie Maschinenbelegung.
     """
+    print("Solving JSSP...")
     model = cp_model.CpModel()
 
     # Vorbereitung
@@ -77,7 +81,11 @@ def solve_jssp(df_jssp: pd.DataFrame, job_column = 'Job',
     if gapRel is not None:
         solver.parameters.relative_gap_limit = gapRel
 
-    status = solver.Solve(model)
+    if log_file is not None:
+        with redirect_cpp_logs(log_file):
+            status = solver.Solve(model)
+    else:
+        status = solver.Solve(model)
 
     # Ergebnis extrahieren
     records = []
@@ -108,3 +116,32 @@ def solve_jssp(df_jssp: pd.DataFrame, job_column = 'Job',
     print(f"  Laufzeit         : {solver.WallTime():.2f} Sekunden")
 
     return df_schedule
+
+
+
+@contextlib.contextmanager
+def redirect_cpp_logs(logfile_path: str = "cp_output.log"):
+    """
+    Kontextmanager zur temporären Umleitung von stdout/stderr,
+    z.B. für OR-Tools CP-Solver-Ausgaben. Nach dem Block wird die
+    normale Ausgabe wiederhergestellt.
+    """
+
+    # Originale stdout/stderr sichern
+    original_stdout_fd = os.dup(1)
+    original_stderr_fd = os.dup(2)
+
+    with open(logfile_path, 'w') as f:
+        try:
+            # Umleiten
+            os.dup2(f.fileno(), 1)
+            os.dup2(f.fileno(), 2)
+            yield
+            f.flush() # wichtig für Jupyter oder späte Flush-Probleme
+        finally:
+            # Wiederherstellen
+            os.dup2(original_stdout_fd, 1)
+            os.dup2(original_stderr_fd, 2)
+            os.close(original_stdout_fd)
+            os.close(original_stderr_fd)
+
