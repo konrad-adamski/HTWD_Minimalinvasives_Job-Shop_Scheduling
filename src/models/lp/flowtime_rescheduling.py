@@ -325,8 +325,8 @@ def solve_jssp_with_fixed_ops(df_jssp: pd.DataFrame, df_arrivals: pd.DataFrame, 
 
 def get_records(jobs, all_ops, starts, arrival, job_column="Job", df_arrivals=None):
     # Optional: Mapping von Job → Production_Plan_ID
-    if df_arrivals is not None and "Production_Plan_ID" in df_arrivals.columns:
-        job_production_plan = df_arrivals.set_index(job_column)["Production_Plan_ID"].to_dict()
+    if df_arrivals is not None and "Routing_ID" in df_arrivals.columns:
+        job_production_plan = df_arrivals.set_index(job_column)["Routing_ID"].to_dict()
     else:
         job_production_plan = {}
 
@@ -339,7 +339,7 @@ def get_records(jobs, all_ops, starts, arrival, job_column="Job", df_arrivals=No
                 job_column: job,
             }
             if job in job_production_plan:
-                record["Production_Plan_ID"] = job_production_plan[job]
+                record["Routing_ID"] = job_production_plan[job]
             record.update({
                 "Operation": op_id,
                 "Arrival": arrival[job],
