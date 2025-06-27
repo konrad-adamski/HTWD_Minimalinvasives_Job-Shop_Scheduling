@@ -49,7 +49,7 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: st
     prob.solve(cmd)
 
     # 8. Ergebnis
-    df_schedule = get_records_df(df_jssp, df_times, jobs, starts, job_column)
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
 
     # 9. Lateness-Spalten berechnen
     df_schedule["Lateness"] = df_schedule["End"] - df_schedule["Deadline"]
@@ -67,7 +67,7 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: st
 
 
 # Min. Max Absolute Latenesss -----------------------------------------------------------------------------------------
-def solve_jssp_max_absolute_lateness(df_jssp: pd.DataFrame, df_times: pd.DataFrame,
+def solve_jssp_max(df_jssp: pd.DataFrame, df_times: pd.DataFrame,
                                      job_column: str = "Job", earliest_start_column: str = "Arrival",
                                      solver: str = "HiGHS", epsilon: float = 0.0, var_cat: str = "Continuous",
                                      time_limit: int | None = 10800, sort_ascending: bool = False, **solver_args) -> pd.DataFrame:
@@ -112,7 +112,7 @@ def solve_jssp_max_absolute_lateness(df_jssp: pd.DataFrame, df_times: pd.DataFra
     prob.solve(cmd)
 
     # 8. Ergebnis
-    df_schedule = get_records_df(df_jssp, df_times, jobs, starts, job_column)
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
     df_schedule["Lateness"] = (df_schedule["End"] - df_schedule["Deadline"]).clip(lower=0).round(2)
     df_schedule["Absolute Lateness"] = df_schedule["Lateness"].abs()
 
