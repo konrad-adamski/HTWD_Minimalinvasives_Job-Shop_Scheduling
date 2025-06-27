@@ -92,12 +92,14 @@ def solve_jssp_sum_with_devpen(df_jssp: pd.DataFrame, df_times: pd.DataFrame, df
     objective_value = pulp.value(prob.objective)
 
     # 8. Ergebnisse
-    df_schedule = get_records_df(df_jssp, df_times, jobs, starts, job_column=job_column)
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
     df_schedule["Tardiness"] = (df_schedule["End"] - df_schedule["Deadline"]).clip(lower=0).round(2)
-    df_schedule["Deviation"] = df_schedule.apply(
-        lambda row: round(abs(row["Start"] - original_start.get((row[job_column], row["Operation"]), row["Start"])), 2),
-        axis=1
-    )
+    df_schedule = df_schedule.sort_values([job_column, "Operation"]).reset_index(drop=True)
+
+    #df_schedule["Deviation"] = df_schedule.apply(
+    #    lambda row: round(abs(row["Start"] - original_start.get((row[job_column], row["Operation"]), row["Start"])), 2),
+    #    axis=1
+    #)
 
     # 9. Logging
     print("\nSolver-Informationen:")
@@ -173,15 +175,9 @@ def solve_jssp_sum_with_fixed_ops(df_jssp: pd.DataFrame, df_times: pd.DataFrame,
     objective_value = pulp.value(prob.objective)
 
     # 7. Ergebnis aufbereiten
-    df_schedule = get_records_df(
-        df_jssp=df_jssp,
-        df_times=df_times,
-        jobs_list=jobs,
-        starts=starts,
-        job_column=job_column
-    )
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
     df_schedule["Tardiness"] = (df_schedule["End"] - df_schedule["Deadline"]).clip(lower=0).round(2)
-    df_schedule = df_schedule.sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
+    df_schedule = df_schedule.sort_values([job_column, "Operation"]).reset_index(drop=True)
 
     # 8. Logging
     print("\nSolver-Informationen:")
@@ -269,9 +265,9 @@ def solve_jssp_max_with_devpen(df_jssp: pd.DataFrame, df_times: pd.DataFrame, df
     objective_value = pulp.value(prob.objective)
 
     # 9. Ergebnis
-    df_schedule = get_records_df(
-        jobs, all_ops, starts, arrival, deadline, job_column, df_times
-    )
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
+    df_schedule["Tardiness"] = (df_schedule["End"] - df_schedule["Deadline"]).clip(lower=0).round(2)
+    df_schedule = df_schedule.sort_values([job_column, "Operation"]).reset_index(drop=True)
 
     # 10. Logging
     print("\nSolver-Informationen:")
@@ -345,7 +341,7 @@ def solve_jssp_max_with_fixed_ops(df_jssp: pd.DataFrame, df_times: pd.DataFrame,
     objective_value = pulp.value(prob.objective)
 
     # 8. Ergebnis
-    df_schedule = get_records_df(df_jssp, df_times, jobs, starts, job_column=job_column)
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
     df_schedule["Tardiness"] = (df_schedule["End"] - df_schedule["Deadline"]).clip(lower=0).round(2)
     df_schedule = df_schedule.sort_values([job_column, "Operation"]).reset_index(drop=True)
 

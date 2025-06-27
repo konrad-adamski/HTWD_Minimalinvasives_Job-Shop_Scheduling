@@ -4,7 +4,7 @@ import math
 import pulp
 import time
 
-def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: str = "Job", earliest_start_column = "Arrival"
+def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: str = "Job", earliest_start_column = "Arrival",
                    solver: str = "HiGHS", epsilon: float = 0.0, var_cat: str = "Continuous",
                    time_limit: int | None = 10800, sort_ascending: bool = False, **solver_args) -> pd.DataFrame:
     start_time = time.time()
@@ -37,7 +37,7 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: st
     objective_value = pulp.value(prob.objective)
 
     # 5. Ergebnis
-    df_schedule = get_records_df(df_jssp, df_times, jobs, starts, job_column=job_column)
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
     df_schedule["Tardiness"] = (df_schedule["End"] - df_schedule["Deadline"]).clip(lower=0).round(2)
     df_schedule = df_schedule.sort_values([job_column, "Operation"]).reset_index(drop=True)
 
@@ -91,9 +91,9 @@ def solve_jssp_max(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: st
     objective_value = pulp.value(prob.objective)
 
     # 5. Ergebnis
-    df_schedule = get_records_df(df_jssp, df_times, jobs, starts, job_column=job_column)
+    df_schedule = get_schedule_df(jobs, all_ops, starts, df_jssp, df_times, job_column)
     df_schedule["Tardiness"] = (df_schedule["End"] - df_schedule["Deadline"]).clip(lower=0).round(2)
-    df_schedule = df_schedule.sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
+    df_schedule = df_schedule.sort_values([job_column, "Operation"]).reset_index(drop=True)
 
     # 6. Logging
     print("\nSolver-Informationen:")

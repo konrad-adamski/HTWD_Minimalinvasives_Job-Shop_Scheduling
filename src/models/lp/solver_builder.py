@@ -207,36 +207,90 @@ def define_technological_constraints_with_fixed_ops(prob, jobs, all_ops, starts,
 
 # ------------------------------------------------------------------------------------------------------------------
         
-def get_records_df(df_jssp: pd.DataFrame, df_times: pd.DataFrame, 
-                   jobs_list: list[str], starts: dict, job_column: str = "Job") -> pd.DataFrame:
+
+def get_records_df(df_jssp: pd.DataFrame, df_times: pd.DataFrame, jobs_list: list[str], all_ops: list[list[tuple]], 
+                   starts: dict, job_column: str = "Job") -> pd.DataFrame:
     """
-    Baut das Ergebnis-DataFrame aus df_jssp, df_times und den Solver-Variablen (starts) auf.
+    Baut ein robustes Ergebnis-DataFrame direkt aus dem Solver-Modell (jobs_list, all_ops, starts).
 
     Parameter:
-    - df_jssp: DataFrame mit ['Job','Operation','Machine','Processing Time'].
-    - df_times: DataFrame mit ['Job', 'Deadline', 'Arrival' bzw. Ready Time etc.].
-    - jobs_list: Liste der geplanten Jobs in exakt der Reihenfolge wie im Solver.
-    - starts: Dict mit Schlüsseln (j, o) → pulp.LpVariable, wobei j = Index in `jobs_list`.
-    - job_column: Spaltenname für Jobs (Standard: "Job").
+    - df_jssp: Ursprüngliche Operationsdaten (inkl. Maschinen, Processing Times etc.)
+    - jobs_list: Reihenfolge der Jobs wie im Modell
+    - all_ops: Liste der Operationen pro Job, wie im Modell genutzt
+    - starts: Dict mit pulp-Variablen (j, o)
+    - df_times: Enthält Zusatzinformationen wie Arrival, Deadline etc.
+    - job_column: Spaltenname für die Job-ID
     """
-    # 1. Konfliktfreie Zusatzinfos aus df_times holen
+    # 1. Ergebnisse aus Modell extrahieren
+    records = []
+    for j, job in enumerate(jobs_list):
+        for o, (op_id, machine, proc_time) in enumerate(all_ops[j]):
+            start = round(starts[(j, o)].varValue, 2)
+            end = round(start + proc_time, 2)
+            records.append({
+                job_column: job,
+                "Operation": op_id,
+                "Start": start,
+                "End": end,
+            })
+
+    df_result = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
+
+    # 2. Zusatzinformationen konfliktfrei vorbereiten
     shared_cols = set(df_jssp.columns) & set(df_times.columns)
     shared_cols_to_drop = [col for col in shared_cols if col != job_column]
     df_times_filtered = df_times.drop(columns=shared_cols_to_drop, errors="ignore")
 
-    # 2. Merge mit Zusatzinfos (z. B. Deadline, Ready Time etc.)
-    df_result = df_jssp.merge(df_times_filtered, on=job_column, how="left")
+    # 3. Merge aus Originaldaten und Zeitinformationen
+    df_info = df_jssp.merge(df_times_filtered, on=job_column, how="left")
 
-    # 3. Job-Index-Zuordnung (nun korrekt übergegeben)
-    job_to_index = {job: j for j, job in enumerate(jobs_list)}
-
-    # 4. Start- und Endzeiten aus dem Solver extrahieren
-    df_result["Start"] = df_result.apply(
-        lambda row: round(starts[(job_to_index[row[job_column]], row["Operation"])].varValue, 2),
-        axis=1
-    )
-    df_result["End"] = df_result["Start"] + df_result["Processing Time"]
+    # 4. Ergebnis mit den berechneten Start-/Endzeiten zusammenführen
+    df_result = df_result.merge(df_info, on=[job_column, "Operation"], how="inner")
 
     return df_result
+
+
+def get_schedule_df(jobs, all_ops, starts, df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column="Job"):
+    
+    records = []
+    for j, job in enumerate(jobs):
+        for o, (op_id, m, d) in enumerate(all_ops[j]):
+            st = starts[(j, o)].varValue
+            ed = st + d
+            record = {
+                job_column: job,
+                "Operation": op_id,
+                "Machine": m,
+                "Start": round(st, 2),
+                 "End": round(ed, 2)
+            }
+            records.append(record)
+    df_records = pd.DataFrame.from_records(records)
+
+    # 2a. Kollisionen 
+    shared_cols = set(df_jssp.columns) & set(df_times.columns)
+    jssp_shared_cols_to_drop = [col for col in shared_cols if col != job_column]
+    
+    # 2b. Legacy Einträge entfernen
+    jssp_legacy_cols = [col for col in ["Start", "End",  "Deadline", "Tardiness", "Lateness","Absolute Lateness", "Flow Time"] if col in df_jssp.columns]
+    times_legacy_cols = ["End"] if "End" in df_times.columns else []
+
+    jssp_cols_to_remove = jssp_shared_cols_to_drop + jssp_legacy_cols
+    df_jssp_filtered = df_jssp.drop(columns=jssp_cols_to_remove, errors="ignore")
+    
+    df_times_filtered = df_times.drop(columns=times_legacy_cols, errors="ignore")
+
+
+    
+    # 2c. Merge aus Originaldaten und Zeitinformationen
+    df_info = df_jssp_filtered.merge(df_times_filtered, on=job_column, how="left")
+
+    # 3. Ergebnis
+    df_schedule = df_info.merge(df_records, on=[job_column, "Operation", "Machine"], how="left")
+    
+    return df_schedule
+    
+
+
 
                 
