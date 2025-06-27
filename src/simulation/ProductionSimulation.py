@@ -64,8 +64,8 @@ class ProductionSimulation:
             entry = {
                 self.job_column: job_id,
             }
-            if "Production_Plan_ID" in op:
-                entry["Production_Plan_ID"] = op["Production_Plan_ID"]
+            if "Routing_ID" in op:
+                entry["Routing_ID"] = op["Routing_ID"]
 
             entry["Operation"] = op["Operation"]
             entry["Machine"] = machine.name
