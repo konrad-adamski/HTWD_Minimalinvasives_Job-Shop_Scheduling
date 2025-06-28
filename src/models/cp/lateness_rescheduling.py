@@ -311,6 +311,7 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
 
 
 
+
 def get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver, job_column="Job", df_times=None):
     """
     Erstellt Scheduling-Records mit Tardiness- und Earliness-Berechnung aus CP-Solver-Ergebnissen.
@@ -330,10 +331,10 @@ def get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver, job_co
     """
 
     # 1. Optionales Mapping: Job → Production_Plan_ID
-    if df_times is not None and "Production_Plan_ID" in df_times.columns:
-        job_production_plan = df_times.set_index(job_column)["Production_Plan_ID"].to_dict()
+    if df_times is not None and "Routing_ID" in df_times.columns:
+        job_routing = df_times.set_index(job_column)["Routing_ID"].to_dict()
     else:
-        job_production_plan = {}
+        job_routing = {}
 
     # 2. Records erzeugen
     records = []
@@ -346,8 +347,8 @@ def get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver, job_co
             record = {
                 job_column: job,
             }
-            if job in job_production_plan:
-                record["Production_Plan_ID"] = job_production_plan[job]
+            if job in job_routing:
+                record["Routing_ID"] = job_routing[job]
             record.update({
                 "Operation": op_id,
                 "Machine": m,
