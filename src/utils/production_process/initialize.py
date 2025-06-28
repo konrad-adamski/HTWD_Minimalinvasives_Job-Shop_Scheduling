@@ -130,7 +130,7 @@ def generate_jobs_from_routings(df_routings: pd.DataFrame, job_column: str = 'Jo
         routing_id = grp[routing_column].iloc[0]
         for _, row in grp.iterrows():
             new_recs.append({
-                job_column: f"J{job_id}",
+                job_column: f"J25-{job_id:04d}",
                 routing_column: routing_id,
                 'Operation': row['Operation'],
                 'Machine': row['Machine'],
