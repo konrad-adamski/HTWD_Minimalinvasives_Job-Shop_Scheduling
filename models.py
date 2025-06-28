@@ -129,32 +129,62 @@ class Job(Model):
 
         return pd.DataFrame(data)
 
+    @classmethod
+    def clone_jobs(cls, referenced_version: str, new_version: str):
+        """
+        Klont alle Jobs aus der angegebenen Referenzversion in eine neue Version.
+        Die Job-IDs bleiben gleich, nur die Version wird ersetzt.
+        Überschreibt existierende Einträge mit (job_id, new_version).
+        """
+        jobs = cls.select().where(cls.version == referenced_version)
+        count = 0
+
+        for job in jobs:
+            try:
+                data = {
+                    "job_id": job.job_id,
+                    "version": new_version,
+                    "routing": job.routing,
+                    "arrival_time": job.arrival_time,
+                    "ready_time": job.ready_time,
+                    "due_date": job.due_date,
+                    "status": job.status,
+                }
+
+                cls.insert(data).on_conflict(
+                    conflict_target=["job_id", "version"],
+                    update=data
+                ).execute()
+                count += 1
+            except Exception as e:
+                print(f"❌ Fehler beim Klonen von Job {job.job_id}: {e}")
+
+        print(f"✅ {count} Jobs von Version '{referenced_version}' nach Version '{new_version}' kopiert.")
+
+
 
 class Schedule(Model):
     id = AutoField(verbose_name="ID")
     date = IntegerField(null=True, verbose_name="Date")
     data = JSONField(verbose_name="Data")
-    description = TextField(null=True, verbose_name="Description")
     version = CharField(null=True, verbose_name="Version")
 
     class Meta:
         database = db
 
     @classmethod
-    def add_schedule(cls, data: dict, date: int = None, description: str = None, version: str = None):
+    def add_schedule(cls, data: dict, date: int = None, version: str = None):
         """
         Fügt einen neuen Schedule-Eintrag in die Datenbank ein.
 
         :param data: Der JSON-ähnliche Inhalt des Schedules
         :param date
-        :param description
         :param version
         """
         try:
             cls.create(
                 data=data,
                 date=date,
-                description=description,
                 version=version
             )
             print(f"✅ Schedule hinzugefügt (Version={version}, Date={date})")
@@ -162,7 +192,7 @@ class Schedule(Model):
             print(f"❌ Fehler beim Hinzufügen des Schedules: {e}")
 
     @classmethod
-    def get_schedule_as_dataframe(cls, date: int, version: str = None, description: str = None) -> pd.DataFrame:
+    def get_schedule_as_dataframe(cls, date: int, version: str = None) -> pd.DataFrame:
         """
         Gibt das Schedule-JSON als DataFrame zurück, gefiltert nach Datum und optional Version und Beschreibung.
         Falls mehrere Einträge passen, wird der letzte (höchste ID) verwendet.
@@ -172,14 +202,11 @@ class Schedule(Model):
         if version is not None:
             query = query.where(cls.version == version)
 
-        if description is not None:
-            query = query.where(cls.description == description)
-
         query = query.order_by(cls.id.desc())
         schedules = list(query)
 
         if not schedules:
-            print(f"⚠️ Kein Schedule gefunden für Date={date}, Version='{version}', Description='{description}'.")
+            print(f"⚠️ Kein Schedule gefunden für Date={date}, Version='{version}'.")
             return pd.DataFrame()
 
         if len(schedules) > 1:
@@ -191,6 +218,33 @@ class Schedule(Model):
         except Exception as e:
             print(f"❌ Fehler beim Umwandeln in DataFrame: {e}")
             return pd.DataFrame()
+
+    @classmethod
+    def clone_schedules(cls, referenced_version: str, new_version: str):
+        """
+        Klont alle Schedule-Einträge der angegebenen Referenz-Version in eine neue Version.
+        Datum bleibt erhalten. Überspringt Einträge, wenn (date, version) bereits existieren.
+        """
+        schedules = cls.select().where(cls.version == referenced_version)
+
+        if not schedules:
+            print(f"⚠️ Keine Schedules gefunden für Version='{referenced_version}'.")
+            return
+
+        count = 0
+        for s in schedules:
+            try:
+                cls.insert({
+                    "date": s.date,
+                    "data": s.data,
+                    "version": new_version
+                }).on_conflict_ignore().execute()  # Duplikate vermeiden
+                count += 1
+            except Exception as e:
+                print(f"❌ Fehler beim Klonen (Date={s.date}): {e}")
+
+        print(f"✅ {count} Schedule-Einträge von Version '{referenced_version}' nach '{new_version}' kopiert.")
+
 
 
 # für Simulation
@@ -305,3 +359,57 @@ class JobOperation(Model):
 
         print(f"✅ {updated} Job(s) wurden auf 'closed' gesetzt (Version '{version}').")
         return closed_jobs
+
+    @classmethod
+    def clone_operations(cls, referenced_version: str, new_version: str):
+        """
+        Klont alle JobOperationen aus der angegebenen Referenzversion in eine neue Version.
+        Die Kombination (job_id, operation) bleibt gleich, nur die Version wird ersetzt.
+        Überschreibt bestehende Einträge mit (job_id, new_version, operation).
+        """
+        operations = cls.select().where(cls.version == referenced_version)
+        count = 0
+
+        for op in operations:
+            try:
+                data = {
+                    "job_id": op.job_id,
+                    "version": new_version,
+                    "operation": op.operation,
+                    "machine": op.machine,
+                    "start": op.start,
+                    "end": op.end,
+                    "processing_time": op.processing_time,
+                    "status": op.status,
+                }
+
+                cls.insert(data).on_conflict(
+                    conflict_target=["job_id", "version", "operation"],
+                    update=data
+                ).execute()
+                count += 1
+            except Exception as e:
+                print(f"❌ Fehler beim Klonen von Operation ({op.job_id}, {op.operation}): {e}")
+
+        print(
+            f"✅ {count} JobOperation-Einträge von Version '{referenced_version}' nach Version '{new_version}' kopiert.")
+
+
+
+def reset_all_tables():
+    """
+    Löscht alle Tabellen (falls vorhanden) und erstellt sie neu.
+    Achtung: Alle Daten gehen dabei verloren!
+    """
+    tables = [JobOperation, Job, Routing, Schedule]  # Reihenfolge beachten
+
+    try:
+        db.connect(reuse_if_open=True)
+        db.drop_tables(tables, safe=True)
+        db.create_tables(tables)
+        print("✅ Alle Tabellen wurden erfolgreich zurückgesetzt.")
+    except Exception as e:
+        print(f"❌ Fehler beim Zurücksetzen der Tabellen: {e}")
+    finally:
+        if not db.is_closed():
+            db.close()
