@@ -1,20 +1,25 @@
 import pandas as pd
-from peewee import Model, TextField, CharField, ForeignKeyField, IntegerField, AutoField, BooleanField, CompositeKey, \
-    FloatField
+from peewee import Model, TextField, CharField, ForeignKeyField, IntegerField, AutoField, CompositeKey,FloatField
 from playhouse.sqlite_ext import JSONField
 
 from database import db
 
-
 class Routing(Model):
-    routing = CharField(verbose_name="Routing ID")         # Teil des Composite Keys
-    operation = IntegerField(verbose_name="Operation")      # Teil des Composite Keys
+    id = CharField(verbose_name='ID', primary_key=True)
+    description = CharField(verbose_name='Description', null=True)
+
+    class Meta:
+        database = db
+
+class RoutingOperation(Model):
+    routing = ForeignKeyField(Routing, backref="operations", column_name="routing_id", verbose_name="Routing ID")
+    operation = IntegerField(verbose_name="Operation")  # Teil des Composite Keys
     machine = CharField(verbose_name="Machine")
     duration = IntegerField(verbose_name="Duration")
 
     class Meta:
         database = db
-        primary_key = CompositeKey('routing', 'operation')  # 👈 Composite Primary Key
+        primary_key = CompositeKey('routing', 'operation')  # ⬅️ routing verweist auf Routing.id
 
     @classmethod
     def add_routing(cls, routing_id: str, operation: int, machine: str, duration: int):
@@ -23,7 +28,7 @@ class Routing(Model):
         """
         try:
             cls.create(
-                routing=routing_id,
+                routing=routing_id,  # ForeignKey akzeptiert string ID
                 operation=operation,
                 machine=machine,
                 duration=duration
@@ -39,7 +44,7 @@ class Routing(Model):
         """
         data = [
             {
-                "Routing_ID": r.routing,
+                "Routing_ID": r.routing.id,
                 "Operation": r.operation,
                 "Machine": r.machine,
                 "Processing Time": r.duration
@@ -49,8 +54,8 @@ class Routing(Model):
         return pd.DataFrame(data)
 
 class Job(Model):
-    job_id = CharField(verbose_name="Job ID")
-    routing = CharField(verbose_name="Routing ID")
+    id = CharField(verbose_name="Job ID")
+    routing = ForeignKeyField(Routing, backref="jobs", column_name="routing_id", verbose_name="Routing ID")
     arrival_time = IntegerField(verbose_name="Arrival Time")
     ready_time = IntegerField(verbose_name="Ready Time")
     due_date = IntegerField(verbose_name="Due Date")
@@ -59,7 +64,7 @@ class Job(Model):
 
     class Meta:
         database = db
-        primary_key = CompositeKey('job_id', 'version')  # Composite Primary Key
+        primary_key = CompositeKey('id', 'version')  # Composite Primary Key
 
     @classmethod
     def add_jobs_from_dataframe(cls, df: pd.DataFrame, routing_column='Routing_ID', due_date_column='Deadline',
@@ -71,14 +76,14 @@ class Job(Model):
         for _, row in df.iterrows():
             try:
                 routing_id = str(row[routing_column])
-                if not Routing.select().where(Routing.routing == routing_id).exists():
+                if not RoutingOperation.select().where(RoutingOperation.routing == routing_id).exists():
                     print(f"⚠️ Routing-ID '{routing_id}' nicht gefunden – Job {row['Job']} wird übersprungen.")
                     continue
 
                 data = {
-                    "job_id": str(row['Job']),
+                    "id": str(row['Job']),
                     "version": version,
-                    "routing": routing_id,
+                    "routing_id": routing_id,
                     "arrival_time": int(row['Arrival']),
                     "ready_time": int(row['Ready Time']),
                     "due_date": int(row[due_date_column]),
@@ -86,7 +91,7 @@ class Job(Model):
                 }
 
                 cls.insert(data).on_conflict(
-                    conflict_target=['job_id', 'version'],
+                    conflict_target=['id', 'version'],
                     update=data
                 ).execute()
 
@@ -116,8 +121,8 @@ class Job(Model):
 
         data = [
             {
-                "Job": job.job_id,
-                "Routing_ID": job.routing,
+                "Job": job.id,
+                "Routing_ID": job.routing.id,
                 "Arrival": job.arrival_time,
                 "Ready Time": job.ready_time,
                 "Deadline": job.due_date,
@@ -142,9 +147,9 @@ class Job(Model):
         for job in jobs:
             try:
                 data = {
-                    "job_id": job.job_id,
+                    "id": job.id,
                     "version": new_version,
-                    "routing": job.routing,
+                    "routing_id": job.routing.id,
                     "arrival_time": job.arrival_time,
                     "ready_time": job.ready_time,
                     "due_date": job.due_date,
@@ -152,12 +157,12 @@ class Job(Model):
                 }
 
                 cls.insert(data).on_conflict(
-                    conflict_target=["job_id", "version"],
+                    conflict_target=["id", "version"],
                     update=data
                 ).execute()
                 count += 1
             except Exception as e:
-                print(f"❌ Fehler beim Klonen von Job {job.job_id}: {e}")
+                print(f"❌ Fehler beim Klonen von Job {job.id}: {e}")
 
         print(f"✅ {count} Jobs von Version '{referenced_version}' nach Version '{new_version}' kopiert.")
 
@@ -248,33 +253,36 @@ class Schedule(Model):
 
 
 # für Simulation
-class JobOperation(Model):
-    job_id = CharField(verbose_name="Job ID")       # Teil des Composite Foreign Key
-    operation = IntegerField(verbose_name="Operation")  # Teil des Composite Primary Key
+class JSSP_LIVE(Model):
+    job_id = CharField(verbose_name="Job ID")               # 1. Teil des Keys
+    version = CharField(verbose_name="Version")             # 2. Teil des Keys
+    routing_id = CharField(verbose_name="Routing ID")       # 3. Teil des Keys
+    operation = IntegerField(verbose_name="Operation")      # 4. Teil des Keys
     machine = CharField(verbose_name="Machine")
     start = FloatField(null=True, verbose_name="Start Time")
     processing_time = FloatField(verbose_name="Processing Time")
     end = FloatField(null=True, verbose_name="End Time")
     status = CharField(default="open", verbose_name="Status")
-    version = CharField(verbose_name="Version")  # Teil des Composite Foreign Key
 
     class Meta:
         database = db
-        primary_key = CompositeKey('job_id', 'version', 'operation')  # 👈 Composite PK
+        primary_key = CompositeKey('job_id', 'version', 'routing_id', 'operation')
 
 
     @classmethod
     def add_from_dataframe(cls, df: pd.DataFrame, version: str = "base", status: str = "open"):
         """
-        Fügt JobOperation-Einträge aus einem DataFrame ein oder aktualisiert sie.
-        Erwartete Spalten: 'Job', 'Operation', 'Machine'. Optional: 'Start', 'End'.
-        'version' und 'status' werden einheitlich übergeben.
+        Fügt JSSP_LIVE-Einträge aus einem DataFrame ein oder aktualisiert sie.
+        Erwartete Spalten: 'Job', 'Routing_ID', 'Operation', 'Machine', 'Processing Time'.
+        Optional: 'Start', 'End'.
+        Die Spalten 'version' und 'status' werden einheitlich übergeben.
         """
         count = 0
         for _, row in df.iterrows():
             try:
                 data = {
                     "job_id": str(row["Job"]).strip(),
+                    "routing_id": str(row["Routing_ID"]).strip(),
                     "machine": str(row["Machine"]).strip(),
                     "operation": int(row["Operation"]),
                     "processing_time": float(row["Processing Time"]),
@@ -289,20 +297,20 @@ class JobOperation(Model):
                     data["end"] = float(row["End"])
 
                 cls.insert(data).on_conflict(
-                    conflict_target=["job_id", "version", "operation"],
+                    conflict_target=["job_id", "version","routing_id", "operation"],
                     update=data
                 ).execute()
 
                 count += 1
             except Exception as e:
-                print(f"❌ Fehler bei JobOperation ({row.get('Job')}, {version}, {row.get('Operation')}): {e}")
+                print(f"❌ Fehler bei JSSP ({row.get('Job')}, {version}, {row.get('Operation')}): {e}")
         print(
-            f"✅ {count} JobOperation-Einträge (Version '{version}', Status '{status}') wurden hinzugefügt oder aktualisiert.")
+            f"✅ {count} JSSP_LIVE-Einträge (Version '{version}', Status '{status}') wurden hinzugefügt oder aktualisiert.")
 
     @classmethod
     def get_dataframe(cls, version: str, jobs: list[str] = None, status: str = None) -> pd.DataFrame:
         """
-        Gibt einen DataFrame aller JobOperationen für eine bestimmte Version zurück.
+        Gibt einen DataFrame aller Operationen für eine bestimmte Version zurück.
         Optional kann zusätzlich nach Job-IDs und Status gefiltert werden.
         """
         query = cls.select().where(cls.version == version)
@@ -316,6 +324,7 @@ class JobOperation(Model):
         data = [
             {
                 "Job": row.job_id,
+                "Routing_ID": row.routing_id,
                 "Machine": row.machine,
                 "Operation": row.operation,
                 "Start": row.start,
@@ -332,8 +341,7 @@ class JobOperation(Model):
     @classmethod
     def update_closed_jobs_from_operations(cls, version: str) -> list[str]:
         """
-        Setzt den Status in der Job-Tabelle auf 'closed' für alle Jobs, deren Operationen vollständig 'finished' sind.
-        Gilt nur für Jobs in der übergebenen Version.
+        Setzt den Status in der Job-Tabelle auf 'closed' für alle Jobs, deren Operationen in einer Version vollständig 'finished' sind.
         Rückgabe: Liste der betroffenen Job-IDs.
         """
         # Schritt 1: Alle Operationen der Version holen
@@ -353,7 +361,7 @@ class JobOperation(Model):
 
         # Schritt 3: In Job-Tabelle status = "closed" setzen (nur passende Version)
         query = Job.update(status="closed").where(
-            (Job.version == version) & (Job.job_id.in_(closed_jobs))
+            (Job.version == version) & (Job.id.in_(closed_jobs))
         )
         updated = query.execute()
 
@@ -363,9 +371,9 @@ class JobOperation(Model):
     @classmethod
     def clone_operations(cls, referenced_version: str, new_version: str):
         """
-        Klont alle JobOperationen aus der angegebenen Referenzversion in eine neue Version.
-        Die Kombination (job_id, operation) bleibt gleich, nur die Version wird ersetzt.
-        Überschreibt bestehende Einträge mit (job_id, new_version, operation).
+        Klont alle Operationen aus einer Referenzversion in eine neue Version.
+        Die Kombination (job_id, routing_id, operation) bleibt gleich, nur die Version wird ersetzt.
+        Überschreibt bestehende Einträge mit (job_id, new_version, routing_id, operation).
         """
         operations = cls.select().where(cls.version == referenced_version)
         count = 0
@@ -374,6 +382,7 @@ class JobOperation(Model):
             try:
                 data = {
                     "job_id": op.job_id,
+                    "routing_id": op.routing_id,
                     "version": new_version,
                     "operation": op.operation,
                     "machine": op.machine,
@@ -384,7 +393,7 @@ class JobOperation(Model):
                 }
 
                 cls.insert(data).on_conflict(
-                    conflict_target=["job_id", "version", "operation"],
+                    conflict_target=["job_id", "version", "routing_id", "operation"],
                     update=data
                 ).execute()
                 count += 1
@@ -392,24 +401,39 @@ class JobOperation(Model):
                 print(f"❌ Fehler beim Klonen von Operation ({op.job_id}, {op.operation}): {e}")
 
         print(
-            f"✅ {count} JobOperation-Einträge von Version '{referenced_version}' nach Version '{new_version}' kopiert.")
+            f"✅ {count} JSSP_LIVE-Einträge von Version '{referenced_version}' nach Version '{new_version}' kopiert.")
 
 
 
-def reset_all_tables():
+def drop_tables():
+    tables = [JSSP_LIVE, Job, RoutingOperation, Routing, Schedule]
+    try:
+        db.connect(reuse_if_open=True)
+        db.drop_tables(tables, safe=True)
+    except Exception as e:
+        print(f"Fehler bei der Löschung der Tabellen: {e}")
+    finally:
+        if not db.is_closed():
+            db.close()
+
+
+def create_tables():
+    tables = [Routing, RoutingOperation, Job, JSSP_LIVE, Schedule]
+    try:
+        db.connect(reuse_if_open=True)
+        db.create_tables(tables)
+    except Exception as e:
+        print(f"Fehler bei der Erstellung der Tabellen: {e}")
+    finally:
+        if not db.is_closed():
+            db.close()
+
+def reset_tables():
     """
     Löscht alle Tabellen (falls vorhanden) und erstellt sie neu.
     Achtung: Alle Daten gehen dabei verloren!
     """
-    tables = [JobOperation, Job, Routing, Schedule]  # Reihenfolge beachten
+    drop_tables()
+    create_tables()
 
-    try:
-        db.connect(reuse_if_open=True)
-        db.drop_tables(tables, safe=True)
-        db.create_tables(tables)
-        print("✅ Alle Tabellen wurden erfolgreich zurückgesetzt.")
-    except Exception as e:
-        print(f"❌ Fehler beim Zurücksetzen der Tabellen: {e}")
-    finally:
-        if not db.is_closed():
-            db.close()
+
