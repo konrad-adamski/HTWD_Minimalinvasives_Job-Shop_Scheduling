@@ -39,7 +39,6 @@ def build_jssp_variables(jobs: List, all_ops: List, earliest_start: Dict, var_ca
         j: pulp.LpVariable(f"end_{j}", lowBound=earliest_start[jobs[j]], cat=var_cat)
         for j in range(n)
     }
-
     extras = [
         {
             j: pulp.LpVariable(f"{name}_{j}", **props)
@@ -47,7 +46,6 @@ def build_jssp_variables(jobs: List, all_ops: List, earliest_start: Dict, var_ca
         }
         for name, props in extra_vars.items()
     ]
-
     return starts, ends, *extras
 
 
