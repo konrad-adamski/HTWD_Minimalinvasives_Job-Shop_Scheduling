@@ -142,13 +142,13 @@ def execute_one_day(df_schedule: pd.DataFrame, this_version: str, day_numb: int 
 
 
 if __name__ == "__main__":
-    this_version = "advanced_v03"
+    this_version = "advanced_v04"
     # Routings
     df_routings = RoutingOperation.get_dataframe()
 
     init_new_version(base_version="base", new_version=this_version)
 
-    last_planning_start = 6
+    last_planning_start = 3
     for day_numb in range(1, last_planning_start + 1):
         roll_one_day(df_routings=df_routings, this_version=this_version, day_numb = day_numb)
 
