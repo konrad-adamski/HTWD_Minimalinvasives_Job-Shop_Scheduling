@@ -253,7 +253,7 @@ class Schedule(Model):
 
 
 # für Simulation
-class JSSP_LIVE(Model):
+class JobOperation(Model):
     job_id = CharField(verbose_name="Job ID")               # 1. Teil des Keys
     version = CharField(verbose_name="Version")             # 2. Teil des Keys
     routing_id = CharField(verbose_name="Routing ID")       # 3. Teil des Keys
@@ -272,7 +272,7 @@ class JSSP_LIVE(Model):
     @classmethod
     def add_from_dataframe(cls, df: pd.DataFrame, version: str = "base", status: str = "open"):
         """
-        Fügt JSSP_LIVE-Einträge aus einem DataFrame ein oder aktualisiert sie.
+        Fügt JobOperation-Einträge aus einem DataFrame ein oder aktualisiert sie.
         Erwartete Spalten: 'Job', 'Routing_ID', 'Operation', 'Machine', 'Processing Time'.
         Optional: 'Start', 'End'.
         Die Spalten 'version' und 'status' werden einheitlich übergeben.
@@ -305,7 +305,7 @@ class JSSP_LIVE(Model):
             except Exception as e:
                 print(f"❌ Fehler bei JSSP ({row.get('Job')}, {version}, {row.get('Operation')}): {e}")
         print(
-            f"✅ {count} JSSP_LIVE-Einträge (Version '{version}', Status '{status}') wurden hinzugefügt oder aktualisiert.")
+            f"✅ {count} JobOperation-Einträge (Version '{version}', Status '{status}') wurden hinzugefügt oder aktualisiert.")
 
     @classmethod
     def get_dataframe(cls, version: str, jobs: list[str] = None, status: str = None) -> pd.DataFrame:
@@ -401,12 +401,12 @@ class JSSP_LIVE(Model):
                 print(f"❌ Fehler beim Klonen von Operation ({op.job_id}, {op.operation}): {e}")
 
         print(
-            f"✅ {count} JSSP_LIVE-Einträge von Version '{referenced_version}' nach Version '{new_version}' kopiert.")
+            f"✅ {count} JobOperation-Einträge von Version '{referenced_version}' nach Version '{new_version}' kopiert.")
 
 
 
 def drop_tables():
-    tables = [JSSP_LIVE, Job, RoutingOperation, Routing, Schedule]
+    tables = [JobOperation, Job, RoutingOperation, Routing, Schedule]
     try:
         db.connect(reuse_if_open=True)
         db.drop_tables(tables, safe=True)
@@ -418,7 +418,7 @@ def drop_tables():
 
 
 def create_tables():
-    tables = [Routing, RoutingOperation, Job, JSSP_LIVE, Schedule]
+    tables = [Routing, RoutingOperation, Job, JobOperation, Schedule]
     try:
         db.connect(reuse_if_open=True)
         db.create_tables(tables)
@@ -433,7 +433,9 @@ def reset_tables():
     Löscht alle Tabellen (falls vorhanden) und erstellt sie neu.
     Achtung: Alle Daten gehen dabei verloren!
     """
+    print("resetting tables ...")
     drop_tables()
     create_tables()
+    print("tables created")
 
 
