@@ -29,7 +29,7 @@ def duration_log_normal_vc(duration, vc=0.2):
     return round(result, 2)
 
 
-def duration_log_normal(duration: float, sigma: float = 0.2) -> float:
+def duration_log_normal(duration: float, sigma: float = 0.2, round_decimal: int = 0) -> float:
     """
     Gibt eine lognormalverteilte Dauer zurück, basierend auf:
     - gegebenem sigma (Standardabweichung im Log-Raum)
@@ -45,7 +45,7 @@ def duration_log_normal(duration: float, sigma: float = 0.2) -> float:
     # Generiere eine Zufallsdauer aus der Lognormalverteilung
     result = random.lognormvariate(mu, sigma)
 
-    return round(result, 2)
+    return round(result, round_decimal)
 
 
 if __name__ == "__main__":

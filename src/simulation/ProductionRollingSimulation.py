@@ -1,4 +1,3 @@
-from src.simulation.sim_test import df_plan_undone
 from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
 from src.simulation.Machine import Machine
 import time
@@ -86,7 +85,7 @@ class ProductionSimulation:
                 sim_duration=sim_end - sim_start
             )
 
-    def run(self, dframe_schedule_plan: pd.DataFrame | None , start_time: int = 0, end_time: int | None = None):
+    def run(self, dframe_schedule_plan: pd.DataFrame | None  = None , start_time: int = 0, end_time: int | None = None):
         self.start_time = start_time
         self.end_time = end_time
         self.env = simpy.Environment(initial_time=start_time)
@@ -109,7 +108,6 @@ class ProductionSimulation:
         else:
             self.env.run()
 
-        # return self.get_finished_operations_df()
 
     def job_started_on_machine(self, time_stamp, job_id, machine):
         if self.verbose:
@@ -194,6 +192,8 @@ class ProductionSimulation:
         # self.controller.update_jobs(*job_ids)
 
 if __name__ == "__main__":
+    pass
+    """
     from configs.path_manager import get_path
 
     basic_data_path = get_path("data", "basic")
@@ -219,6 +219,7 @@ if __name__ == "__main__":
     print(df_not_started.head(5))
     print("\n", "---" * 60)
     simulation.run(None, start_time=1440, end_time=None)
+    print("\n", "---" * 20)
+    print(simulation.get_finished_operations_df())
 
-
-
+"""
