@@ -249,7 +249,6 @@ def get_records_df(df_jssp: pd.DataFrame, df_times: pd.DataFrame, jobs_list: lis
 
 
 def get_schedule_df(jobs, all_ops, starts, df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column="Job"):
-    
     records = []
     for j, job in enumerate(jobs):
         for o, (op_id, m, d) in enumerate(all_ops[j]):
@@ -260,34 +259,36 @@ def get_schedule_df(jobs, all_ops, starts, df_jssp: pd.DataFrame, df_times: pd.D
                 "Operation": op_id,
                 "Machine": m,
                 "Start": round(st, 2),
-                 "End": round(ed, 2)
+                "End": round(ed, 2)
             }
             records.append(record)
     df_records = pd.DataFrame.from_records(records)
 
-    # 2a. Kollisionen 
-    shared_cols = set(df_jssp.columns) & set(df_times.columns)
-    jssp_shared_cols_to_drop = [col for col in shared_cols if col != job_column]
-    
-    # 2b. Legacy Einträge entfernen
-    jssp_legacy_cols = [col for col in ["Start", "End",  "Deadline", "Tardiness", "Lateness","Absolute Lateness", "Flow Time"] if col in df_jssp.columns]
-    times_legacy_cols = ["End"] if "End" in df_times.columns else []
 
-    jssp_cols_to_remove = jssp_shared_cols_to_drop + jssp_legacy_cols
-    df_jssp_filtered = df_jssp.drop(columns=jssp_cols_to_remove, errors="ignore")
-    
+    # 2a. Legacy Einträge entfernen
+    jssp_legacy_cols = [col for col in ["Start", "End", "Deadline"] if col in df_jssp.columns]
+    times_legacy_cols = [col for col in ["End", "Processing Time"] if col in df_times.columns]
+
+    df_jssp_filtered = df_jssp.drop(columns=jssp_legacy_cols, errors="ignore")
     df_times_filtered = df_times.drop(columns=times_legacy_cols, errors="ignore")
 
 
-    
+    # 2b. Kollisionen
+    shared_cols = set(df_jssp_filtered.columns) & set(df_times_filtered.columns)
+
+    shared_cols_to_drop = [col for col in shared_cols if col != job_column]
+    df_times_filtered = df_times_filtered.drop(columns=shared_cols_to_drop, errors="ignore")
+
     # 2c. Merge aus Originaldaten und Zeitinformationen
     df_info = df_jssp_filtered.merge(df_times_filtered, on=job_column, how="left")
 
     # 3. Ergebnis
     df_schedule = df_info.merge(df_records, on=[job_column, "Operation", "Machine"], how="left")
-    
+    if "Routing_ID" in df_schedule.columns:
+        df_schedule = df_schedule[
+            [job_column, "Routing_ID"] + [col for col in df_schedule.columns if col not in (job_column, "Routing_ID")]]
+
     return df_schedule
-    
 
 
 
