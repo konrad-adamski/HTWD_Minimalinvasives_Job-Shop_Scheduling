@@ -2,13 +2,14 @@ from ortools.sat.python import cp_model
 import pandas as pd
 
 def solve_jssp_sum(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
-                                 job_column: str = "Job", sort_ascending: bool = False, msg: bool = False,
-                                 timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+                   job_column: str = "Job", earliest_start_column: str = "Arrival",
+                   sort_ascending: bool = False, msg: bool = False,
+                   timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
     model = cp_model.CpModel()
 
     # 1. Sortierung und Dictionaries
     df_arrivals_deadlines = df_arrivals_deadlines.sort_values("Deadline", ascending=sort_ascending).reset_index(drop=True)
-    arrival = df_arrivals_deadlines.set_index(job_column)["Arrival"].to_dict()
+    earliest_start = df_arrivals_deadlines.set_index(job_column)[earliest_start_column].to_dict()
     deadline = df_arrivals_deadlines.set_index(job_column)["Deadline"].to_dict()
     jobs = df_arrivals_deadlines[job_column].tolist()
 
@@ -48,7 +49,7 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
         tardiness = model.NewIntVar(0, horizon, f"tardiness_{j}")
         model.Add(tardiness >= job_end - deadline[job])
         tardiness_vars.append(tardiness)
-        model.Add(starts[(j, 0)] >= arrival[job])
+        model.Add(starts[(j, 0)] >= earliest_start[job])
         for o in range(1, len(all_ops[j])):
             model.Add(starts[(j, o)] >= ends[(j, o - 1)])
 
@@ -70,7 +71,7 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
 
     # 8. Auswertung
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        records = get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver,
+        records = get_records_from_cp(jobs, all_ops, starts, earliest_start, deadline, solver,
                                       job_column=job_column, df_times=df_arrivals_deadlines)
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
@@ -89,13 +90,17 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
 
 
 def solve_jssp_max(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
-                                 job_column: str = "Job", sort_ascending: bool = False, msg: bool = False,
-                                 timeLimit: int = 3600, gapRel: float = 0.0,) -> pd.DataFrame:
+                   job_column: str = "Job", earliest_start_column: str = "Arrival",
+                   sort_ascending: bool = False, msg: bool = False,
+                   timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+    from ortools.sat.python import cp_model
+    import pandas as pd
+
     model = cp_model.CpModel()
 
     # 1. Vorbereitung der Daten
     df_arrivals_deadlines = df_arrivals_deadlines.sort_values("Deadline", ascending=sort_ascending).reset_index(drop=True)
-    arrival = df_arrivals_deadlines.set_index(job_column)["Arrival"].to_dict()
+    earliest_start = df_arrivals_deadlines.set_index(job_column)[earliest_start_column].to_dict()
     deadline = df_arrivals_deadlines.set_index(job_column)["Deadline"].to_dict()
     jobs = df_arrivals_deadlines[job_column].tolist()
 
@@ -138,7 +143,7 @@ def solve_jssp_max(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
         model.Add(max_tardiness >= tardiness)
         tardiness_vars.append(tardiness)
 
-        model.Add(starts[(j, 0)] >= arrival[job])
+        model.Add(starts[(j, 0)] >= earliest_start[job])
         for o in range(1, len(all_ops[j])):
             model.Add(starts[(j, o)] >= ends[(j, o - 1)])
 
@@ -161,7 +166,7 @@ def solve_jssp_max(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
 
     # 9. Ergebnisse extrahieren
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        records = get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver,
+        records = get_records_from_cp(jobs, all_ops, starts, earliest_start, deadline, solver,
                                       job_column=job_column, df_times=df_arrivals_deadlines)
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
@@ -170,12 +175,13 @@ def solve_jssp_max(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
         df_schedule = pd.DataFrame()
 
     # 10. Logging
-    print(f"\nSolver-Status         : {solver.StatusName(status)}")
+    print(f"\nSolver-Status        : {solver.StatusName(status)}")
     print(f"Maximale Tardiness     : {solver.ObjectiveValue()}")
     print(f"Best Objective Bound   : {solver.BestObjectiveBound()}")
     print(f"Laufzeit               : {solver.WallTime():.2f} Sekunden")
 
     return df_schedule
+
 
 
 
