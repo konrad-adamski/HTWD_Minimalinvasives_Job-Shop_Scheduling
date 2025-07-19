@@ -1,11 +1,15 @@
+from src.models.cp.builder import get_records_from_cp
 from ortools.sat.python import cp_model
 import pandas as pd
 import math
 
-def solve_jssp_advanced(df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_executed: pd.DataFrame, df_original_plan: pd.DataFrame, 
-                        job_column: str = "Job", w_t: int = 5, w_e: int = 1, r: float = 0.5, 
-                        reschedule_start: float = 1440.0, sort_ascending: bool = False,
-                        msg: bool = False, timeLimit: int = 3600, gapRel: float = 0.0, alpha: float = 1.0) -> pd.DataFrame:
+def solve_jssp_advanced(
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_executed: pd.DataFrame,
+        df_original_plan: pd.DataFrame, job_column: str = "Job", earliest_start_column: str = "Arrival",
+        w_t: int = 5, w_e: int = 1, r: float = 0.5, alpha: float = 1.0,
+        reschedule_start: float = 1440.0, sort_ascending: bool = False, msg: bool = False,
+        timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+
     # 1. === Modell erstellen ===
     model = cp_model.CpModel()
     w_t = int(w_t)
@@ -15,7 +19,7 @@ def solve_jssp_advanced(df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_execut
 
     # 2. === Vorverarbeitung: Ankunft, Deadline, Jobs ===
     df_times = df_times.sort_values("Deadline", ascending=sort_ascending).reset_index(drop=True)
-    arrival = df_times.set_index(job_column)["Arrival"].to_dict()
+    earliest_start = df_times.set_index(job_column)[earliest_start_column].to_dict()
     deadline = df_times.set_index(job_column)["Deadline"].to_dict()
     jobs = df_times[job_column].tolist()
 
@@ -89,7 +93,7 @@ def solve_jssp_advanced(df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_execut
         weighted_terms.append(term_e)
 
         # Startzeitbedingungen
-        model.Add(starts[(j, 0)] >= max(arrival[job], int(reschedule_start)))
+        model.Add(starts[(j, 0)] >= max(earliest_start[job], int(reschedule_start)))
         if job in last_executed_end:
             model.Add(starts[(j, 0)] >= int(math.ceil(last_executed_end[job])))
 
@@ -149,14 +153,8 @@ def solve_jssp_advanced(df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_execut
     # === Lösung extrahieren ===
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         records = get_records_from_cp(
-            jobs=jobs,
-            all_ops=all_ops,
-            starts=starts,
-            arrival=arrival,
-            deadline=deadline,
-            solver=solver,
-            job_column=job_column,
-            df_times=df_times
+            jobs=jobs, all_ops=all_ops, starts=starts,
+            solver=solver, job_column=job_column, df_times=df_times
         )
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
@@ -174,11 +172,13 @@ def solve_jssp_advanced(df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_execut
     return df_schedule
 
 
-def solve_jssp_by_tardiness_and_earliness_with_devpen(df_jssp: pd.DataFrame, df_times: pd.DataFrame, 
-                                                                  df_executed: pd.DataFrame, df_original_plan: pd.DataFrame, job_column: str = "Job",
-                                                                  w_t: int = 5, w_e: int = 1, r: float = 0.5, 
-                                                                  reschedule_start: float = 1440.0, sort_ascending: bool = False,
-                                                                  msg: bool = False, timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+def solve_jssp_by_tardiness_and_earliness_with_devpen(
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_executed: pd.DataFrame,
+        df_original_plan: pd.DataFrame, job_column: str = "Job", earliest_start_column: str = "Arrival",
+        w_t: int = 5, w_e: int = 1, r: float = 0.5,
+        reschedule_start: float = 1440.0, sort_ascending: bool = False, msg: bool = False,
+        timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+
     # 1. === Modell erstellen ===
     model = cp_model.CpModel()
     w_t = int(w_t)
@@ -187,7 +187,7 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(df_jssp: pd.DataFrame, df_
 
     # 2. === Vorverarbeitung: Ankunft, Deadline, Jobs ===
     df_times = df_times.sort_values("Deadline", ascending=sort_ascending).reset_index(drop=True)
-    arrival = df_times.set_index(job_column)["Arrival"].to_dict()
+    earliest_start = df_times.set_index(job_column)[earliest_start_column].to_dict()
     deadline = df_times.set_index(job_column)["Deadline"].to_dict()
     jobs = df_times[job_column].tolist()
 
@@ -261,7 +261,7 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(df_jssp: pd.DataFrame, df_
         weighted_terms.append(term_e)
 
         # Startzeitbedingungen
-        model.Add(starts[(j, 0)] >= max(arrival[job], int(reschedule_start)))
+        model.Add(starts[(j, 0)] >= max(earliest_start[job], int(reschedule_start)))
         if job in last_executed_end:
             model.Add(starts[(j, 0)] >= int(math.ceil(last_executed_end[job])))
 
@@ -310,14 +310,8 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(df_jssp: pd.DataFrame, df_
     # === Lösung extrahieren ===
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         records = get_records_from_cp(
-            jobs=jobs,
-            all_ops=all_ops,
-            starts=starts,
-            arrival=arrival,
-            deadline=deadline,
-            solver=solver,
-            job_column=job_column,
-            df_times=df_times
+            jobs=jobs, all_ops=all_ops, starts=starts,
+            solver=solver, job_column=job_column, df_times=df_times
         )
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
@@ -337,18 +331,10 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(df_jssp: pd.DataFrame, df_
 
 
 def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
-    df_jssp: pd.DataFrame,
-    df_times: pd.DataFrame,
-    df_executed: pd.DataFrame,
-    w_t: int = 5,
-    w_e: int = 1,
-    reschedule_start: float = 1440.0,
-    job_column: str = "Job",
-    sort_ascending: bool = False,
-    msg: bool = False,
-    timeLimit: int = 3600,
-    gapRel: float = 0.0
-) -> pd.DataFrame:
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_executed: pd.DataFrame,
+        w_t: int = 5, w_e: int = 1, reschedule_start: float = 1440.0,
+        job_column: str = "Job", earliest_start_column: str = "Arrival", sort_ascending: bool = False,
+        msg: bool = False, timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
     """
     Löst ein Job-Shop-Scheduling-Problem mit gewichteter Tardiness und Earliness
     unter Berücksichtigung fest eingeplanter Operationen. Verwendet Constraint Programming.
@@ -362,7 +348,7 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
 
     # 2. Arrival/Deadline extrahieren
     df_times = df_times.sort_values("Deadline", ascending=sort_ascending).reset_index(drop=True)
-    arrival = df_times.set_index(job_column)["Arrival"].to_dict()
+    earliest_start = df_times.set_index(job_column)[earliest_start_column].to_dict()
     deadline = df_times.set_index(job_column)["Deadline"].to_dict()
     jobs = df_times[job_column].tolist()
 
@@ -423,7 +409,7 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
         weighted_terms.append(term_earliness)
 
         # Ankunfts- und Rescheduling-Bedingungen
-        model.Add(starts[(j, 0)] >= arrival[job])
+        model.Add(starts[(j, 0)] >= earliest_start[job])
         model.Add(starts[(j, 0)] >= int(reschedule_start))
 
         if job in df_executed[job_column].values:
@@ -458,14 +444,8 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
     # Ergebnis extrahieren
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         records = get_records_from_cp(
-            jobs=jobs,
-            all_ops=all_ops,
-            starts=starts,
-            arrival=arrival,
-            deadline=deadline,
-            solver=solver,
-            job_column=job_column,
-            df_times=df_times
+            jobs=jobs, all_ops=all_ops, starts=starts,
+            solver=solver, job_column=job_column, df_times=df_times
         )
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
@@ -482,57 +462,3 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
     return df_schedule
 
 
-
-
-def get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver, job_column="Job", df_times=None):
-    """
-    Erstellt Scheduling-Records mit Tardiness- und Earliness-Berechnung aus CP-Solver-Ergebnissen.
-
-    Parameter:
-    - jobs: Liste der Job-IDs.
-    - all_ops: Liste der Operationen je Job [(op_id, machine, duration), ...].
-    - starts: Dict mit CP-Startvariablen (solver.Value(var)).
-    - arrival: Dict {Job → Arrival}.
-    - deadline: Dict {Job → Deadline}.
-    - solver: cp_model.CpSolver().
-    - job_column: Name der Jobspalte im DataFrame.
-    - df_times: Optionaler DataFrame mit 'Production_Plan_ID' je Job.
-
-    Rückgabe:
-    - Liste von Dicts mit allen Scheduling-Informationen pro Operation.
-    """
-
-    # 1. Optionales Mapping: Job → Production_Plan_ID
-    if df_times is not None and "Routing_ID" in df_times.columns:
-        job_routing = df_times.set_index(job_column)["Routing_ID"].to_dict()
-    else:
-        job_routing = {}
-
-    # 2. Records erzeugen
-    records = []
-    for j, job in enumerate(jobs):
-        for o, (op_id, m, d) in enumerate(all_ops[j]):
-            st = solver.Value(starts[(j, o)])
-            ed = st + d
-            lateness = ed - deadline[job]
-
-            record = {
-                job_column: job,
-            }
-            if job in job_routing:
-                record["Routing_ID"] = job_routing[job]
-            record.update({
-                "Operation": op_id,
-                "Machine": m,
-                "Arrival": arrival[job],
-                "Deadline": deadline[job],
-                "Start": st,
-                "Processing Time": d,
-                "End": ed,
-                "Lateness": lateness,
-                "Tardiness": max(0, lateness),
-                "Earliness": max(0, -lateness)
-            })
-            records.append(record)
-
-    return records

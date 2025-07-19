@@ -164,10 +164,14 @@ class ProductionSimulation:
         return self.finished_log
 
     def get_active_operations_df(self):
+        if not self.active_operations:
+            return None
         df = pd.DataFrame(self.active_operations.values())
         return df.sort_values(by=[self.job_column, "Operation"]).reset_index(drop=True)
 
     def get_finished_operations_df(self):
+        if not self.finished_log:
+            return None
         df =pd.DataFrame(self.finished_log.values())
         return df.sort_values(by=[self.job_column, "Operation"]).reset_index(drop=True)
 
@@ -182,6 +186,8 @@ class ProductionSimulation:
                 axis=1
             )
         ]
+        if df.empty:
+            return None
         return df.sort_values(by=[self.job_column, "Operation"]).reset_index(drop=True)
 
 

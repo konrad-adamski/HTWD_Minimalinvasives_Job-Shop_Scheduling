@@ -1,3 +1,4 @@
+from src.models.cp.builder import get_records_from_cp
 from ortools.sat.python import cp_model
 import pandas as pd
 import math
@@ -5,15 +6,16 @@ import math
 # Lateness Scheduling -----------------------------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------------------------
 
-def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: str = "Job",
-                                        schedule_start: float = 0.0, sort_ascending: bool = False,
-                                        msg: bool = False, timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+def solve_jssp_sum(
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: str = "Job",
+        earliest_start_column: str = "Arrival", schedule_start: float = 0.0, sort_ascending: bool = False,
+        msg: bool = False, timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
 
     model = cp_model.CpModel()
 
     # === Vorbereitung: Zeitdaten und Sortierung ===
     df_times = df_times.sort_values("Deadline", ascending=sort_ascending).reset_index(drop=True)
-    arrival = df_times.set_index(job_column)["Arrival"].to_dict()
+    earliest_start = df_times.set_index(job_column)[earliest_start_column].to_dict()
     deadline = df_times.set_index(job_column)["Deadline"].to_dict()
     jobs = df_times[job_column].tolist()
 
@@ -58,7 +60,7 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: st
         model.AddAbsEquality(abs_lateness, lateness)
         abs_lateness_vars.append(abs_lateness)
 
-        model.Add(starts[(j, 0)] >= max(arrival[job], int(math.ceil(schedule_start))))
+        model.Add(starts[(j, 0)] >= max(earliest_start[job], int(math.ceil(schedule_start))))
 
         for o in range(1, len(all_ops[j])):
             model.Add(starts[(j, o)] >= ends[(j, o - 1)])
@@ -82,9 +84,8 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: st
     # === Ergebnis extrahieren ===
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         records = get_records_from_cp(
-            jobs, all_ops, starts, arrival, deadline, solver,
-            job_column=job_column,
-            df_times=df_times
+            jobs=jobs, all_ops=all_ops, starts=starts,
+            solver=solver, job_column=job_column, df_times=df_times
         )
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
@@ -100,18 +101,21 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: st
 
     return df_schedule
 
-def solve_jssp_sum_by_tardiness_and_earliness(df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: str = "Job",
-                                                      w_t: int = 5, w_e: int = 1, schedule_start: float = 0.0,
-                                                      sort_ascending: bool = False,
-                                                      msg: bool = False, timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+
+def solve_jssp_sum_by_tardiness_and_earliness(
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, job_column: str = "Job",
+        earliest_start_column: str = "Arrival", w_t: int = 5, w_e: int = 1,
+        schedule_start: float = 0.0, sort_ascending: bool = False, msg: bool = False,
+        timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
+
     model = cp_model.CpModel()
 
     w_t = int(w_t)
     w_e = int(w_e)
 
-    # === Vorbereitung: Arrival/Deadline extrahieren ===
+    # === Vorbereitung: Zeitdaten extrahieren ===
     df_times = df_times.sort_values("Deadline", ascending=sort_ascending).reset_index(drop=True)
-    arrival = df_times.set_index(job_column)["Arrival"].to_dict()
+    earliest_start = df_times.set_index(job_column)[earliest_start_column].to_dict()
     deadline = df_times.set_index(job_column)["Deadline"].to_dict()
     jobs = df_times[job_column].tolist()
 
@@ -162,7 +166,7 @@ def solve_jssp_sum_by_tardiness_and_earliness(df_jssp: pd.DataFrame, df_times: p
         model.Add(term_earliness == w_e * earliness)
         weighted_terms.append(term_earliness)
 
-        model.Add(starts[(j, 0)] >= max(arrival[job], int(math.ceil(schedule_start))))
+        model.Add(starts[(j, 0)] >= max(earliest_start[job], int(math.ceil(schedule_start))))
 
         for o in range(1, len(all_ops[j])):
             model.Add(starts[(j, o)] >= ends[(j, o - 1)])
@@ -180,8 +184,10 @@ def solve_jssp_sum_by_tardiness_and_earliness(df_jssp: pd.DataFrame, df_times: p
     status = solver.Solve(model)
 
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        records = get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver,
-                                      job_column=job_column, df_times=df_times)
+        records = get_records_from_cp(
+            jobs=jobs, all_ops=all_ops, starts=starts,
+            solver=solver, job_column=job_column, df_times=df_times
+        )
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
         print(f"\nSolver-Status         : {solver.StatusName(status)}")
@@ -197,7 +203,8 @@ def solve_jssp_sum_by_tardiness_and_earliness(df_jssp: pd.DataFrame, df_times: p
 
 
 
-def get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver, job_column="Job", df_times=None):
+
+def get_records_from_cp_OLD(jobs, all_ops, starts, arrival, deadline, solver, job_column="Job", df_times=None):
     """
     Erstellt Scheduling-Records mit Tardiness- und Earliness-Berechnung aus CP-Solver-Ergebnissen.
 
