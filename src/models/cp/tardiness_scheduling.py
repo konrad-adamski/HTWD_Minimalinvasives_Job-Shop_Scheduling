@@ -1,3 +1,4 @@
+from src.models.cp.builder import get_records_from_cp
 from ortools.sat.python import cp_model
 import pandas as pd
 
@@ -71,8 +72,10 @@ def solve_jssp_sum(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
 
     # 8. Auswertung
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        records = get_records_from_cp(jobs, all_ops, starts, earliest_start, deadline, solver,
-                                      job_column=job_column, df_times=df_arrivals_deadlines)
+        records = get_records_from_cp(
+            jobs=jobs, all_ops=all_ops, starts=starts,
+            solver=solver, job_column=job_column,df_times=df_arrivals_deadlines
+        )
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
         print(f"\nSolver-Status         : {solver.StatusName(status)}")
@@ -166,8 +169,10 @@ def solve_jssp_max(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
 
     # 9. Ergebnisse extrahieren
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        records = get_records_from_cp(jobs, all_ops, starts, earliest_start, deadline, solver,
-                                      job_column=job_column, df_times=df_arrivals_deadlines)
+        records = get_records_from_cp(
+            jobs=jobs, all_ops=all_ops, starts=starts,
+            solver=solver, job_column=job_column, df_times=df_arrivals_deadlines
+        )
         df_schedule = pd.DataFrame.from_records(records).sort_values(["Start", job_column, "Operation"]).reset_index(drop=True)
     else:
         print(f"\nSolver-Status         : {solver.StatusName(status)}")
@@ -181,59 +186,3 @@ def solve_jssp_max(df_jssp: pd.DataFrame, df_arrivals_deadlines: pd.DataFrame,
     print(f"Laufzeit               : {solver.WallTime():.2f} Sekunden")
 
     return df_schedule
-
-
-
-
-def get_records_from_cp(jobs, all_ops, starts, arrival, deadline, solver, job_column="Job", df_times=None):
-    """
-    Erstellt Scheduling-Records mit Tardiness-Berechnung aus CP-Solver-Ergebnissen.
-
-    Parameter:
-    - jobs: Liste der Job-IDs.
-    - all_ops: Liste der Operationen je Job [(op_id, machine, duration), ...].
-    - starts: Dict mit CP-Startvariablen (solver.Value(var)).
-    - arrival: Dict {Job → Arrival}.
-    - deadline: Dict {Job → Deadline}.
-    - solver: cp_model.CpSolver().
-    - job_column: Name der Jobspalte im DataFrame.
-    - df_times: Optionaler DataFrame mit 'Production_Plan_ID' je Job.
-
-    Rückgabe:
-    - Liste von Dicts mit ['Job','Operation','Arrival','Deadline','Machine',
-      'Start','Processing Time','End','Lateness','Tardiness'].
-    """
-
-    # 1. Optionales Mapping: Job → Production_Plan_ID
-    if df_times is not None and "Production_Plan_ID" in df_times.columns:
-        job_production_plan = df_times.set_index(job_column)["Production_Plan_ID"].to_dict()
-    else:
-        job_production_plan = {}
-
-    # 2. Record-Erstellung
-    records = []
-    for j, job in enumerate(jobs):
-        for o, (op_id, m, d) in enumerate(all_ops[j]):
-            st = solver.Value(starts[(j, o)])
-            ed = st + d
-            lateness = ed - deadline[job]
-
-            record = {
-                job_column: job,
-            }
-            if job in job_production_plan:
-                record["Production_Plan_ID"] = job_production_plan[job]
-            record.update({
-                "Operation": op_id,
-                "Arrival": arrival[job],
-                "Deadline": deadline[job],
-                "Machine": m,
-                "Start": st,
-                "Processing Time": d,
-                "End": ed,
-                "Lateness": lateness,
-                "Tardiness": max(0, lateness)
-            })
-            records.append(record)
-
-    return records
