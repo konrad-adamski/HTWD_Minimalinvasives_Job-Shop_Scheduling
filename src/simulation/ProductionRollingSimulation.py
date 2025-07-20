@@ -124,7 +124,9 @@ class ProductionSimulation:
             time.sleep(0.14)
 
     def register_active_operation(self, job_op, sim_start, planned_duration, sim_duration):
-        self.active_operations[(job_op[self.job_column], job_op["Operation"])] = {
+        key = (job_op[self.job_column], job_op["Operation"])
+        entry = {"Routing_ID": job_op["Routing_ID"]} if "Routing_ID" in job_op else {}
+        entry.update({
             self.job_column: job_op[self.job_column],
             "Operation": job_op["Operation"],
             "Machine": job_op["Machine"],
@@ -135,21 +137,25 @@ class ProductionSimulation:
             "Processing Time": sim_duration,
             "Expected End": sim_start + planned_duration,
             "End": sim_start + sim_duration
-        }
+        })
+        self.active_operations[key] = entry
 
     def register_finished_operation(self, job_op, sim_start, sim_end, sim_duration):
-        entry = {"Routing_ID": job_op["Routing_ID"]} if "Routing_ID" in job_op else {}
+        entry = {self.job_column: job_op[self.job_column]}
+        if "Routing_ID" in job_op:
+            entry["Routing_ID"] = job_op["Routing_ID"]
+        if self.earliest_start_column in job_op:
+            entry[self.earliest_start_column] = job_op[self.earliest_start_column]
+        if "Arrival" in job_op:
+            entry["Arrival"] = job_op["Arrival"]
+
         entry.update({
-            self.job_column: job_op[self.job_column],
             "Operation": job_op["Operation"],
             "Machine": job_op["Machine"],
-            self.earliest_start_column: job_op[self.earliest_start_column],
-            "Arrival": job_op["Arrival"],
             "Start": round(sim_start, 2),
             "Processing Time": sim_duration,
             "End": round(sim_end, 2),
         })
-
 
         self.all_finished_log[(job_op[self.job_column], job_op["Operation"])] = entry
         self.finished_log[(job_op[self.job_column], job_op["Operation"])] = entry
@@ -162,6 +168,17 @@ class ProductionSimulation:
 
     def set_active_operations(self, active_operations):
         self.active_operations = active_operations
+
+    def set_active_operations_from_df(self, df_active: pd.DataFrame):
+        """
+        Setzt self.active_operations aus einem DataFrame neu zusammen.
+        Die Keys sind Tupel aus (job_id, operation), basierend auf den Spalten
+        self.job_column und 'Operation'.
+        """
+        self.active_operations = {
+            (row[self.job_column], row["Operation"]): row.to_dict()
+            for _, row in df_active.iterrows()
+        }
 
     def get_finished_operations(self):
         return self.finished_log
