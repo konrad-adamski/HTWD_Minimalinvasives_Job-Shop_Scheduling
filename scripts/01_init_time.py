@@ -1,7 +1,7 @@
 from models import *
 
 # Utils
-from src.utils.production_process import initialize as init
+from src.utils.initialization import jobs_jssp_init as init
 
 # Simulation
 from src.simulation.ProductionSimulation import ProductionSimulation
