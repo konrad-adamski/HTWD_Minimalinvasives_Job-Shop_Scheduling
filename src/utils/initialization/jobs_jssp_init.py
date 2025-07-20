@@ -1,4 +1,4 @@
-from src.utils.production_process.term import calculate_mean_interarrival_time, generate_arrivals_from_mean_interarrival_time
+from src.utils.initialization.arrivals_init import calculate_mean_interarrival_time, generate_arrivals_from_mean_interarrival_time
 import pandas as pd
 import numpy as np
 import random

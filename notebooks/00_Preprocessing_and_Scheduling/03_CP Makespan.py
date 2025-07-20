@@ -3,10 +3,8 @@ from configs.path_manager import get_path
 import json
 
 # Utils
-import src.utils.presenter as show
-from src.utils.production_process import convert
-from src.utils.production_process import initialize as init
-from src.utils.analize import check_constrains as check
+from src.utils import convert
+from src.utils.initialization import jobs_jssp_init as init
 
 # Solver Model
 from src.models.cp import makespan
