@@ -4,8 +4,8 @@ import pandas as pd
 import math
 
 def solve_jssp_advanced(
-        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_executed: pd.DataFrame,
-        df_original_plan: pd.DataFrame, job_column: str = "Job", earliest_start_column: str = "Arrival",
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_original_plan: pd.DataFrame,
+        df_active: pd.DataFrame | None = None, job_column: str = "Job", earliest_start_column: str = "Arrival",
         w_t: int = 5, w_e: int = 1, r: float = 0.5, alpha: float = 1.0,
         reschedule_start: float = 1440.0, sort_ascending: bool = False, msg: bool = False,
         timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
@@ -48,13 +48,17 @@ def solve_jssp_advanced(
     # 5. === Planungshorizont schätzen ===
     horizon = int(df_jssp["Processing Time"].sum() + max(deadline.values()))
 
-    # 6. === Fixierte Operationen vorbereiten ===
-    df_executed_fixed = df_executed[df_executed["End"] >= reschedule_start]
-    fixed_ops = {
-        m: list(grp[["Start", "End"]].itertuples(index=False, name=None))
-        for m, grp in df_executed_fixed.groupby("Machine")
-    }
-    last_executed_end = df_executed.groupby(job_column)["End"].max().to_dict()
+    # 6. === Fixierte Operationen vorbereiten (nur wenn vorhanden) ===
+    if df_active is not None and not df_active.empty:
+        df_active_fixed = df_active[df_active["End"] >= reschedule_start]
+        fixed_ops = {
+            m: list(grp[["Start", "End"]].itertuples(index=False, name=None))
+            for m, grp in df_active_fixed.groupby("Machine")
+        }
+        last_executed_end = df_active.groupby(job_column)["End"].max().to_dict()
+    else:
+        fixed_ops = {}
+        last_executed_end = {}
 
     # 7. === Variablen definieren ===
     starts, ends, intervals = {}, {}, {}
@@ -101,7 +105,7 @@ def solve_jssp_advanced(
         for o in range(1, len(all_ops[j])):
             model.Add(starts[(j, o)] >= ends[(j, o - 1)])
 
-        # Deviation
+        # Deviation zur ursprünglichen Planung
         for o, (op_id, _, _) in enumerate(all_ops[j]):
             key = (job, op_id)
             if key in original_start:
@@ -173,8 +177,8 @@ def solve_jssp_advanced(
 
 
 def solve_jssp_by_tardiness_and_earliness_with_devpen(
-        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_executed: pd.DataFrame,
-        df_original_plan: pd.DataFrame, job_column: str = "Job", earliest_start_column: str = "Arrival",
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_original_plan: pd.DataFrame,
+        df_active: pd.DataFrame | None = None, job_column: str = "Job", earliest_start_column: str = "Arrival",
         w_t: int = 5, w_e: int = 1, r: float = 0.5,
         reschedule_start: float = 1440.0, sort_ascending: bool = False, msg: bool = False,
         timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
@@ -217,12 +221,17 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(
     horizon = int(df_jssp["Processing Time"].sum() + max(deadline.values()))
 
     # 6. === Fixierte Operationen vorbereiten ===
-    df_executed_fixed = df_executed[df_executed["End"] >= reschedule_start]
-    fixed_ops = {
-        m: list(grp[["Start", "End"]].itertuples(index=False, name=None))
-        for m, grp in df_executed_fixed.groupby("Machine")
-    }
-    last_executed_end = df_executed.groupby(job_column)["End"].max().to_dict()
+    if df_active is not None and not df_active.empty:
+        df_active_fixed = df_active[df_active["End"] >= reschedule_start]
+        fixed_ops = {
+            m: list(grp[["Start", "End"]].itertuples(index=False, name=None))
+            for m, grp in df_active_fixed.groupby("Machine")
+        }
+        last_executed_end = df_active.groupby(job_column)["End"].max().to_dict()
+    else:
+        fixed_ops = {}
+        last_executed_end = {}
+
 
     # 7. === Variablen definieren ===
     starts, ends, intervals = {}, {}, {}
@@ -331,7 +340,7 @@ def solve_jssp_by_tardiness_and_earliness_with_devpen(
 
 
 def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
-        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_executed: pd.DataFrame,
+        df_jssp: pd.DataFrame, df_times: pd.DataFrame, df_active: pd.DataFrame | None = None,
         w_t: int = 5, w_e: int = 1, reschedule_start: float = 1440.0,
         job_column: str = "Job", earliest_start_column: str = "Arrival", sort_ascending: bool = False,
         msg: bool = False, timeLimit: int = 3600, gapRel: float = 0.0) -> pd.DataFrame:
@@ -368,12 +377,17 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
     # 4. Grober Planungshorizont
     horizon = int(df_jssp["Processing Time"].sum() + max(deadline.values()))
 
-    # 5. Fixierte Operationen aus df_executed extrahieren
-    df_executed_fixed = df_executed[df_executed["End"] >= reschedule_start]
-    fixed_ops = {
-        m: list(grp[["Start", "End"]].itertuples(index=False, name=None))
-        for m, grp in df_executed_fixed.groupby("Machine")
-    }
+    # 5. Fixierte Operationen vorbereiten (falls vorhanden)
+    if df_active is not None and not df_active.empty:
+        df_active_fixed = df_active[df_active["End"] >= reschedule_start]
+        fixed_ops = {
+            m: list(grp[["Start", "End"]].itertuples(index=False, name=None))
+            for m, grp in df_active_fixed.groupby("Machine")
+        }
+        last_executed_end = df_active.groupby(job_column)["End"].max().to_dict()
+    else:
+        fixed_ops = {}
+        last_executed_end = {}
 
     # 6. Variablen anlegen
     starts, ends, intervals = {}, {}, {}
@@ -409,12 +423,9 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
         weighted_terms.append(term_earliness)
 
         # Ankunfts- und Rescheduling-Bedingungen
-        model.Add(starts[(j, 0)] >= earliest_start[job])
-        model.Add(starts[(j, 0)] >= int(reschedule_start))
-
-        if job in df_executed[job_column].values:
-            last_fixed_end = df_executed[df_executed[job_column] == job]["End"].max()
-            model.Add(starts[(j, 0)] >= int(math.ceil(last_fixed_end)))
+        model.Add(starts[(j, 0)] >= max(earliest_start[job], int(reschedule_start)))
+        if job in last_executed_end:
+            model.Add(starts[(j, 0)] >= int(math.ceil(last_executed_end[job])))
 
         # Technologische Reihenfolge
         for o in range(1, len(all_ops[j])):
@@ -426,9 +437,10 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
         for fixed_start, fixed_end in fixed_ops.get(m, []):
             start = math.floor(fixed_start)
             end = math.ceil(fixed_end)
-            duration = end - start
-            fixed_interval = model.NewIntervalVar(start, duration, end, f"fixed_{m}_{end}")
-            machine_intervals.append(fixed_interval)
+            if end > start:
+                duration = end - start
+                fixed_interval = model.NewIntervalVar(start, duration, end, f"fixed_{m}_{end}")
+                machine_intervals.append(fixed_interval)
         model.AddNoOverlap(machine_intervals)
 
     # 9. Zielfunktion minimieren
@@ -460,5 +472,6 @@ def solve_jssp_by_tardiness_and_earliness_with_fixed_ops(
     print(f"Laufzeit              : {solver.WallTime():.2f} Sekunden")
 
     return df_schedule
+
 
 

@@ -160,6 +160,9 @@ class ProductionSimulation:
     def get_active_operations(self):
         return self.active_operations
 
+    def set_active_operations(self, active_operations):
+        self.active_operations = active_operations
+
     def get_finished_operations(self):
         return self.finished_log
 
