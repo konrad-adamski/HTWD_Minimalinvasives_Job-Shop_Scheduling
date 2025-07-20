@@ -22,6 +22,9 @@ def filter_current_jssp(df_jssp: pd.DataFrame, df_jobs_times_current: pd.DataFra
     - zu Jobs gehören, die heute angekommen sind (aus df_jobs_times_current),
     - und weder aktiv noch bereits ausgeführt wurden (aus exclusion_dataframes).
     """
+    # 0. Entferne None-Einträge aus der Exclusionsliste
+    exclusion_dataframes_list = [df for df in (exclusion_dataframes_list or []) if df is not None]
+
     # 1. Jobs, die heute angekommen sind
     jobs_today = df_jobs_times_current[job_column].unique()
 
