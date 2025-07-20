@@ -197,6 +197,15 @@ class Schedule(Model):
             print(f"❌ Fehler beim Hinzufügen des Schedules: {e}")
 
     @classmethod
+    def add_schedule_from_dataframe(cls, df_schedule: pd.DataFrame, date: int = None, version: str = None):
+        """
+        Konvertiert einen Schedule-DataFrame in JSON-Format und speichert ihn in der Datenbank.
+        Jede Zeile wird als Eintrag im JSON-Array behandelt.
+        """
+        json_schedule = df_schedule.to_dict(orient='records')
+        cls.add_schedule(json_schedule, version=version, date=date)
+
+    @classmethod
     def get_schedule_as_dataframe(cls, date: int, version: str = None) -> pd.DataFrame:
         """
         Gibt das Schedule-JSON als DataFrame zurück, gefiltert nach Datum und optional Version und Beschreibung.
@@ -339,10 +348,17 @@ class JobOperation(Model):
         return pd.DataFrame(data)
 
     @classmethod
-    def update_closed_jobs_from_operations(cls, version: str) -> list[str]:
+    def update_closed_jobs_from_operations(cls, version: str) -> list[str]:                                    # Legacy!
+        return cls.update_jobs_with_nothing_to_schedule(version = version)
+
+    @classmethod
+    def update_jobs_with_nothing_to_schedule(cls, version: str) -> list[str]:
         """
-        Setzt den Status in der Job-Tabelle auf 'closed' für alle Jobs, deren Operationen in einer Version vollständig 'finished' sind.
-        Rückgabe: Liste der betroffenen Job-IDs.
+        Setzt den Status in der Job-Tabelle auf 'nothing to schedule' für alle Jobs,
+        deren Operationen in der angegebenen Version vollständig NICHT 'open' sind
+        und deren aktueller Status noch nicht 'nothing to schedule' ist.
+
+        Rückgabe: Liste der Job-IDs, deren Status aktualisiert wurde.
         """
         # Schritt 1: Alle Operationen der Version holen
         query = cls.select(cls.job_id, cls.status).where(cls.version == version)
@@ -351,22 +367,25 @@ class JobOperation(Model):
         for row in query:
             job = row.job_id
             if job not in job_status_counts:
-                job_status_counts[job] = {"total": 0, "finished": 0}
+                job_status_counts[job] = {"total": 0, "not_open": 0}
             job_status_counts[job]["total"] += 1
-            if row.status == "finished":
-                job_status_counts[job]["finished"] += 1
+            if row.status != "open":
+                job_status_counts[job]["not_open"] += 1
 
-        # Schritt 2: Nur Jobs, bei denen alle Operationen 'finished' sind
-        closed_jobs = [job for job, counts in job_status_counts.items() if counts["total"] == counts["finished"]]
+        # Schritt 2: Nur Jobs, bei denen keine Operation mehr 'open' ist
+        jobs_to_update = [job for job, counts in job_status_counts.items()
+                          if counts["total"] == counts["not_open"]]
 
-        # Schritt 3: In Job-Tabelle status = "closed" setzen (nur passende Version)
-        query = Job.update(status="closed").where(
-            (Job.version == version) & (Job.id.in_(closed_jobs))
+        # Schritt 3: Status auf 'nothing to schedule' setzen, wenn noch nicht gesetzt
+        query = Job.update(status="nothing to schedule").where(
+            (Job.version == version) &
+            (Job.id.in_(jobs_to_update)) &
+            (Job.status != "nothing to schedule")
         )
         updated = query.execute()
 
-        print(f"✅ {updated} Job(s) wurden auf 'closed' gesetzt (Version '{version}').")
-        return closed_jobs
+        print(f"✅ {updated} Job(s) wurden auf 'nothing to schedule' gesetzt (Version '{version}').")
+        return jobs_to_update
 
     @classmethod
     def clone_operations(cls, referenced_version: str, new_version: str):
@@ -437,5 +456,6 @@ def reset_tables():
     drop_tables()
     create_tables()
     print("tables created")
+
 
 
