@@ -2,8 +2,8 @@
 from configs.path_manager import get_path
 
 # Utils
+import src.utils.visualization.gantt_diagram as gantt
 from src.utils.rolling_process.rolling_filter import *
-import src.utils.presenter as show
 
 # Solver Model
 from src.models.cp import lateness_scheduling as cp_late_schedule
@@ -96,8 +96,10 @@ def simulate_one_shift(simulation: ProductionSimulation, df_schedule_in: pd.Data
 
     simulation.run(dframe_schedule_plan=df_schedule_in, start_time=day_start, end_time=day_end)
     df_execution_out = simulation.get_finished_operations_df()
-    show.plot_gantt(df_execution_out, perspective="Machine",
-                    title=f"Gantt Diagramm für die abgeschlossenen Arbeitsgänge am Tag {day_numb:02d}")
+    gantt.get_plot(
+        df_execution_out, perspective="Machine",
+        title=f"Gantt Diagramm für die abgeschlossenen Arbeitsgänge am Tag {day_numb:02d}"
+    )
 
     df_active_out = simulation.get_active_operations_df()
 
