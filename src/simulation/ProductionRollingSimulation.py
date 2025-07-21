@@ -67,8 +67,12 @@ class ProductionSimulation:
 
     def resume_operation_process(self, job_id, op):
         remaining_time = op["End"] - self.start_time
+        print("Remaining time:", remaining_time)
+        print("Start time:", self.start_time)
+        print("End time:", op["End"])
         machine = self.machines[op["Machine"]]
-        print(f"[{get_time_str(self.env.now)}] Job {job_id}, Operation {op['Operation']} resumed with {remaining_time:.2f} min")
+        print(f"[{get_time_str(self.env.now)}] Job {job_id}, Operation {op['Operation']} resumed on {op["Machine"]} "
+              + f"(with {get_duration(remaining_time)} left)")
 
         with machine.request() as req:
             yield req
@@ -218,12 +222,11 @@ class ProductionSimulation:
         # self.controller.update_jobs(*job_ids)
 
 if __name__ == "__main__":
-    pass
-    """
+
     from configs.path_manager import get_path
 
-    basic_data_path = get_path("data", "basic")
-    df_schedule = pd.read_csv(basic_data_path / "schedule_example.csv")
+    basic_data_path = get_path("data", "examples")
+    df_schedule = pd.read_csv(basic_data_path / "tardiness_schedule_day_01.csv")
 
     print("Maschinenbelegungsplan:")
     print(df_schedule.head(5))
@@ -231,7 +234,7 @@ if __name__ == "__main__":
 
     print("Simulation:")
     simulation = ProductionSimulation(sigma=0.45)
-    simulation.run(df_schedule, start_time=0, end_time=1440 - 1)
+    simulation.run(df_schedule, start_time=1440, end_time=2880 - 1)
     df_execution = simulation.get_finished_operations_df()
     print(df_execution.head(5))
     print("\n", "---" * 60)
@@ -244,8 +247,8 @@ if __name__ == "__main__":
     df_not_started = simulation.get_not_started_operations_df(df_schedule)
     print(df_not_started.head(5))
     print("\n", "---" * 60)
-    simulation.run(None, start_time=1440, end_time=None)
+    print("Simulation (nur für aktive Operations):")
+    simulation.run(None, start_time=2880, end_time=None)
     print("\n", "---" * 20)
     print(simulation.get_finished_operations_df())
 
-"""
