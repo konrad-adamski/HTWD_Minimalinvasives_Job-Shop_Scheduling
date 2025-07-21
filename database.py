@@ -1,11 +1,14 @@
 import os
 from peewee import SqliteDatabase
 
-# Basisverzeichnis = Speicherort dieses Scripts (nicht Arbeitsverzeichnis!)
+# Basisverzeichnis = Speicherort dieses Scripts
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Absoluter Pfad zur DB im Projekt-Hauptverzeichnis
-DB_PATH = os.path.join(BASE_DIR, "production.db")
+# Datenbankpfade
+PRODUCTION_DB_PATH = os.path.join(BASE_DIR, "production.db")
+ANALYSIS_DB_PATH = os.path.join(BASE_DIR, "analysis.db")
 
-# Verbindung
-db = SqliteDatabase(DB_PATH)
+# Verbindungen
+production_db = SqliteDatabase(PRODUCTION_DB_PATH)
+analysis_db = SqliteDatabase(ANALYSIS_DB_PATH)
+
