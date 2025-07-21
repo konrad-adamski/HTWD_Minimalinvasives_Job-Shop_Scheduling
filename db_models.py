@@ -2,7 +2,7 @@ import pandas as pd
 from peewee import Model, TextField, CharField, ForeignKeyField, IntegerField, AutoField, CompositeKey,FloatField
 from playhouse.sqlite_ext import JSONField
 
-from database import db
+from database import production_db as db
 
 class Routing(Model):
     id = CharField(verbose_name='ID', primary_key=True)
