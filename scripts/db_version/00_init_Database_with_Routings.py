@@ -2,7 +2,7 @@ import pandas as pd
 # Datenzugriff
 from configs.path_manager import get_path
 # Database
-from models import *
+from db_models import *
 
 def create_routings_and_operations(df_instance: pd.DataFrame):
     grouped = df_instance.groupby("Routing_ID")
@@ -38,3 +38,4 @@ if __name__ == "__main__":
 
     reset_tables()
     create_routings_and_operations(df_instances)
+

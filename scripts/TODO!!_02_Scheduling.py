@@ -1,4 +1,4 @@
-from models import *
+from db_models import *
 
 # Utils
 import src.utils.presenter as show
