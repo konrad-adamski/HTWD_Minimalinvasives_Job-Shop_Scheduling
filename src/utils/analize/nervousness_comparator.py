@@ -12,7 +12,7 @@ def g(t: float, T: float, T1: float) -> float:
     T1  : Rescheduling-Zeitpunkt (Ende der 1-Tages-Simulation)
     """
     denom = np.log(T) - np.log(T1)
-    return (np.log(T) - np.log(t)) / denom          # identisch zu Formel 24
+    return (np.log(T) - np.log(t)) / denom
 
 
 
@@ -50,7 +50,7 @@ def compute_P_T(df_plan: pd.DataFrame,
     details['contrib'] = details['g'] * details['delta_t']
     P_T = details['contrib'].sum()
 
-    # 3) Optionale Debug-Ausgabe (wie Version 2, leicht gekürzt)
+    # 3) Optionale Debug-Ausgabe
     if verbose:
         print("=" * 70)
         print("Debug-Info  compute_P_T".center(70))

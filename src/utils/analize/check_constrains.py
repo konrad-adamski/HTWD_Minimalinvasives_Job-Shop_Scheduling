@@ -33,7 +33,7 @@ def is_machine_conflict_free(df_schedule: pd.DataFrame) -> bool:
 # new
 def is_operation_sequence_correct(df_schedule: pd.DataFrame, job_id_column: str = "Job") -> bool:
     """
-    Prüft, ob innerhalb jeder Gruppe (z. B. Job oder Production_Order_ID) die Operationen
+    Prüft, ob innerhalb jeder Gruppe (z.B. Job oder Production_Order_ID) die Operationen
     in der richtigen technologischen Reihenfolge ausgeführt wurden.
     Dabei wird geprüft, ob die nach Startzeit sortierten Operationen auch
     nach 'Operation' aufsteigend sind.
@@ -70,7 +70,7 @@ def is_job_timing_correct(df_schedule: pd.DataFrame, job_id_column: str = "Job")
     """
     Prüft, ob die technologischen Abhängigkeiten im Zeitplan eingehalten wurden.
     D.h. keine spätere Operation beginnt vor Ende der vorherigen in derselben Gruppe
-    (z. B. Job oder Produktionsauftrag).
+    (z.B. Job oder Produktionsauftrag).
 
     Parameter:
     - df_schedule: DataFrame mit den Spalten [job_id_column, 'Operation', 'Start', 'End']
