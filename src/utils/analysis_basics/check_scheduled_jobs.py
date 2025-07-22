@@ -22,58 +22,61 @@ def get_jobs_with_lateness_metrics(df_plan_in: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-# Dataframe gruppiert ----------------------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------------------------------------------
+# Dataframe gruppiert --------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
-def count_column_grouped(df: pd.DataFrame, column: str = 'Tardiness', steps = 60, min_val = 0, max_val= 180, right_closed: bool = False) -> pd.Series:
+import pandas as pd
+import numpy as np
 
-    # 1. Bins je nach Spalte
+def get_jobs_aggregated(df: pd.DataFrame, column: str = 'Tardiness', steps=60, min_val=0, max_val=120, right_closed: bool = False) -> pd.DataFrame:
+    # 1. Spalte prüfen
+    if column not in df.columns:
+        raise ValueError(f"Spalte '{column}' existiert nicht. Verfügbare Spalten: {list(df.columns)}")
+
+    # 2. Bins definieren
     if column in ['Tardiness', "Absolute Lateness"]:
         inner_bins = list(range(min_val, max_val + steps, steps))
-        bins = inner_bins + [np.inf]  # Kein -inf
+        bins = inner_bins + [np.inf]  # kein -inf
     else:
         min_val = -max_val if min_val >= 0 else min_val
-        inner_bins = list(range(min_val, max_val + steps, steps))
         inner_bins = list(range(min_val, max_val + steps, steps))
         if 0 not in inner_bins:
             inner_bins.append(0)
             inner_bins = sorted(inner_bins)
-        bins = [-np.inf] + inner_bins + [np.inf]  # Mit -inf und +inf
+        bins = [-np.inf] + inner_bins + [np.inf]  # mit -inf und +inf
 
-
-    # 2. Spalte prüfen
-    if column not in df.columns:
-        raise ValueError(f"Spalte '{column}' existiert nicht. Verfügbare Spalten: {list(df.columns)}")
-
-    # 3. Zähle Null-Werte separat
+    # 3. Null-Werte separat zählen
     zero_count = (df[column] == 0).sum()
     non_zero = df.loc[df[column] != 0, column]
 
-    # 4. Labels erzeugen
+    # 4. Labels & Sortierschlüssel
     labels = []
     bin_keys = []
     for lo, hi in zip(bins[:-1], bins[1:]):
         if np.isneginf(lo):
             labels.append(f"<{int(hi)}")
-            bin_keys.append(lo + 0.1)  # z.B. -119.9
+            bin_keys.append(lo + 0.1)
         elif np.isposinf(hi):
             labels.append(f">{int(lo)}")
-            bin_keys.append(hi - 0.1)  # z.B. 2880 - 0.1
+            bin_keys.append(hi - 0.1)
         else:
             labels.append(f"{int(lo)} - {int(hi)}")
             bin_keys.append((lo + hi) / 2)
 
-    # 5. Cutting
+    # 5. Cutting der Nicht-Null-Werte
     grouped = pd.cut(non_zero, bins=bins, labels=labels, right=right_closed, include_lowest=True)
     counts = grouped.value_counts().reindex(labels, fill_value=0)
 
-    # 6. Zero-Label einfügen
+    # 6. Zero-Werte ergänzen
     counts["0"] = zero_count
-    bin_keys.append(0)  # Füge Schlüssel für '0' ein
+    bin_keys.append(0)
     labels.append("0")
 
-    # 7. Korrekt sortieren
-    sort_df = pd.DataFrame({'label': labels, 'key': bin_keys}).set_index('label')
+    # 7. Nach Sortierschlüssel ordne
+    sort_df = pd.DataFrame({f'{column}_Intervall': labels, 'key': bin_keys}).set_index(f'{column}_Intervall')
     sorted_counts = counts.loc[sort_df.sort_values('key').index]
 
-    return sorted_counts.astype(int)
+    # 8. Ausgabe als DataFrame mit einer Zeile, Intervallnamen als Spalten
+    return pd.DataFrame([sorted_counts])
+
+
