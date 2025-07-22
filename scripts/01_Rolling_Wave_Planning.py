@@ -131,7 +131,6 @@ if __name__ == "__main__":
     )
 
     # Tag 2+
-
     for day_numb in range(2, last_planning_start + 1):
         df_schedule = reschedule_wave(
             df_jssp= df_jssp, df_jobs_times=df_jobs_times, df_schedule_prev=df_schedule,df_execution_prev= df_execution,
