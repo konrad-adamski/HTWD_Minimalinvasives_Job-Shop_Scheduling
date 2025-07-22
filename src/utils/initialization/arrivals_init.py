@@ -45,7 +45,7 @@ def calculate_mean_interarrival_time(df, u_b_mmax: float = 0.9, routing_column='
 
     Parameter:
     - df: DataFrame mit Spalten [routing_column, 'Machine', 'Processing Time']
-    - u_b_mmax: Ziel-Auslastung der Engpassmaschine (z. B. 0.9)
+    - u_b_mmax: Ziel-Auslastung der Engpassmaschine (z.B. 0.9)
     - routing_column: Name der Spalte, die die Routings eindeutig identifiziert
     - verbose: Wenn True, wird die Engpassermittlung und der Vektor ausgegeben
 
@@ -88,7 +88,7 @@ def _get_engpassmaschine(df, verbose=False):
 
     Parameter:
     - df: DataFrame mit Spalten ['Machine', 'Processing Time']
-          'Machine' kann beliebige Label enthalten (z. B. int, str).
+          'Machine' kann beliebige Label enthalten (z.B. int, str).
     - verbose: Wenn True, wird die Maschinenbelastung ausgegeben.
 
     Rückgabe:
