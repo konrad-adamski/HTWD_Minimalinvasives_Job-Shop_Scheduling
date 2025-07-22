@@ -67,12 +67,11 @@ class ProductionSimulation:
 
     def resume_operation_process(self, job_id, op):
         remaining_time = op["End"] - self.start_time
-        print("Remaining time:", remaining_time)
-        print("Start time:", self.start_time)
-        print("End time:", op["End"])
+
         machine = self.machines[op["Machine"]]
-        print(f"[{get_time_str(self.env.now)}] Job {job_id}, Operation {op['Operation']} resumed on {op["Machine"]} "
-              + f"(with {get_duration(remaining_time)} left)")
+        if self.verbose:
+            print(f"[{get_time_str(self.env.now)}] Job {job_id}, Operation {op['Operation']} resumed on {op["Machine"]}"
+                  + f" (with {get_duration(remaining_time)} left)")
 
         with machine.request() as req:
             yield req
@@ -236,6 +235,7 @@ if __name__ == "__main__":
     simulation = ProductionSimulation(sigma=0.45)
     simulation.run(df_schedule, start_time=1440, end_time=2880 - 1)
     df_execution = simulation.get_finished_operations_df()
+    print("")
     print(df_execution.head(5))
     print("\n", "---" * 60)
 
