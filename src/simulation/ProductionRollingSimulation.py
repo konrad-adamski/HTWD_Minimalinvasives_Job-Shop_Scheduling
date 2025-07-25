@@ -235,8 +235,7 @@ if __name__ == "__main__":
     simulation = ProductionSimulation(sigma=0.45)
     simulation.run(df_schedule, start_time=1440, end_time=2880 - 1)
     df_execution = simulation.get_finished_operations_df()
-    print("")
-    print(df_execution.head(5))
+    print("\n", df_execution.head(5))
     print("\n", "---" * 60)
 
     print("Active Operations:")
