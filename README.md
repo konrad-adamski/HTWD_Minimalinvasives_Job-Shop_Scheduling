@@ -32,7 +32,7 @@ python -m pip install --upgrade pip
 
 ```cmd
 :: Pakete installieren
-pip install pyyaml notebook pandas matplotlib seaborn simpy pulp ortools editdistance scipy sqlalchemy pydantic
+pip install pyyaml jupyter ipykernel pandas matplotlib seaborn simpy pulp ortools editdistance scipy sqlalchemy pydantic
 ```
 ---
 
@@ -51,5 +51,5 @@ python3 -m pip install --upgrade pip
 
 ```bash
 # Pakete installieren
-python3 -m pip install pyyaml notebook pandas matplotlib seaborn simpy pulp ortools editdistance scipy sqlalchemy pydantic
+python3 -m pip install pyyaml jupyter ipykernel pandas matplotlib seaborn simpy pulp ortools editdistance scipy sqlalchemy pydantic
 ```
