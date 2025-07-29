@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, PrimaryKeyConstraint, JSON
+from sqlalchemy import Column, Integer, String, ForeignKey, PrimaryKeyConstraint, JSON, ForeignKeyConstraint, \
+    UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -16,24 +17,24 @@ class Routing(Base):
     id = Column(String(255), primary_key=True)
     instance_id = Column(Integer, ForeignKey("instance.id"), nullable=False)
     instance = relationship("Instance", back_populates="routings")
-    operations = relationship("Operation", back_populates="routing", cascade="all, delete-orphan")
+    operations = relationship("RoutingOperation", back_populates="routing", cascade="all, delete-orphan")
     jobs = relationship("Job", back_populates="routing", cascade="all, delete-orphan")
 
 
-class Operation(Base):
-    __tablename__ = "operation"
+class RoutingOperation(Base):
+    __tablename__ = "routing_operation"
 
+    id = Column(Integer, primary_key=True, autoincrement=True)  # ✅ neuer eindeutiger PK
     routing_id = Column(String(255), ForeignKey("routing.id"), nullable=False)
     number = Column(Integer, nullable=False)  # Reihenfolge innerhalb des Routings
     machine = Column(String(255), nullable=False)
     duration = Column(Integer, nullable=False)
 
-    __table_args__ = (
-        PrimaryKeyConstraint('routing_id', 'number', name='pk_routing_operation'),
-    )
-
     routing = relationship("Routing", back_populates="operations")
 
+    __table_args__ = (
+        UniqueConstraint("routing_id", "number", name="uq_routing_number")
+    )
 
 class Job(Base):
     __tablename__ = "job"
@@ -45,6 +46,20 @@ class Job(Base):
     deadline = Column(Integer, nullable=False)
 
     routing = relationship("Routing", back_populates="jobs")
+
+class JobOperation(Base):
+    __tablename__ = "job_operation"
+
+    job_id = Column(String, ForeignKey("job.id"), nullable=False)
+    routing_operation_id = Column(Integer, ForeignKey("routing_operation.id"), nullable=False)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("job_id", "routing_operation_id", name="pk_job_operation"),
+    )
+
+    # Beziehungen
+    job = relationship("Job", back_populates="job_operations")
+    routing_operation = relationship("RoutingOperation")
 
 
 # ----------------------------------------------------------------------------------------------------------------------
