@@ -1,7 +1,7 @@
 from typing import List
 import pandas as pd
 from sqlalchemy import select
-from database.db_models import Instance, Routing, Operation, Job, Schedule, Experiment
+from database.db_models import Instance, Routing, Job, Schedule, Experiment, RoutingOperation
 from database.db_setup import SessionLocal
 
 
@@ -44,7 +44,7 @@ def add_routings_and_operations_from_dframe(
             session.add(routing)
 
             for _, row in df_group.iterrows():
-                op = Operation(
+                op = RoutingOperation(
                     routing_id=routing_id_str,
                     number=int(row[operation_column]),  # jetzt verpflichtend für PrimaryKey
                     machine=str(row[machine_column]).strip(),
