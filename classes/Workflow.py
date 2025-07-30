@@ -95,7 +95,7 @@ class JobOperationWorkflowCollection(UserDict):
 
 if __name__ == "__main__":
 
-    # Beispiel-Operationen hinzufügen
+    # Example
     workflow = JobOperationWorkflowCollection()
     workflow.add_operation("Job1", "R1", 0, start_time=0, duration=5, end_time=5)
     workflow.add_operation("Job1", "R1", 1, start_time=6, duration=3, end_time=9)
@@ -105,15 +105,14 @@ if __name__ == "__main__":
     # Sortieren
     workflow.sort_operations()
 
-    # DataFrame erzeugen und anzeigen
-    print("\n--- Workflow als DataFrame ---")
+    # Create DataFrame
+    print("\n--- Workflow as DataFrame ---")
     df = workflow.to_dataframe()
     print(df)
 
-    # Test: Wiederherstellung aus DataFrame
-    print("\n--- Wiederherstellung aus DataFrame ---")
-    restored = JobOperationWorkflowCollection.from_dataframe(df)
-    for job_id, ops in restored.items():
+    # Test: from DataFrame
+    workflow_restored = JobOperationWorkflowCollection.from_dataframe(df)
+    for job_id, ops in workflow_restored.items():
         print(f"Job: {job_id}")
         for op in ops:
             print(f" {op.job_id} Seq {op.sequence_number}, Start {op.start_time}, Duration {op.duration}, End {op.end_time}")

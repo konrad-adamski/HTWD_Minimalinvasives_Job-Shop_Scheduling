@@ -45,14 +45,11 @@ class JobOperationProblemCollection:
         :return: Dictionary with job_id as keys and sorted JobOperationViews as values.
         """
         job_dict: Dict[str, List[JobOperationView]] = {}
+        self.sort_problem()
         for op in self:
             if op.job_id not in job_dict:
                 job_dict[op.job_id] = []
             job_dict[op.job_id].append(op)
-
-        # Optional sortieren nach sequence_number
-        for job_id in job_dict:
-            job_dict[job_id].sort(key=lambda x: x.sequence_number)
         return job_dict
 
     def add_job_operation(self, job_id: str, routing_id: str, sequence_number: int):
@@ -206,7 +203,7 @@ class JobOperationProblemCollection:
             self.job_operations.remove(op)
 
 if __name__ == "__main__":
-    # 1. RoutingOperationCollection vorbereiten
+    # 1. Example RoutingOperationCollection
     routings_collection = RoutingOperationCollection()
     routings_collection.add_operation("R1", 0, "M1", 5)
     routings_collection.add_operation("R1", 1, "M2", 3)
@@ -214,7 +211,7 @@ if __name__ == "__main__":
     routings_collection.add_operation("R2", 0, "M1", 4)
     routings_collection.sort_operations()
 
-    # 2. Beispiel-DataFrame für Jobs
+    # 2. Example DataFrame Jobs
     df_jobs = pd.DataFrame([
         {"Job": "J25-001", "Routing_ID": "R1"},
         {"Job": "J25-002", "Routing_ID": "R2"},
@@ -223,22 +220,12 @@ if __name__ == "__main__":
         {"Job": "J25-005", "Routing_ID": "R99"}, # absichtlich nicht vorhanden
     ])
 
-    # 3. Erzeuge JobOperationProblemCollection aus DataFrame
+    # 3. Create collection
     job_problem = JobOperationProblemCollection.from_job_dataframe(df_jobs, routings_collection)
-
-    # 4. DataFrame ausgeben
-    print("\n=== Job-Shop Scheduling Problem ===")
-    print(job_problem.to_dataframe())
 
     print("\n" + "-"*60)
     for op in job_problem:
         print(f"Job {op.job_id}, Operation {op.sequence_number}, Machine {op.machine}, Duration {op.duration}")
-
-    print("\n" + "-" * 60)
-    for job_id, ops in job_problem.group_by_job().items():
-        print(f"Job: {job_id}")
-        for op in ops:
-            print(f"  Seq {op.sequence_number}, Machine {op.machine}, Duration {op.duration}")
 
     print("\n" + "-" * 60)
     for i, (job_id, ops) in enumerate(job_problem.group_by_job().items()):
