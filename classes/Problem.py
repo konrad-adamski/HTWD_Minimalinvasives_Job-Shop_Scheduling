@@ -4,6 +4,7 @@ import pandas as pd
 from classes.Operation import JobOperation, RoutingOperation, JobOperationView
 from classes.Routing import RoutingOperationCollection
 from classes.WarningHelper import warn_missing_routing_operations
+from test import JobInformationCollection, JobOperationWorkflowCollection
 
 
 class JobOperationProblemCollection:
@@ -134,6 +135,75 @@ class JobOperationProblemCollection:
         obj.sort_problem()
         return obj
 
+    @classmethod
+    def from_collections(
+            cls,
+            job_info_collection: JobInformationCollection,
+            routings_collection: RoutingOperationCollection):
+        """
+        Creates a JobOperationProblemCollection from job and routing collections.
+
+        :param job_info_collection: Contains job_id → JobInformation (with routing_id)
+        :param routings_collection: Routing definitions used to expand operations
+        :return: JobOperationProblemCollection instance
+        :rtype: JobOperationProblemCollection
+        """
+        obj = cls(routings_collection)
+
+        for job_id, info in job_info_collection.items():
+            routing_id = info.routing_id
+            if routing_id is None:
+                print(f"[Warning] Job '{job_id}' has no routing_id – skipped.")
+                continue
+
+            if routing_id not in routings_collection:
+                print(f"[Warning] Routing '{routing_id}' not found – job '{job_id}' skipped.")
+                continue
+
+            for op in routings_collection[routing_id]:
+                obj.add_job_operation(job_id, routing_id, op.sequence_number)
+
+        obj.sort_problem()
+        return obj
+
+    def filter_exclude_operations(
+            self,
+            excluded_operations: List[tuple[str, int]]):
+        """
+        Returns a filtered JobOperationProblemCollection excluding specified operations.
+
+        :param excluded_operations: List of (job_id, sequence_number) tuples to exclude
+        :return: New filtered JobOperationProblemCollection
+        """
+        excluded_set = set(excluded_operations)
+        filtered = JobOperationProblemCollection(self.routings_collection)
+
+        for op in self.job_operations:
+            key = (op.job_id, op.sequence_number)
+            if key not in excluded_set:
+                filtered.job_operations.append(op)
+
+        return filtered
+
+
+    def remove_operations_from_workflows(self, workflows: List[JobOperationWorkflowCollection]) -> None:
+        """
+        Removes in-place all operations that are already present in any of the given workflow collections.
+
+        Operations are matched by (job_id, sequence_number).
+
+        :param workflows: List of JobOperationWorkflowCollection instances
+        """
+        excluded_keys = set()
+
+        for wflow in workflows:
+            for job_id, ops in wflow.items():
+                for op in ops:
+                    excluded_keys.add((op.job_id, op.sequence_number))
+
+        to_remove = [op for op in self.job_operations if (op.job_id, op.sequence_number) in excluded_keys]
+        for op in to_remove:
+            self.job_operations.remove(op)
 
 if __name__ == "__main__":
     # 1. RoutingOperationCollection vorbereiten
@@ -175,6 +245,10 @@ if __name__ == "__main__":
         print(f"{i + 1}. Job: {job_id}")
         for op in ops:
             print(f"   Seq {op.sequence_number}, Machine {op.machine}, Duration {op.duration}")
+
+
+
+
 
 
 
