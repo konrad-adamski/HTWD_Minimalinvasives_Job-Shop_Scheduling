@@ -10,9 +10,9 @@ class JobWorkflowOperation:
     job_id: str
     routing_id: Optional[str]
     sequence_number: int
-    start_time: int
-    duration: int
-    end_time: int
+    start_time: Optional[int] = None
+    duration: Optional[int] = None
+    end_time: Optional[int] = None
 
 
 class JobOperationWorkflowCollection(UserDict):
@@ -21,15 +21,37 @@ class JobOperationWorkflowCollection(UserDict):
     Maps job_id -> List[JobWorkflowOperation] sorted by sequence_number.
     """
 
-    def add_operation(self, job_id: str, routing_id: Optional[str], sequence_number: int,
-                      start_time: int, duration: int, end_time: int):
+    def add_operation(
+            self, job_id: str, routing_id: Optional[str], sequence_number: int, start_time: Optional[int] = None,
+            duration: Optional[int] = None, end_time: Optional[int] = None):
+        """
+        Adds a new JobWorkflowOperation to the collection.
+        All time fields are optional.
+        """
         op = JobWorkflowOperation(job_id, routing_id, sequence_number, start_time, duration, end_time)
-        self._add(op)
+
+        if job_id not in self:
+            self[job_id] = []
+        self[job_id].append(op)
 
     def _add(self, op: JobWorkflowOperation):
         if op.job_id not in self:
             self[op.job_id] = []
         self[op.job_id].append(op)
+
+    def remove_operation(self, job_id: str, sequence_number: int):
+        """
+        Removes the first operation with the given sequence_number for the specified job_id.
+        Deletes the job entry if no operations remain.
+        """
+        if job_id in self:
+            for op in self[job_id]:
+                if op.sequence_number == sequence_number:
+                    self[job_id].remove(op)
+                    break
+
+            if not self[job_id]:
+                del self[job_id]
 
     def sort_operations(self):
         """
@@ -80,15 +102,15 @@ class JobOperationWorkflowCollection(UserDict):
         for _, row in df.iterrows():
             routing_id = str(row[routing_column]) if has_routings and pd.notna(row[routing_column]) else None
 
-            op = JobWorkflowOperation(
+            obj.add_operation(
                 job_id=str(row[job_column]),
                 routing_id=routing_id,
                 sequence_number=int(row[operation_column]),
-                start_time=int(row[start_column]),
-                duration=int(row[duration_column]),
-                end_time=int(row[end_column])
+                start_time=row[start_column] if pd.notna(row[start_column]) else None,
+                duration=row[duration_column] if pd.notna(row[duration_column]) else None,
+                end_time=row[end_column] if pd.notna(row[end_column]) else None
             )
-            obj._add(op)
+
         obj.sort_operations()
         return obj
 
