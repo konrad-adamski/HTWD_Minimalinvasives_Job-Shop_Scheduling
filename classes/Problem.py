@@ -3,7 +3,6 @@ import pandas as pd
 
 from classes.Operation import JobOperation, RoutingOperation, JobOperationView
 from classes.Routing import RoutingOperationCollection
-from classes.WarningHelper import warn_missing_routing_operations
 from test import JobInformationCollection, JobOperationWorkflowCollection
 
 
