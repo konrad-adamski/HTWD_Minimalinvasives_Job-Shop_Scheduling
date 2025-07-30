@@ -19,7 +19,6 @@ class JobOperationProblemCollection:
         self.job_operations: List[JobOperation] = []
 
     def __iter__(self):
-        missing_routings: Dict[str, List[int]] = {}
         for op in self.job_operations:
             routing_op = self.routings_collection.get_operation(op.routing_id, op.sequence_number)
             if routing_op:
@@ -30,13 +29,6 @@ class JobOperationProblemCollection:
                     machine=routing_op.machine,
                     duration=routing_op.duration
                 )
-            else:
-                if op.routing_id not in missing_routings:
-                    missing_routings[op.routing_id] = []
-                missing_routings[op.routing_id].append(op.sequence_number)
-
-        if missing_routings:
-            warn_missing_routing_operations(missing_routings)
 
     def group_by_job(self) -> Dict[str, List[JobOperationView]]:
         """
