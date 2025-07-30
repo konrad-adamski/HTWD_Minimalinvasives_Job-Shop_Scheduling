@@ -1,9 +1,10 @@
 from typing import List, Dict
 import pandas as pd
 
+from classes.JobInformation import JobInformationCollection
 from classes.Operation import JobOperation, RoutingOperation, JobOperationView
 from classes.Routing import RoutingOperationCollection
-from test import JobInformationCollection, JobOperationWorkflowCollection
+from classes.Workflow import JobOperationWorkflowCollection
 
 
 class JobOperationProblemCollection:
