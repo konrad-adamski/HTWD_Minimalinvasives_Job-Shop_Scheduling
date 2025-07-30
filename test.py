@@ -113,6 +113,9 @@ class JobOperationWorkflowCollection:
         wf_df = pd.DataFrame(wf_rows)
         return base_df.merge(wf_df, on=["Job", "Operation"], how="left")
 
+    def items(self):
+        pass
+
 
 # -------------------------
 # 7. JobInformation

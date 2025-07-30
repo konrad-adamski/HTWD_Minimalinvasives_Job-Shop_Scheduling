@@ -49,6 +49,29 @@ class RoutingOperationCollection(UserDict):
         obj.sort_operations()
         return obj
 
+    def to_dataframe(
+            self, routing_column: str = "Routing_ID", operation_column: str = "Operation",
+            machine_column: str = "Machine", duration_column: str = "Processing Time") -> pd.DataFrame:
+        """
+        Converts the collection to a DataFrame.
+
+        :param routing_column: Column name for routing ID
+        :param operation_column: Column name for sequence number
+        :param machine_column: Column name for machine
+        :param duration_column: Column name for duration
+        :return: DataFrame representation of routing operations
+        """
+        rows = []
+        for routing_id, ops in self.items():
+            for op in ops:
+                rows.append({
+                    routing_column: routing_id,
+                    operation_column: op.sequence_number,
+                    machine_column: op.machine,
+                    duration_column: op.duration
+                })
+        return pd.DataFrame(rows)
+
 if __name__ == "__main__":
 
     # Examples (with duplikates)
