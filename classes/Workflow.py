@@ -114,6 +114,16 @@ class JobOperationWorkflowCollection(UserDict):
         obj.sort_operations()
         return obj
 
+    def get_operation(self, job_id: str, sequence_number: int) -> Optional[JobWorkflowOperation]:
+        """
+        Gibt die erste Operation mit dem gegebenen sequence_number für job_id zurück.
+        """
+        if job_id in self:
+            for op in self[job_id]:
+                if op.sequence_number == sequence_number:
+                    return op
+        return None
+
 
 if __name__ == "__main__":
 
