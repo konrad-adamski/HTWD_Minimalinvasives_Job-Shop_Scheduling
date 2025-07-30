@@ -120,7 +120,6 @@ class JobOperationProblemCollection:
                 for op in routings_collection[routing_id]:
                     obj.add_job_operation(job_id, routing_id, op.sequence_number)
 
-        # 4. Sortieren und Rückgabe
         obj.sort_problem()
         return obj
 
