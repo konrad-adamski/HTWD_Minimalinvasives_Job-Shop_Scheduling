@@ -1,5 +1,4 @@
 from collections import UserDict
-from dataclasses import astuple
 from typing import List, Optional
 
 import pandas as pd
@@ -15,9 +14,8 @@ class JobInformation:
 
 class JobInformationCollection(UserDict):
     """
-    Stores earliest start times and deadlines per job.
+    Stores arrivals, earliest start times and deadlines per job.
     """
-
     def add_job(
             self, job_id: str, arrival_time: int, earliest_start: int,
             deadline: int, routing_id: Optional[str] = None):
@@ -84,38 +82,36 @@ class JobInformationCollection(UserDict):
             )
         return obj
 
-    def get_subset(self, timestamp: int, planable_job_ids: Optional[List[str]] = None):
+    def get_subset(self, earliest_start: int, planable_job_ids: Optional[List[str]] = None):
         """
         Returns a subset with jobs that are either newly arrived or have unscheduled operations.
 
-        :param timestamp: Current time (selects newly arrived jobs)
+        :param earliest_start: Current time (selects newly arrived jobs)
         :param planable_job_ids: Jobs with pending operations
         :return: Filtered JobInformationCollection
         """
         subset = JobInformationCollection()
         for job_id, info in self.items():
-            if info.earliest_start == timestamp or (planable_job_ids and job_id in planable_job_ids):
+            if info.earliest_start == earliest_start or (planable_job_ids and job_id in planable_job_ids):
                 subset[job_id] = info
         return subset
 
 
 if __name__ == "__main__":
-    # Beispiel-DataFrame mit Duplikaten
+
+    # Example
     df_jobs = pd.DataFrame([
-        {"Job": "J1", "Ready Time": 0, "Deadline": 10, "Routing_ID": "R10"},
-        {"Job": "J2", "Ready Time": 2, "Deadline": 12},
-        {"Job": "J1", "Ready Time": 1, "Deadline": 11},  # Duplikat, wird ignoriert
-        {"Job": "J3", "Ready Time": 50, "Deadline": 65}
+        {"Job": "J1", "Arrival": 10, "Ready Time": 1440, "Deadline": 5000, "Routing_ID": "R10"},
+        {"Job": "J2", "Arrival": 10, "Ready Time": 1440, "Deadline": 5000},
+        {"Job": "J1", "Arrival": 10, "Ready Time": 1440, "Deadline": 4000},
+        {"Job": "J3", "Arrival": 1600, "Ready Time": 2880, "Deadline": 4000}
     ])
 
     job_collection = JobInformationCollection.from_dataframe(df_jobs)
 
-    print("=== JobInformationCollection ===")
     for job_id, info in job_collection.items():
         print(f"Job {job_id}: Start={info.earliest_start}, Deadline={info.deadline}")
-
-
     print("-"*60)
-    for job_id, info in job_collection.get_subset(timestamp=50, planable_job_ids=["J1"]).items():
-        print(job_id, info.earliest_start, info.deadline, info.routing_id)
+    for job_id, info in job_collection.get_subset(earliest_start=2880, planable_job_ids=["J2"]).items():
+        print(f"{job_id =} {info.earliest_start = } {info.deadline =}")
 
