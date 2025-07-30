@@ -10,6 +10,7 @@ class JobWorkflowOperation:
     job_id: str
     routing_id: Optional[str]
     sequence_number: int
+    machine: str
     start_time: Optional[int] = None
     duration: Optional[int] = None
     end_time: Optional[int] = None
@@ -22,22 +23,19 @@ class JobOperationWorkflowCollection(UserDict):
     """
 
     def add_operation(
-            self, job_id: str, routing_id: Optional[str], sequence_number: int, start_time: Optional[int] = None,
-            duration: Optional[int] = None, end_time: Optional[int] = None):
+            self, job_id: str, routing_id: Optional[str], sequence_number: int, machine: str,
+            start_time: Optional[int] = None, duration: Optional[int] = None, end_time: Optional[int] = None):
         """
         Adds a new JobWorkflowOperation to the collection.
         All time fields are optional.
         """
-        op = JobWorkflowOperation(job_id, routing_id, sequence_number, start_time, duration, end_time)
+        op = JobWorkflowOperation(job_id, routing_id, sequence_number, machine, start_time, duration, end_time)
 
         if job_id not in self:
             self[job_id] = []
         self[job_id].append(op)
 
-    def _add(self, op: JobWorkflowOperation):
-        if op.job_id not in self:
-            self[op.job_id] = []
-        self[op.job_id].append(op)
+
 
     def remove_operation(self, job_id: str, sequence_number: int):
         """
@@ -61,8 +59,8 @@ class JobOperationWorkflowCollection(UserDict):
             self[job_id].sort(key=lambda op: op.sequence_number)
 
     def to_dataframe(
-            self, job_column: str = "Job", routing_column: str = "Routing_ID",
-            operation_column: str = "Operation", start_column: str = "Start",
+            self, job_column: str = "Job", routing_column: str = "Routing_ID", operation_column: str = "Operation",
+            machine_column: str = "Machine", start_column: str = "Start",
             duration_column: str = "Processing Time", end_column: str = "End") -> pd.DataFrame:
         """
         Converts the workflow operations to a pandas DataFrame.
@@ -76,6 +74,7 @@ class JobOperationWorkflowCollection(UserDict):
                     job_column: op.job_id,
                     routing_column: op.routing_id,
                     operation_column: op.sequence_number,
+                    machine_column: op.machine,
                     start_column: op.start_time,
                     duration_column: op.duration,
                     end_column: op.end_time
@@ -84,8 +83,8 @@ class JobOperationWorkflowCollection(UserDict):
 
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame,
-                       job_column: str = "Job", routing_column: str = "Routing_ID",
-                       operation_column: str = "Operation", start_column: str = "Start",
+                       job_column: str = "Job", routing_column: str = "Routing_ID", operation_column: str = "Operation",
+                       machine_column = "Machine", start_column: str = "Start",
                        duration_column: str = "Processing Time", end_column: str = "End"):
         """
         Creates a JobOperationWorkflowCollection from a DataFrame.
@@ -106,6 +105,7 @@ class JobOperationWorkflowCollection(UserDict):
                 job_id=str(row[job_column]),
                 routing_id=routing_id,
                 sequence_number=int(row[operation_column]),
+                machine=str(row[machine_column]),
                 start_time=row[start_column] if pd.notna(row[start_column]) else None,
                 duration=row[duration_column] if pd.notna(row[duration_column]) else None,
                 end_time=row[end_column] if pd.notna(row[end_column]) else None
@@ -124,15 +124,27 @@ class JobOperationWorkflowCollection(UserDict):
                     return op
         return None
 
+    def get_unique_machines(self) -> set:
+        """
+        Gibt die Menge aller in den Operationen verwendeten Maschinen zurück.
+        """
+        machines = {
+            op.machine
+            for ops in self.values()
+            for op in ops
+            if op.machine is not None
+        }
+        return machines
+
 
 if __name__ == "__main__":
 
     # Example
     workflow = JobOperationWorkflowCollection()
-    workflow.add_operation("Job1", "R1", 0, start_time=0, duration=5, end_time=5)
-    workflow.add_operation("Job1", "R1", 1, start_time=6, duration=3, end_time=9)
-    workflow.add_operation("Job2", "R2", 0, start_time=2, duration=4, end_time=6)
-    workflow.add_operation("Job2", "R2", 1, start_time=7, duration=2, end_time=9)
+    workflow.add_operation("Job1", "R1", 0, "M1", 0, 5, 5)
+    workflow.add_operation("Job1", "R1", 1, "M2", 6, 3, 9)
+    workflow.add_operation("Job2", "R2", 0, "M2", 0, 5, 15)
+    workflow.add_operation("Job2", "R2", 1, "M3",  20, 5, 25)
 
     # Sortieren
     workflow.sort_operations()
