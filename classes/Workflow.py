@@ -11,8 +11,8 @@ class JobWorkflowOperation:
     routing_id: Optional[str]
     sequence_number: int
     machine: str
+    duration: int
     start_time: Optional[int] = None
-    duration: Optional[int] = None
     end_time: Optional[int] = None
 
 
@@ -23,18 +23,25 @@ class JobOperationWorkflowCollection(UserDict):
     """
 
     def add_operation(
-            self, job_id: str, routing_id: Optional[str], sequence_number: int, machine: str,
-            start_time: Optional[int] = None, duration: Optional[int] = None, end_time: Optional[int] = None):
+            self, job_id: str, routing_id: Optional[str], operation: int, machine: str,
+            duration: int, start: Optional[int] = None, end: Optional[int] = None):
         """
         Adds a new JobWorkflowOperation to the collection.
         All time fields are optional.
         """
-        op = JobWorkflowOperation(job_id, routing_id, sequence_number, machine, start_time, duration, end_time)
+        op = JobWorkflowOperation(
+            job_id=job_id,
+            routing_id=routing_id,
+            sequence_number= operation,
+            machine=machine,
+            duration= duration,
+            start_time = start,
+            end_time = end
+        )
 
         if job_id not in self:
             self[job_id] = []
         self[job_id].append(op)
-
 
 
     def remove_operation(self, job_id: str, sequence_number: int):
@@ -50,6 +57,14 @@ class JobOperationWorkflowCollection(UserDict):
 
             if not self[job_id]:
                 del self[job_id]
+
+    def add_operation_instance(self, op: JobWorkflowOperation):
+        """
+        Adds a complete JobWorkflowOperation instance to the collection.
+        """
+        if op.job_id not in self:
+            self[op.job_id] = []
+        self[op.job_id].append(op)
 
     def sort_operations(self):
         """
@@ -81,38 +96,6 @@ class JobOperationWorkflowCollection(UserDict):
                 })
         return pd.DataFrame(rows)
 
-    @classmethod
-    def from_dataframe(cls, df: pd.DataFrame,
-                       job_column: str = "Job", routing_column: str = "Routing_ID", operation_column: str = "Operation",
-                       machine_column = "Machine", start_column: str = "Start",
-                       duration_column: str = "Processing Time", end_column: str = "End"):
-        """
-        Creates a JobOperationWorkflowCollection from a DataFrame.
-
-        :param df: Input DataFrame
-        :return: JobOperationWorkflowCollection instance
-        """
-        obj = cls()
-        if df is None or df.empty:
-            return obj
-
-        has_routings = routing_column in df.columns
-
-        for _, row in df.iterrows():
-            routing_id = str(row[routing_column]) if has_routings and pd.notna(row[routing_column]) else None
-
-            obj.add_operation(
-                job_id=str(row[job_column]),
-                routing_id=routing_id,
-                sequence_number=int(row[operation_column]),
-                machine=str(row[machine_column]),
-                start_time=row[start_column] if pd.notna(row[start_column]) else None,
-                duration=row[duration_column] if pd.notna(row[duration_column]) else None,
-                end_time=row[end_column] if pd.notna(row[end_column]) else None
-            )
-
-        obj.sort_operations()
-        return obj
 
     def get_operation(self, job_id: str, sequence_number: int) -> Optional[JobWorkflowOperation]:
         """
@@ -136,15 +119,91 @@ class JobOperationWorkflowCollection(UserDict):
         }
         return machines
 
+    @classmethod
+    def from_dataframe(cls, df: pd.DataFrame,
+                       job_column: str = "Job", routing_column: str = "Routing_ID", operation_column: str = "Operation",
+                       machine_column="Machine", start_column: str = "Start",
+                       duration_column: str = "Processing Time", end_column: str = "End"):
+        """
+        Creates a JobOperationWorkflowCollection from a DataFrame.
+
+        :param df: Input DataFrame with one row per operation.
+        :param job_column: str – Column with job ID (e.g., "Job").
+        :param routing_column: str – Column with routing ID (optional, can be NaN).
+        :param operation_column: str – Column with operation number (int).
+        :param machine_column: str – Column with machine name (str).
+        :param start_column: str – Column with start time (optional, int or NaN).
+        :param duration_column: str – Column with processing time (int, required).
+        :param end_column: str – Column with end time (optional, int or NaN).
+        :return: JobOperationWorkflowCollection with loaded operations.
+        """
+        obj = cls()
+        if df is None or df.empty:
+            return obj
+
+        has_routings = routing_column in df.columns
+
+        for _, row in df.iterrows():
+            routing_id = str(row[routing_column]) if has_routings and pd.notna(row[routing_column]) else None
+
+            obj.add_operation(
+                job_id=str(row[job_column]),
+                routing_id=routing_id,
+                operation=int(row[operation_column]),
+                machine=str(row[machine_column]),
+                start=row[start_column] if pd.notna(row[start_column]) else None,
+                duration=row[duration_column],
+                end=row[end_column] if pd.notna(row[end_column]) else None
+            )
+
+        obj.sort_operations()
+        return obj
+
+    @classmethod
+    def subtract_by_job_operation_collections(
+            cls, main: "JobOperationWorkflowCollection", exclude1: "JobOperationWorkflowCollection",
+            exclude2: "JobOperationWorkflowCollection") -> "JobOperationWorkflowCollection":
+        """
+        Returns a new collection (of the same class) containing only those operations from 'main'
+        whose (job_id, sequence_number) identifiers do not appear in 'exclude1' or 'exclude2'.
+
+        This method compares operations by their job-level identity (job_id, sequence_number),
+        not by full object equality.
+        :param main: The base collection containing all operations to filter.
+        :param exclude1: The first exclusion collection; operations with the same (job_id, sequence_number)
+                         will be removed from the result.
+        :param exclude2: The second exclusion collection; operations with the same (job_id, sequence_number)
+                         will be removed from the result.
+        :return: A new JobOperationWorkflowCollection with all operations from 'main' that are not present
+                 (by identifier) in either exclusion collection.
+    """
+        result = cls()
+
+        # Sammle alle zu ignorierenden Operationen anhand ihrer IDs
+        excluded_job_operation_pair = set()
+        for collection in (exclude1, exclude2):
+            for op_list in collection.values():
+                for op in op_list:
+                    excluded_job_operation_pair.add((op.job_id, op.sequence_number))
+
+        # Nimm alle main-Operationen auf, deren ID nicht ausgeschlossen wurde
+        for op_list in main.values():
+            for op in op_list:
+                job_seq_numb = (op.job_id, op.sequence_number)
+                if job_seq_numb not in excluded_job_operation_pair:
+                    result.add_operation_instance(op)
+
+        return result
+
 
 if __name__ == "__main__":
 
     # Example
     workflow = JobOperationWorkflowCollection()
-    workflow.add_operation("Job1", "R1", 0, "M1", 0, 5, 5)
-    workflow.add_operation("Job1", "R1", 1, "M2", 6, 3, 9)
-    workflow.add_operation("Job2", "R2", 0, "M2", 0, 5, 15)
-    workflow.add_operation("Job2", "R2", 1, "M3",  20, 5, 25)
+    workflow.add_operation("Job1", "R1", 0, "M1", start = 0, duration = 5, end = 5)
+    workflow.add_operation("Job1", "R1", 1, "M2", start = 6, duration = 3, end = 9)
+    workflow.add_operation("Job2", "R2", 0, "M2", start = 2, duration = 3, end = 5)
+    workflow.add_operation("Job2", "R2", 1, "M3",  start = 6, duration = 4, end = 10)
 
     # Sortieren
     workflow.sort_operations()
