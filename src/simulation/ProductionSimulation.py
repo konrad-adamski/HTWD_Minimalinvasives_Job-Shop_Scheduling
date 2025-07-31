@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Tuple
 from classes.JobInformation import JobInformationCollection
 from classes.Workflow import JobOperationWorkflowCollection, JobWorkflowOperation
 from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
-from src.simulation.Machine import Machine
+from src.simulation.Machine import Machine, MachineCollection
 import time
 import simpy
 import pandas as pd
@@ -22,7 +22,7 @@ class ProductionSimulation:
         self.verbose = verbose
         self.sigma = sigma
         self.shift_length = shift_length
-        self.machines: Dict[str, Machine] = {}  # e.g M1 -> Machine(self.env, 'M1')
+        self.machines =  MachineCollection()
         self.start_time = 0
         self.pause_time = 0
 
@@ -34,13 +34,13 @@ class ProductionSimulation:
         self.env = None
 
     def _reload_machines(self):                                  # for new SimPy environment (continue)
-        for name, old_machine in self.machines.items():
-            self.machines[name] = Machine(self.env, name)
+        for machine_name, old_machine in self.machines.items():
+            self.machines[machine_name] = Machine(name = machine_name, env = self.env)
 
     def _add_new_machines(self, machines: set):
-        for m in machines:
-            if m not in self.machines:
-                self.machines[m] = Machine(self.env, m)
+        for machine_name in machines:
+            if machine_name not in self.machines:
+                self.machines[machine_name] = Machine(name = machine_name, env = self.env)
 
     def _job_process(self, job_id: str, job_operations: List[JobWorkflowOperation]):
 
@@ -49,7 +49,7 @@ class ProductionSimulation:
             delay = max(job_info.earliest_start - self.env.now, 0)
             yield self.env.timeout(delay)
         for op in job_operations:
-            machine = self.machines[op.machine]
+            machine = self.machines.get_source(op.machine)
             planned_start = op.start_time if op.start_time is not None else self.start_time
             delay = max(planned_start - self.env.now, 0)
             yield self.env.timeout(delay)
@@ -89,7 +89,7 @@ class ProductionSimulation:
         self.start_time = start_time
         self.pause_time = end_time
         self.env = simpy.Environment(initial_time=start_time)
-        self._reload_machines()
+        self.machines.set_env(self.env)     # statt self._reload_machines()
         self.finished_operations_collection = JobOperationWorkflowCollection()
 
         for job_op in self.active_operations.values():
@@ -97,7 +97,7 @@ class ProductionSimulation:
 
         if schedule_collection is not None:
             machines = schedule_collection.get_unique_machines()
-            self._add_new_machines(machines)
+            self.machines.add_machines_with_env(self.env, machines)         # self._add_new_machines(machines)
 
             for job_id, operations in schedule_collection.items():
                 self.env.process(self._job_process(job_id, operations))
@@ -201,7 +201,8 @@ if __name__ == "__main__":
     print("\n", "---" * 20, "Simulation", "---" * 20)
     simulation = ProductionSimulation(shift_length=1440, sigma= 0.02)
 
-    simulation.run(schedule_collection, start_time= 1440, end_time= 2800)
+    #simulation.run(schedule_collection, start_time= 1440, end_time=2880)
+    simulation.initialize_run(schedule_collection, start_time=1440)
 
     print("\n","---" * 20, "Finished Operations", "---" * 20)
     finished_operations = simulation.get_finished_operation_collection()
@@ -228,3 +229,6 @@ if __name__ == "__main__":
     print(f"Finished Operations count: {len(df_finished)}")
     print(f"Active operations count: {len(df_active)}")
     print(f"Waiting operations count: {len(df_waiting)}")
+
+    print("---" * 60)
+    simulation.continue_run() # nur aktive
