@@ -13,7 +13,7 @@ import pandas as pd
 class ProductionSimulation:
     def __init__(
             self, job_information_collection: Optional[JobInformationCollection] = None,
-            shift_length: int = 1440, verbose=True, sigma: float = 0.2):
+            shift_length: int = 1440, sigma: float = 0.2, verbose: bool = True):
 
         if job_information_collection is not None:
             self.job_information_collection = job_information_collection
@@ -21,10 +21,9 @@ class ProductionSimulation:
             self.job_information_collection = JobInformationCollection()
         self.verbose = verbose
         self.sigma = sigma
-
+        self.shift_length = shift_length
         self.machines = {}
         self.start_time = 0
-        self.shift_length = shift_length
         self.pause_time = 0
 
         self.active_operations: Dict[Tuple[str, int], JobWorkflowOperation] = {}  # (job_id, operation) → operation
@@ -49,24 +48,24 @@ class ProductionSimulation:
             job_info = self.job_information_collection[job_id]
             delay = max(job_info.earliest_start - self.env.now, 0)
             yield self.env.timeout(delay)
-
         for op in job_operations:
             machine = self.machines[op.machine]
             planned_start = op.start_time if op.start_time is not None else self.start_time
             delay = max(planned_start - self.env.now, 0)
             yield self.env.timeout(delay)
 
+
             with machine.request() as req:
                 yield req
                 sim_start = self.env.now
-                self.job_started_on_machine(sim_start, job_id, machine)
+                self.log_job_started_on_machine(sim_start, job_id, machine)
 
                 sim_duration = duration_log_normal(op.duration, sigma=self.sigma)
                 self.register_active_operation(job_op=op, sim_start=sim_start, sim_duration=sim_duration)
 
                 yield self.env.timeout(sim_duration)
                 sim_end = self.env.now
-                self.job_finished_on_machine(sim_end, job_id, machine, sim_duration)
+                self.log_job_finished_on_machine(sim_end, job_id, machine, sim_duration)
 
             self.add_finished_operation(job_op=op, sim_start=sim_start, sim_end=sim_end)
 
@@ -74,18 +73,18 @@ class ProductionSimulation:
         remaining_time = max(0, job_op.end_time - self.start_time)
 
         machine = self.machines[job_op.machine]
-        if self.verbose:
-            print(f"[{get_time_str(self.env.now)}] Job {job_op.job_id}, Operation {job_op.sequence_number} "
-                  + f"resumed on {job_op.machine} with {get_duration(remaining_time)} left)")
+        self.log_job_resumed_on_machine(time_stamp=self.env.now, remaining_time=remaining_time, job_op=job_op)
 
         with machine.request() as req:
             yield req
             yield self.env.timeout(remaining_time)
             sim_end = self.env.now
-            self.job_finished_on_machine(sim_end, job_op.job_id, machine, remaining_time)
+            self.log_job_finished_on_machine(sim_end, job_op.job_id, machine, remaining_time)
         self.add_finished_operation(job_op=job_op,sim_start=job_op.start_time,sim_end=sim_end,)
 
-    def run(self, schedule_collection: Optional[JobOperationWorkflowCollection] = None, start_time: int = 0, end_time: int | None = None):
+    def run(
+            self, schedule_collection: Optional[JobOperationWorkflowCollection] = None,
+            start_time: int = 0, end_time: int | None = None):
         self.start_time = start_time
         self.pause_time = end_time
         self.env = simpy.Environment(initial_time=start_time)
@@ -96,7 +95,7 @@ class ProductionSimulation:
             self.env.process(self.resume_operation_process(job_op))
 
         if schedule_collection is not None:
-            machines = schedule_collection.get_unique_machine()
+            machines = schedule_collection.get_unique_machines()
             self.add_new_machines(machines)
 
             for job_id, operations in schedule_collection.items():
@@ -119,21 +118,22 @@ class ProductionSimulation:
         end_time = start_time + self.shift_length
         self.run(schedule_collection=schedule_collection, start_time=start_time, end_time=end_time)
 
-    def job_started_on_machine(self, time_stamp, job_id, machine):
+    def log_job_started_on_machine(self, time_stamp, job_id, machine):
         if self.verbose:
             print(f"[{get_time_str(time_stamp)}] Job {job_id} started on {machine.name}")
         if self.controller:
             self.controller.job_started_on_machine(time_stamp, job_id, machine)
             time.sleep(0.05)
 
-    def job_finished_on_machine(self, time_stamp, job_id, machine, sim_duration):
+    def log_job_finished_on_machine(self, time_stamp, job_id, machine, sim_duration):
         if self.verbose:
-            print(f"[{get_time_str(time_stamp)}] Job {job_id} finished on {machine.name} (after {get_duration(sim_duration)})")
+            print(f"[{get_time_str(time_stamp)}] Job {job_id} finished on {machine.name} "
+                  + f"(after {get_duration(sim_duration)})")
         if self.controller:
             self.controller.job_finished_on_machine(time_stamp, job_id, machine, sim_duration)
             time.sleep(0.14)
 
-    def job_resumed_on_machine(self, time_stamp, remaining_time, job_op: JobWorkflowOperation):
+    def log_job_resumed_on_machine(self, time_stamp, remaining_time, job_op: JobWorkflowOperation):
         if self.verbose:
             print(f"[{get_time_str(time_stamp)}] Job {job_op.job_id}, Operation {job_op.sequence_number} "
               + f"resumed on {job_op.machine} with {get_duration(remaining_time)} left)")
@@ -180,18 +180,45 @@ class ProductionSimulation:
         return self.finished_operations_collection
 
 
-    def get_not_started_operations_df(self, df_schedule_plan):
-        # Kombiniere Keys aus aktiven und fertigen Operationen
-        started_or_finished = set(self.active_operations.keys()).union(self.finished_log.keys())
+if __name__ == "__main__":
 
-        # Filtere alle Zeilen heraus, deren (Job, Operation) NICHT in den gestarteten/fertigen enthalten ist
-        df = df_schedule_plan[
-            ~df_schedule_plan.apply(
-                lambda row: (row[self.job_column], row["Operation"]) in started_or_finished,
-                axis=1
-            )
-        ]
-        if df.empty:
-            return None
-        return df.sort_values(by=[self.job_column, "Operation"]).reset_index(drop=True)
+    from configs.path_manager import get_path
 
+    basic_data_path = get_path("data", "examples")
+    df_schedule = pd.read_csv(basic_data_path / "lateness_schedule_day_01.csv")
+
+    print("\n", "---" * 20, "Schedule", "---" * 20)
+    schedule_collection = JobOperationWorkflowCollection.from_dataframe(df_schedule)
+
+    print("\n", "---" * 20, "Simulation", "---" * 20)
+    simulation = ProductionSimulation(shift_length=1440, sigma= 0.02)
+
+    simulation.run(schedule_collection, start_time= 1440, end_time= 2800)
+
+    print("\n","---" * 20, "Finished Operations", "---" * 20)
+    finished_operations = simulation.get_finished_operations()
+
+    df_finished = finished_operations.to_dataframe()
+    print(df_finished.head(5))
+
+    print("\n", "---" * 20, "Active Operations", "---" * 20)
+    active_operations = simulation.get_active_operations()
+
+    df_active = active_operations.to_dataframe()
+    print(df_active.head(5))
+
+    print("\n", "---" * 20, "Waiting Operations", "---" * 20)
+
+    waiting_operation = JobOperationWorkflowCollection.subtract_by_job_operation_collections(
+        main = schedule_collection,
+        exclude1=finished_operations,
+        exclude2=active_operations
+    )
+    df_waiting = waiting_operation.to_dataframe()
+    print(df_waiting.head(5))
+
+    print("---"*60)
+    print(f"\nScheduleOperations count: {len(df_schedule)}")
+    print(f"Finished Operations count: {len(df_finished)}")
+    print(f"Active operations count: {len(active_operations)}")
+    print(f"Waiting operations count: {len(waiting_operation)}")
