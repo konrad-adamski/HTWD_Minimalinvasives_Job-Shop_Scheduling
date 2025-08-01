@@ -280,21 +280,23 @@ class Job:
         "sa": Column(String(255), ForeignKey("routing.id"), nullable=False)
     })
 
+    # Zeitinformationen
+    arrival: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
+    earliest_start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
+    deadline: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
     max_bottleneck_utilization: float = field(default=0.0, metadata={
         "sa": Column(Numeric(5, 4), nullable=False)  # 10 Stellen gesamt, 4 nach dem Komma
     })
 
-    # Zeitinformationen
-    arrival: int = field(default=0, metadata={
-        "sa": Column(Integer, nullable=False)
+    experiment_id: int = field(init=False, default=None, metadata={
+        "sa": Column(Integer, ForeignKey("experiment.id"), nullable=False)
     })
 
-    earliest_start: int = field(default=0, metadata={
-        "sa": Column(Integer, nullable=False)
-    })
-
-    deadline: int = field(default=0, metadata={
-        "sa": Column(Integer, nullable=False)
+    experiment: Experiment = field(default=None, repr=False, metadata={
+        "sa": relationship("Experiment", back_populates="jobs")
     })
 
     # Relations
@@ -315,7 +317,10 @@ class Job:
     })
 
     def __post_init__(self):
+
         self.routing_id = self.routing.id
+        self.experiment_id = self.experiment.id
+
         if not (0 <= self.max_bottleneck_utilization <= 1):
             raise ValueError("max_bottleneck_utilization must be between 0 and 1.")
 
@@ -335,27 +340,25 @@ class Job:
                         name="check_utilization_range"),
     )
 
-
 @mapper_registry.mapped
 @dataclass
 class JobOperation:
     __tablename__ = "job_operation"
     __sa_dataclass_metadata_key__ = "sa"
 
-
     job_id: str = field(init=False, metadata={
-        "sa": Column(String, ForeignKey("job.id"), nullable=False, primary_key=True)
-    })
-
-    routing_id: str = field(init=False, metadata={
-        "sa": Column(String, nullable=False, primary_key=True)
+        "sa": Column(String, ForeignKey("job.id"), primary_key=True)
     })
 
     position_number: int = field(init=False, metadata={
-        "sa": Column(Integer, nullable=False, primary_key=True)
+        "sa": Column(Integer, primary_key=True)
     })
 
-    # Relationship zur RoutingOperation via (routing_id, position_number)
+    routing_id: str = field(init=False, metadata={
+        "sa": Column(String, nullable=False)  # ❗ nicht mehr Teil des PK
+    })
+
+    # Beziehung zur RoutingOperation
     routing_operation: RoutingOperation = field(metadata={
         "sa": relationship(
             "RoutingOperation",
@@ -368,6 +371,7 @@ class JobOperation:
         )
     })
 
+    # Beziehung zum übergeordneten Job
     job: Job = field(default=None, repr=False, metadata={
         "sa": relationship("Job", back_populates="operations")
     })
@@ -434,7 +438,7 @@ class Experiment:
         "sa": Column(Integer, nullable=False)
     })
 
-    max_bottleneck_utilization: float = field(default=0.0, metadata={
+    max_bottleneck_utilization: float = field(default=0.5, metadata={
         "sa": Column(Numeric(5, 4), nullable=False)
     })
 
@@ -448,11 +452,26 @@ class Experiment:
         if not (0 <= self.main_pct <= 1):
             raise ValueError("main_pct must be between 0 and 1.")
 
-    __table_args__ = (
-        CheckConstraint("max_bottleneck_utilization >= 0 AND max_bottleneck_utilization <= 1",
-                        name="check_utilization_range"),
-        CheckConstraint("main_pct >= 0 AND main_pct <= 1", name="check_main_pct_range"),
-    )
+    jobs: List[Job] = field(default_factory=list, repr=False, metadata={
+        "sa": relationship("Job", back_populates="experiment", cascade="all, delete-orphan")
+    })
+
+    def get_jobs_by_shift_start(self, shift_start: int) -> List[Job]:
+        """
+        Gibt alle Jobs zurück, deren earliest_start dem gegebenen shift_start entspricht
+        und deren max_bottleneck_utilization gleich der des Experiments ist.
+
+        :param shift_start: Startzeit des Shifts (in Minuten)
+        :return: gefilterte Liste von Job-Objekten
+        """
+        jobs: List[Job] = []
+
+        for job in self.jobs:
+            if (job.earliest_start == shift_start and
+                    float(job.max_bottleneck_utilization) == float(self.max_bottleneck_utilization)):
+                jobs.append(job)
+        return jobs
+
 
 @mapper_registry.mapped
 @dataclass
@@ -468,9 +487,150 @@ class Shift:
         "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
     })
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
+    shift_length: int = field(default=1440, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
+
+    experiment: Experiment = field(default=None, repr=True, metadata={
         "sa": relationship("Experiment", backref="shifts")
     })
+
+    @property
+    def shift_start(self) -> int:
+        return self.shift_number * self.shift_length
+
+    @property
+    def shift_end(self) -> int:
+        return self.shift_start + self.shift_length
+
+    @property
+    def jobs(self) -> List[Job]:
+        return self.experiment.get_jobs_by_shift_start(self.shift_start)
+
+
+@mapper_registry.mapped
+@dataclass
+class ScheduleJob:
+    __tablename__ = "schedule_job"
+    __sa_dataclass_metadata_key__ = "sa"
+
+    shift_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+
+    experiment_id: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+
+    job_id: str = field(metadata={"sa": Column(String, primary_key=True)})
+
+    position_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+
+    routing_id: Optional[str] = field(metadata={"sa": Column(String, default=None)})
+
+    start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
+    end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
+    job_operation: JobOperation = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "JobOperation",
+            primaryjoin=(
+                "and_(ScheduleJob.job_id == JobOperation.job_id, "
+                "ScheduleJob.position_number == JobOperation.position_number)"
+            ),
+            lazy="joined"
+        )
+    })
+
+    shift: Shift = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "Shift",
+            primaryjoin=(
+                "and_(ScheduleJob.experiment_id == Shift.experiment_id, "
+                "ScheduleJob.shift_number == Shift.shift_number)"
+            ),
+            lazy="joined"
+        )
+    })
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["job_id", "position_number"],
+            ["job_operation.job_id", "job_operation.position_number"]
+        ),
+        ForeignKeyConstraint(
+            ["experiment_id", "shift_number"],
+            ["shift.experiment_id", "shift.shift_number"]
+        ),
+    )
+
+    @property
+    def machine(self) -> str:
+        return self.job_operation.machine
+
+    @property
+    def duration(self) -> int:
+        return self.job_operation.duration
+
+@mapper_registry.mapped
+@dataclass
+class SimulationJob:
+    __tablename__ = "simulation_job"
+    __sa_dataclass_metadata_key__ = "sa"
+
+    shift_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+
+    experiment_id: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+
+    job_id: str = field(metadata={"sa": Column(String, primary_key=True)})
+
+    position_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+
+    routing_id: Optional[str] = field(metadata={"sa": Column(String, default=None)})
+
+    start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
+    duration: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
+    end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+
+    job_operation: JobOperation = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "JobOperation",
+            primaryjoin=(
+                "and_(SimulationJob.job_id == JobOperation.job_id, "
+                "SimulationJob.position_number == JobOperation.position_number)"
+            ),
+            lazy="joined"
+        )
+    })
+
+    shift: Shift = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "Shift",
+            primaryjoin=(
+                "and_(SimulationJob.experiment_id == Shift.experiment_id, "
+                "SimulationJob.shift_number == Shift.shift_number)"
+            ),
+            lazy="joined"
+        )
+    })
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["job_id", "position_number"],
+            ["job_operation.job_id", "job_operation.position_number"]
+        ),
+        ForeignKeyConstraint(
+            ["experiment_id", "shift_number"],
+            ["shift.experiment_id", "shift.shift_number"]
+        ),
+    )
+
+    @property
+    def machine(self) -> str:
+        return self.job_operation.machine
+
+    @property
+    def route_duration(self) -> int:
+        return self.job_operation.duration
 
 
 if __name__ == "__main__":
@@ -502,12 +662,17 @@ if __name__ == "__main__":
     routing_r1 = next((r for r in routings if r.id == "R1"), None)
     print(f"Routing-ID: {routing_r1.id}")
 
+    # Job Experiment -----------------------------------------------------
+
+    experiment = Experiment()
+    print(f"Experiment ID: {experiment.id}, max_utilization: {experiment.max_bottleneck_utilization}")
     job = Job(
         id="J1",
         routing=routing_r1,
         arrival=0,
         earliest_start=1440,
         deadline=2800,
+        experiment=experiment
     )
 
     # 5. Ausgabe
