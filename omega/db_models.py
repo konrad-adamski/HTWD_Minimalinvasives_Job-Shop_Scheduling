@@ -355,7 +355,7 @@ class JobOperation:
     })
 
     routing_id: str = field(init=False, metadata={
-        "sa": Column(String, nullable=False)  # ❗ nicht mehr Teil des PK
+        "sa": Column(String, nullable=False)
     })
 
     # Beziehung zur RoutingOperation
