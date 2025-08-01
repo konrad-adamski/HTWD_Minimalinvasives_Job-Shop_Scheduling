@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import pandas as pd
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, ForeignKeyConstraint
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, ForeignKeyConstraint, PrimaryKeyConstraint
 from sqlalchemy.orm import registry, relationship
 from typing import Optional, List
 mapper_registry = registry()
@@ -37,22 +37,68 @@ class RoutingSource:
 
 @mapper_registry.mapped
 @dataclass
+class Machine:
+    __tablename__ = "machine"
+    __sa_dataclass_metadata_key__ = "sa"
+
+    name: str = field(metadata={
+        "sa": Column(String(100), primary_key=True)  # Maschinenname als eindeutige ID
+    })
+
+    transition_time: int = field(default=0, metadata={
+        "sa": Column(Integer, nullable=False)  # z.B. Rüstzeit oder Umlaufzeit
+    })
+
+    # Optional: Beziehung zu RoutingOperations
+    operations: List[RoutingOperation] = field(default_factory=list, repr=False, metadata={
+        "sa": relationship(
+            "RoutingOperation",
+            back_populates="machine_entity"
+        )
+    })
+
+    @classmethod
+    def from_machines_dataframe(
+            cls, df: pd.DataFrame, machine_column: str = "Machine",
+            transition_column: str = "Transition Time", default_transition_time: int = 0) -> List[Machine]:
+        """
+        Create unique Machine objects from a DataFrame.
+
+        :param df: Input DataFrame containing machine information.
+        :param machine_column: Column name with machine identifiers.
+        :param transition_column: Optional column with transition times.
+        :param default_transition_time: Default transition time if column is missing.
+        :return: List of Machine instances.
+        """
+        df_unique = df.drop_duplicates(subset=machine_column).copy()
+
+        if transition_column not in df.columns:
+            df_unique[transition_column] = default_transition_time
+
+        machine_entities = []
+        for _, row in df_unique.iterrows():
+            machine = cls(
+                name=row[machine_column],
+                transition_time=int(row[transition_column])
+            )
+            machine_entities.append(machine)
+
+        return machine_entities
+
+
+@mapper_registry.mapped
+@dataclass
 class Routing:
     __tablename__ = "routing"
     __sa_dataclass_metadata_key__ = "sa"
 
-    # Technischer Primärschlüssel – wird von der DB generiert
-    id: Optional[int] = field(init=False, default=None, metadata={
-        "sa": Column(Integer, primary_key=True, autoincrement=True)
+    id: str = field(metadata={
+        "sa": Column(String(255), primary_key=True)
     })
 
-    # Domänen-ID
-    routing_id: str = field(default="", metadata={
-        "sa": Column(String(255), unique=False, nullable=False)
+    source_id: Optional[int] = field(default=None, metadata={
+        "sa": Column(Integer, ForeignKey("routing_source.id"), nullable=True)
     })
-
-    routing_source_id: Optional[int] = field(default=0, metadata=
-    {"sa": Column(Integer, ForeignKey("routing_source.id"), nullable=True)})
 
     routing_source: Optional[RoutingSource] = field(
         default=None,
@@ -62,7 +108,6 @@ class Routing:
         }
     )
 
-    # Relationship zu RoutingOperation
     operations: List[RoutingOperation] = field(
         default_factory=list,
         repr=False,
@@ -79,13 +124,17 @@ class Routing:
         default_factory=list,
         repr=False,
         metadata={
-            "sa": relationship("Job", back_populates="routing")
+            "sa": relationship(
+                "Job",
+                back_populates="routing",
+                cascade="all, delete-orphan"
+            )
         }
     )
 
-    __table_args__ = (
-        UniqueConstraint("routing_id", "routing_source_id", name="unique_routing_in_source"),
-    )
+    @property
+    def source_name(self) -> str:
+        return self.routing_source.name if self.routing_source is not None else None
 
     # Custom-Property für die Planungslogik
     @property
@@ -129,7 +178,7 @@ class Routing:
             )
 
         routing_id = str(unique_ids[0])
-        new_routing = cls(routing_id=routing_id, routing_source=source, operations=[])
+        new_routing = cls(id=routing_id, routing_source=source, operations=[])
 
         for _, row in df_clean.iterrows():
             step_nr = int(row[operation_column])
@@ -188,24 +237,22 @@ class RoutingOperation:
     __tablename__ = "routing_operation"
     __sa_dataclass_metadata_key__ = "sa"
 
-    # Datenbankspalten
-    id: Optional[int] = field(init=False, default=None, metadata={
-        "sa": Column(Integer, primary_key=True, autoincrement=True)
+    routing_id: str = field(metadata={
+        "sa": Column(String(255), ForeignKey("routing.id"), primary_key=True)
     })
-    routing_id: str = field(default="", metadata={
-        "sa": Column(String(255), ForeignKey("routing.id"), nullable=False)
+
+    position_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True)
     })
-    position_number: int = field(default=0, metadata={
-        "sa": Column(Integer, nullable=False)
+
+    machine: str = field(init=True, metadata={
+        "sa": Column(String(100), ForeignKey("machine.name"), nullable=False)
     })
-    machine: str = field(default="", metadata={
-        "sa": Column(String(255), nullable=False)
-    })
-    duration: int = field(default=0, metadata={
+
+    duration: int = field(metadata={
         "sa": Column(Integer, nullable=False)
     })
 
-    # Pflichtbeziehung zu Routing – KEIN Optional
     routing: Routing = field(
         default=None,
         repr=False,
@@ -214,9 +261,10 @@ class RoutingOperation:
         }
     )
 
-    __table_args__ = (
-        UniqueConstraint("routing_id", "position_number", name="unique_routing_position"),
-    )
+    machine_entity: Optional[Machine] = field(init=False, default=None, repr=False, metadata={
+        "sa": relationship("Machine", back_populates="operations")
+    })
+
 
 @mapper_registry.mapped
 @dataclass
@@ -224,18 +272,12 @@ class Job:
     __tablename__ = "job"
     __sa_dataclass_metadata_key__ = "sa"
 
-    # Technischer Primärschlüssel
-    id: int = field(init=False, default=None, metadata={
-        "sa": Column(Integer, primary_key=True, autoincrement=True)
+    id: str = field(default="", metadata={
+        "sa": Column(String(255), nullable=False, primary_key=True)
     })
 
-    # Domänenschlüssel
-    job_id: str = field(default="", metadata={
-        "sa": Column(String(255), nullable=False)
-    })
-
-    routing_id: Optional[int] = field(default=None, metadata={
-        "sa": Column(Integer, ForeignKey("routing.id"), nullable=False)
+    routing_id: str = field(init= False, default="", metadata={
+        "sa": Column(String(255), ForeignKey("routing.id"), nullable=False)
     })
 
     # Zeitinformationen
@@ -252,7 +294,7 @@ class Job:
     })
 
     # Relations
-    routing: Optional[Routing] = field(default=None, repr=False, metadata={
+    routing: Routing = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Routing",
             back_populates="jobs"
@@ -260,7 +302,7 @@ class Job:
     })
 
     # Beziehung zu JobOperationen
-    operations: List[JobOperation] = field(default_factory=list, repr=False, metadata={
+    operations: List[JobOperation] = field(init=False, default_factory=list, repr=False, metadata={
         "sa": relationship(
             "JobOperation",
             back_populates="job",
@@ -268,29 +310,41 @@ class Job:
         )
     })
 
+    def __post_init__(self):
+        self.routing_id = self.routing.id
+        for op in self.routing.operations:
+            JobOperation(
+                routing_operation=op,
+                job=self
+            )
+
+    # Custom-Property für die Planungslogik
+    @property
+    def sum_duration(self) -> int:
+        return self.routing.sum_duration
+
+
+
 @mapper_registry.mapped
 @dataclass
 class JobOperation:
     __tablename__ = "job_operation"
     __sa_dataclass_metadata_key__ = "sa"
 
-    id: int = field(init=False, default=None, metadata={
-        "sa": Column(Integer, primary_key=True, autoincrement=True)
+
+    job_id: str = field(init=False, metadata={
+        "sa": Column(String, ForeignKey("job.id"), nullable=False, primary_key=True)
     })
 
-    job_id: str = field(metadata={
-        "sa": Column(String, ForeignKey("job.id"), nullable=False)
+    routing_id: str = field(init=False, metadata={
+        "sa": Column(String, nullable=False, primary_key=True)
     })
 
-    position_number: int = field(metadata={
-        "sa": Column(Integer, nullable=False)
+    position_number: int = field(init=False, metadata={
+        "sa": Column(Integer, nullable=False, primary_key=True)
     })
 
-    routing_id: str = field(metadata={
-        "sa": Column(String, nullable=False)
-    })
-
-    # Beziehung zur RoutingOperation via (routing_id, position_number)
+    # Relationship zur RoutingOperation via (routing_id, position_number)
     routing_operation: RoutingOperation = field(metadata={
         "sa": relationship(
             "RoutingOperation",
@@ -298,18 +352,30 @@ class JobOperation:
                 "and_(JobOperation.routing_id == RoutingOperation.routing_id, "
                 "JobOperation.position_number == RoutingOperation.position_number)"
             ),
-            viewonly=True,
-            lazy="joined"
+            lazy="joined",
+            viewonly=True
         )
     })
 
-    job: Job = field(
-        default=None,
-        repr=False,
-        metadata={
-            "sa": relationship("Job", back_populates="operations")
-        }
+    job: Job = field(default=None, repr=False, metadata={
+        "sa": relationship("Job", back_populates="operations")
+    })
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["routing_id", "position_number"],
+            ["routing_operation.routing_id", "routing_operation.position_number"]
+        ),
     )
+
+    def __post_init__(self):
+        # IDs aus Beziehungen automatisch setzen
+        if self.job:
+            self.job_id = self.job.id
+        if self.routing_operation:
+            self.routing_id = self.routing_operation.routing_id
+            self.position_number = self.routing_operation.position_number
+
 
     @property
     def machine(self) -> str:
@@ -319,62 +385,87 @@ class JobOperation:
     def duration(self) -> int:
         return self.routing_operation.duration
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["routing_id", "position_number"],
-            ["routing_operation.routing_id", "routing_operation.position_number"]
-        ),
-    )
+    @property
+    def job_earliest_start(self) -> int:
+        return self.job.earliest_start
+
+    @property
+    def job_deadline(self) -> int:
+        return self.job.earliest_start
+
 
 
 if __name__ == "__main__":
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session
 
+    # RoutingSource erzeugen
+    routing_source = RoutingSource(name="Testdatensatz")
 
     # Example with multiple Routings
     data = {
-        "Routing_ID": ["R1", "R1", "R2"],
-        "Operation": [10, 20, 10],
-        "Machine": ["M1", "M2", "M3"],
-        "Processing Time": [5, 10, 7]
+        "Routing_ID": ["R1", "R1", "R2", "R2"],
+        "Operation": [10, 20, 10, 20],
+        "Machine": ["M1", "M2", "M3", "M1"],
+        "Processing Time": [5, 10, 7, 14]
     }
     dframe_routings = pd.DataFrame(data)
 
-    # RoutingSource erzeugen
-    routing_source = RoutingSource(name="Mein Test")
-
-
-    # Routing aus DataFrame erzeugen
-    routings = Routing.from_multiple_routings_dataframe(
-        dframe_routings,
-        source=routing_source
-    )
+    # Routings aus DataFrame erzeugen
+    routings = Routing.from_multiple_routings_dataframe(dframe_routings, source=routing_source)
 
     for routing in routings:
-        print(f"Routing-ID: {routing.routing_id} from {routing.routing_source}")
+        print(f"Routing-ID: {routing.id} from {routing.source_name} ({routing.source_id})")
         print(f"Gesamtdauer: {routing.sum_duration} min")
 
         for op in routing.operations:
-            for op in routing.operations:
-                print(f"  • Step {op.position_number}: {op.machine}, {op.duration} min")
+            print(f"  • Step {op.position_number}: {op.machine}, {op.duration} min")
+
+    print("\n", "-"*60)
+
+    routing_r1 = next((r for r in routings if r.id == "R1"), None)
+    print(f"Routing-ID: {routing_r1.id}")
+
+    job = Job(
+        id="J1",
+        routing=routing_r1,
+        arrival=0,
+        earliest_start=1440,
+        deadline=2800,
+    )
+
+    # 5. Ausgabe
+    print(f"\nJob {job.id} (Routing: {job.routing_id}) mit {len(job.operations)} Operationen:")
+    for op in job.operations:
+        print(f"  – Step {op.position_number}: {op.machine}, {op.duration} min. "
+              f"Job earliest_start: {op.job_earliest_start}")
 
 
+    
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    
     # SQLite-Datenbank (lokal in Datei)
-    engine = create_engine("sqlite:///routings.db")  # oder sqlite:///:memory: (im RAM)
+    engine = create_engine("sqlite:///factory.db")  # oder sqlite:///:memory: (im RAM)
 
     # ❌ Alles löschen
     mapper_registry.metadata.drop_all(engine)
     # ✅ Neu erzeugen
     mapper_registry.metadata.create_all(engine)
 
-    # Datenbank-Sitzung starten und Routings speichern
+    # 3. Session starten
     with Session(engine) as session:
-        session.add_all(routings)  # Alle Routings inklusive Operations
-        session.commit()
 
-        # Kontrolle: Anzahl gespeicherter Operationen
-        num_ops = session.query(RoutingOperation).count()
-        print(f"\n{num_ops} RoutingOperations erfolgreich gespeichert.")
+        # Optional: Machines hinzufügen, falls benötigt (hier ohne transition time)
+        machines = Machine.from_machines_dataframe(dframe_routings)
+        session.add_all(machines)
+
+        # RoutingSource + Routings (mit Operations) speichern
+        session.add(routing_source)     # enthält auch die Routings per backref
+        #session.add_all(routings)       # redundant, aber sicher
+
+        # Job + JobOperation speichern
+        #session.add(job)  # job enthält job.operations über backref
+
+        # Abschicken
+        session.commit()
 
 
