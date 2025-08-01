@@ -5,7 +5,7 @@ import pandas as pd
 from pydantic.dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class JobWorkflowOperation:
     job_id: str
     routing_id: Optional[str]
@@ -159,39 +159,37 @@ class JobOperationWorkflowCollection(UserDict):
         obj.sort_operations()
         return obj
 
+
     @classmethod
     def subtract_by_job_operation_collections(
-            cls, main: "JobOperationWorkflowCollection", exclude1: "JobOperationWorkflowCollection",
-            exclude2: "JobOperationWorkflowCollection") -> "JobOperationWorkflowCollection":
+            cls, main: "JobOperationWorkflowCollection",
+            *exclude_collections: "JobOperationWorkflowCollection") -> "JobOperationWorkflowCollection":
         """
         Returns a new collection (of the same class) containing only those operations from 'main'
-        whose (job_id, sequence_number) identifiers do not appear in 'exclude1' or 'exclude2'.
+        whose (job_id, sequence_number) identifiers do not appear in any of the exclusion collections.
 
-        This method compares operations by their job-level identity (job_id, sequence_number),
-        not by full object equality.
+        This method removes only matching operations by (job_id, sequence_number), not by full object equality.
+
         :param main: The base collection containing all operations to filter.
-        :param exclude1: The first exclusion collection; operations with the same (job_id, sequence_number)
-                         will be removed from the result.
-        :param exclude2: The second exclusion collection; operations with the same (job_id, sequence_number)
-                         will be removed from the result.
-        :return: A new JobOperationWorkflowCollection with all operations from 'main' that are not present
-                 (by identifier) in either exclusion collection.
-    """
+        :param exclude_collections: Any number of exclusion collections. Operations with the same
+                                    (job_id, sequence_number) will be removed from the result.
+        :return: A new JobOperationWorkflowCollection with filtered operations.
+        """
         result = cls()
 
-        # Sammle alle zu ignorierenden Operationen anhand ihrer IDs
-        excluded_job_operation_pair = set()
-        for collection in (exclude1, exclude2):
-            for op_list in collection.values():
-                for op in op_list:
-                    excluded_job_operation_pair.add((op.job_id, op.sequence_number))
+        # Set of (job_id, sequence_number) tuples to exclude
+        excluded_pairs = set()
+        for collection in exclude_collections:
+            for ops in collection.values():
+                for op in ops:
+                    excluded_pairs.add((op.job_id, op.sequence_number))
 
-        # Nimm alle main-Operationen auf, deren ID nicht ausgeschlossen wurde
-        for op_list in main.values():
-            for op in op_list:
-                job_seq_numb = (op.job_id, op.sequence_number)
-                if job_seq_numb not in excluded_job_operation_pair:
+        # Keep only those operations not matching any (job_id, sequence_number)
+        for ops in main.values():
+            for op in ops:
+                if (op.job_id, op.sequence_number) not in excluded_pairs:
                     result.add_operation_instance(op)
+                    print(op.job_id, op.sequence_number)
 
         return result
 

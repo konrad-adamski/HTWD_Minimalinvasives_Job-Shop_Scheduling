@@ -236,7 +236,8 @@ if __name__ == "__main__":
     print("\n", "---" * 60)
 
     print("Active Operations:")
-    print(simulation.get_active_operations_df())
+    df_active = simulation.get_active_operations_df()
+    print(df_active)
 
 
     print("Not started operations:")
@@ -249,4 +250,10 @@ if __name__ == "__main__":
     print(simulation.get_finished_operations_df())
 
     print(simulation.get_active_operations_df())
+
+    print(f"\nScheduleOperations count: {len(df_schedule)}")
+    print(f"Finished Operations count: {len(df_execution)}")
+    print(f"Active operations count: {len(df_active)}")
+    print(f"Waiting operations count: {len(df_not_started)}")
+
 
