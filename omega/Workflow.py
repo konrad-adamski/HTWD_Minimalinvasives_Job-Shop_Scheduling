@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import UserDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List
 
 import pandas as pd
@@ -14,8 +14,9 @@ class JobOperation:
     position_number: int
     machine: str
 
+
 @dataclass
-class JobWorkflowOperation:
+class JobOperationWorkflow:
     job_id: str
     position_number: int
     machine: str
@@ -26,8 +27,26 @@ class JobWorkflowOperation:
     start_time: Optional[int] = None
     end_time: Optional[int] = None
 
+    # Wird intern aufgebaut
+    job_operation: JobOperation = field(init=False)
+
+    def __post_init__(self):
+        self.job_operation = JobOperation(
+            job_id=self.job_id,
+            position_number=self.position_number,
+            machine=self.machine
+        )
+
+    def __eq__(self, other):
+        if not isinstance(other, JobOperationWorkflow):
+            return NotImplemented
+        return self.job_operation == other.job_operation
+
+    def __hash__(self):
+        return hash(self.job_operation)
+
     @classmethod
-    def from_schedule_operation(cls, job_operation: ScheduleJobOperation) -> JobWorkflowOperation:
+    def from_schedule_operation(cls, job_operation: ScheduleJobOperation) -> JobOperationWorkflow:
         return cls(
             experiment_id=job_operation.experiment_id,
             routing_id=job_operation.routing_id,
@@ -55,10 +74,12 @@ class JobOperationWorkflowCollection(UserDict):
     """
     Kapselt eine Sammlung von JobWorkflowOperationen, gruppiert nach Job-ID.
     """
+    def __init__(self):
+        super().__init__()
 
     def add_from_schedule_job_operation(self, schedule_job_operation: ScheduleJobOperation):
         job_id = ScheduleJobOperation.job_id
-        workflow_op = JobWorkflowOperation.from_schedule_operation(schedule_job_operation)
+        workflow_op = JobOperationWorkflow.from_schedule_operation(schedule_job_operation)
 
         if job_id not in self.data:
             self.data[job_id] = []
@@ -68,7 +89,7 @@ class JobOperationWorkflowCollection(UserDict):
         for op in schedule_job_operations:
             self.add_from_schedule_job_operation(op)
 
-    def add_operation_instance(self, op: JobWorkflowOperation):
+    def add_operation_instance(self, op: JobOperationWorkflow):
         """
         Adds a complete JobWorkflowOperation instance to the collection.
         """
@@ -84,10 +105,10 @@ class JobOperationWorkflowCollection(UserDict):
             self[job_id].sort(key=lambda op: op.position_number)
 
 
-    def get_operations(self, job_id: str) -> List[JobWorkflowOperation]:
+    def get_operations(self, job_id: str) -> List[JobOperationWorkflow]:
         return self.data.get(job_id, [])
 
-    def all_operations(self) -> List[JobWorkflowOperation]:
+    def all_operations(self) -> List[JobOperationWorkflow]:
         """
         Gibt alle WorkflowOperationen als flache Liste zurück.
         """
@@ -100,7 +121,7 @@ class JobOperationWorkflowCollection(UserDict):
         Adds a new JobWorkflowOperation to the collection.
         All time fields are optional.
         """
-        op = JobWorkflowOperation(
+        op = JobOperationWorkflow(
             job_id=job_id,
             routing_id=routing_id,
             experiment_id=experiment_id,
@@ -158,6 +179,29 @@ class JobOperationWorkflowCollection(UserDict):
         obj.sort_operations()
         return obj
 
+    def to_dataframe(
+            self, job_column: str = "Job", routing_column: str = "Routing_ID", operation_column: str = "Operation",
+            machine_column: str = "Machine", start_column: str = "Start",
+            duration_column: str = "Processing Time", end_column: str = "End") -> pd.DataFrame:
+        """
+        Converts the workflow operations to a pandas DataFrame.
+
+        :return: DataFrame with given columns
+        """
+        rows = []
+        for job_id, ops in self.items():
+            for op in ops:
+                rows.append({
+                    job_column: op.job_id,
+                    routing_column: op.routing_id,
+                    operation_column: op.position_number,
+                    machine_column: op.machine,
+                    start_column: op.start_time,
+                    duration_column: op.duration,
+                    end_column: op.end_time
+                })
+        return pd.DataFrame(rows)
+
     def get_unique_machines(self) -> set:
         """
         Gibt die Menge aller in den Operationen verwendeten Maschinen zurück.
@@ -170,35 +214,42 @@ class JobOperationWorkflowCollection(UserDict):
         }
         return machines
 
+
     @classmethod
-    def subtract_by_job_operation_collections(
-            cls, main: JobOperationWorkflowCollection,
-            *exclude_collections: JobOperationWorkflowCollection) -> JobOperationWorkflowCollection:
+    def _subtract_by_job_operation_collection(
+        cls,
+        main: JobOperationWorkflowCollection,
+        exclude: JobOperationWorkflowCollection
+    ) -> JobOperationWorkflowCollection:
         """
-        Returns a new collection (of the same class) containing only those operations from 'main'
-        whose (job_id, sequence_number) identifiers do not appear in any of the exclusion collections.
+        Gibt eine neue Collection zurück, die nur jene Operationen aus 'main' enthält,
+        deren (job_id, position_number) nicht in der 'exclude'-Collection vorkommen.
 
-        This method removes only matching operations by (job_id, sequence_number), not by full object equality.
-
-        :param main: The base collection containing all operations to filter.
-        :param exclude_collections: Any number of exclusion collections. Operations with the same
-                                    (job_id, sequence_number) will be removed from the result.
-        :return: A new JobOperationWorkflowCollection with filtered operations.
+        :param main: Hauptcollection mit allen Operationen
+        :param exclude: Collection mit auszuschließenden Operationen
+        :return: Neue Collection mit gefilterten Operationen
         """
         result = cls()
 
-        # Set of (job_id, sequence_number) tuples to exclude
-        excluded_pairs = set()
-        for collection in exclude_collections:
-            for ops in collection.values():
-                for op in ops:
-                    excluded_pairs.add((op.job_id, op.sequence_number))
+        excluded_pairs = {
+            (op.job_id, op.position_number)
+            for ops in exclude.values()
+            for op in ops
+        }
 
-        # Keep only those operations not matching any (job_id, sequence_number)
         for ops in main.values():
             for op in ops:
-                if (op.job_id, op.sequence_number) not in excluded_pairs:
+                if (op.job_id, op.position_number) not in excluded_pairs:
                     result.add_operation_instance(op)
-                    print(op.job_id, op.sequence_number)
 
         return result
+
+    def __truediv__(self, other: JobOperationWorkflowCollection) -> JobOperationWorkflowCollection:
+        """
+        Überlädt den `/`-Operator, um eine Collection von Operationen zu erzeugen,
+        bei der alle (job_id, position_number) aus 'other' entfernt wurden.
+
+        :param other: Collection mit auszuschließenden Operationen
+        :return: Neue gefilterte Collection
+        """
+        return self.__class__._subtract_by_job_operation_collection(main=self, exclude=other)
