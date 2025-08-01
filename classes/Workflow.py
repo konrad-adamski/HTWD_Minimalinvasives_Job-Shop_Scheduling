@@ -4,6 +4,8 @@ from typing import Optional
 import pandas as pd
 from pydantic.dataclasses import dataclass
 
+from classes.Operation import RoutingOperation
+
 
 @dataclass(frozen=True)
 class JobWorkflowOperation:
@@ -14,6 +16,8 @@ class JobWorkflowOperation:
     duration: int
     start_time: Optional[int] = None
     end_time: Optional[int] = None
+
+
 
 
 class JobOperationWorkflowCollection(UserDict):
