@@ -510,8 +510,8 @@ class Shift:
 
 @mapper_registry.mapped
 @dataclass
-class ScheduleJob:
-    __tablename__ = "schedule_job"
+class ScheduleJobOperation:
+    __tablename__ = "schedule_job_operation"
     __sa_dataclass_metadata_key__ = "sa"
 
     shift_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
@@ -532,8 +532,8 @@ class ScheduleJob:
         "sa": relationship(
             "JobOperation",
             primaryjoin=(
-                "and_(ScheduleJob.job_id == JobOperation.job_id, "
-                "ScheduleJob.position_number == JobOperation.position_number)"
+                "and_(ScheduleJobOperation.job_id == JobOperation.job_id, "
+                "ScheduleJobOperation.position_number == JobOperation.position_number)"
             ),
             lazy="joined"
         )
@@ -543,8 +543,8 @@ class ScheduleJob:
         "sa": relationship(
             "Shift",
             primaryjoin=(
-                "and_(ScheduleJob.experiment_id == Shift.experiment_id, "
-                "ScheduleJob.shift_number == Shift.shift_number)"
+                "and_(ScheduleJobOperation.experiment_id == Shift.experiment_id, "
+                "ScheduleJobOperation.shift_number == Shift.shift_number)"
             ),
             lazy="joined"
         )
@@ -571,11 +571,9 @@ class ScheduleJob:
 
 @mapper_registry.mapped
 @dataclass
-class SimulationJob:
-    __tablename__ = "simulation_job"
+class SimulationJobOperation:
+    __tablename__ = "simulation_job_operation"
     __sa_dataclass_metadata_key__ = "sa"
-
-    shift_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
 
     experiment_id: int = field(metadata={"sa": Column(Integer, primary_key=True)})
 
@@ -591,36 +589,26 @@ class SimulationJob:
 
     end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
+    experiment: Experiment = field(default=None, repr=False, metadata={
+        "sa": relationship("Experiment", backref="simulation_jobs")
+    })
+
     job_operation: JobOperation = field(default=None, repr=False, metadata={
         "sa": relationship(
             "JobOperation",
             primaryjoin=(
-                "and_(SimulationJob.job_id == JobOperation.job_id, "
-                "SimulationJob.position_number == JobOperation.position_number)"
+                "and_(SimulationJobOperation.job_id == JobOperation.job_id, "
+                "SimulationJobOperation.position_number == JobOperation.position_number)"
             ),
             lazy="joined"
         )
     })
 
-    shift: Shift = field(default=None, repr=False, metadata={
-        "sa": relationship(
-            "Shift",
-            primaryjoin=(
-                "and_(SimulationJob.experiment_id == Shift.experiment_id, "
-                "SimulationJob.shift_number == Shift.shift_number)"
-            ),
-            lazy="joined"
-        )
-    })
 
     __table_args__ = (
         ForeignKeyConstraint(
             ["job_id", "position_number"],
             ["job_operation.job_id", "job_operation.position_number"]
-        ),
-        ForeignKeyConstraint(
-            ["experiment_id", "shift_number"],
-            ["shift.experiment_id", "shift.shift_number"]
         ),
     )
 

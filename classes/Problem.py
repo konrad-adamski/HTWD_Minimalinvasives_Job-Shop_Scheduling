@@ -226,11 +226,5 @@ if __name__ == "__main__":
 
 
 
-    for operations in jobs:
-        for op in operation:
-            print(op.machine, op.sequence_number)
-
-
-
 
 

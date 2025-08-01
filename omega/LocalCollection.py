@@ -1,9 +1,9 @@
-from collections import UserDict
-from typing import List, Optional
+from __future__ import annotations
 
 import pandas as pd
-
-from omega.db_models import Routing, RoutingSource, Job
+from collections import UserDict
+from typing import List, Optional
+from omega.db_models import Routing, RoutingSource, Job, Experiment
 
 
 class RoutingCollection(UserDict):
@@ -38,11 +38,25 @@ class JobCollection(UserDict):
     def get_job(self, job_id: str) -> Optional[Job]:
         return self.data.get(job_id)
 
-    def get_by_routing(self, routing_id: str) -> List[Job]:
-        return [job for job in self.values() if job.routing_id == routing_id]
+    def get_jobs_by_earliest_start(self, earliest_start: int) -> List[Job]:
+        return [job for job in self.values() if job.earliest_start == earliest_start]
 
-    def filter_by_deadline(self, max_deadline: int) -> List[Job]:
-        return [job for job in self.values() if job.deadline <= max_deadline]
+
+    def get_subset(self, earliest_start: int, planable_job_ids: Optional[List[str]] = None)-> JobCollection:
+        """
+        Returns a subset with jobs that are either newly arrived or have unscheduled operations.
+
+        :param earliest_start: Current time (selects newly arrived jobs)
+        :param planable_job_ids: Jobs with pending operations
+        :return: Filtered JobInformationCollection
+        """
+        subset = JobCollection()
+        for job_id, info in self.items():
+            if info.earliest_start == earliest_start or (planable_job_ids and job_id in planable_job_ids):
+                subset[job_id] = info
+        return subset
+
+
 
     def __repr__(self):
         return f"<JobCollection ({len(self)} jobs)>"
@@ -83,13 +97,15 @@ if __name__ == "__main__":
 
     print("-"*80)
     # Job Collection --------------------------------------------------------------------------------------------------
-    job1 = Job(id="J1", routing=r1, arrival=0, earliest_start=1440,deadline=2800)
-    job11 = Job(id="J11", routing=r1, arrival=0, earliest_start=1840, deadline=3800)
 
-    jobs = JobCollection([job1, job11])
+    experiment1 = Experiment()
+    job1 = Job(id="J1", routing=r1, arrival=0, earliest_start=1440,deadline=2800, experiment=experiment1)
+    job11 = Job(id="J11", routing=r1, arrival=0, earliest_start=1840, deadline=3800, experiment=experiment1)
+
+    jobs_collection = JobCollection([job1, job11])
 
     # 5. Ausgabe
-    for job in jobs.values():
+    for job in jobs_collection.values():
         print(f"\nJob {job.id} (Routing: {job.routing_id}) mit {len(job.operations)} Operationen:")
         for op in job.operations:
             print(f"  – Step {op.position_number}: {op.machine}, {op.duration} min. "
