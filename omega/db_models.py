@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Numeric, CheckConstraint, Float
-from sqlalchemy.orm import registry, relationship
+from sqlalchemy.orm import relationship
 from typing import Optional, List
-mapper_registry = registry()
+from omega.db_setup import mapper_registry
 
 
 @mapper_registry.mapped
@@ -575,7 +575,9 @@ class SimulationJobOperation:
     __tablename__ = "simulation_job_operation"
     __sa_dataclass_metadata_key__ = "sa"
 
-    experiment_id: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+    experiment_id: int = field(metadata={
+        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)  # ⬅️ HIER!
+    })
 
     job_id: str = field(metadata={"sa": Column(String, primary_key=True)})
 
@@ -590,7 +592,7 @@ class SimulationJobOperation:
     end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
     experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship("Experiment", backref="simulation_jobs")
+        "sa": relationship("Experiment", backref="simulation_operations")
     })
 
     job_operation: JobOperation = field(default=None, repr=False, metadata={
@@ -669,8 +671,6 @@ if __name__ == "__main__":
         print(f"  – Step {op.position_number}: {op.machine}, {op.duration} min. "
               f"Job earliest_start: {op.job_earliest_start}")
 
-
-    
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     
