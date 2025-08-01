@@ -66,7 +66,7 @@ class JobOperationWorkflow:
             position_number=self.position_number,
             start=self.start_time or 0,
             duration=self.duration,
-            end=self.end_time or ((self.start_time or 0) + self.duration)
+            end=self.end_time   # or ((self.start_time or 0) + self.duration)
         )
 
 @dataclass
