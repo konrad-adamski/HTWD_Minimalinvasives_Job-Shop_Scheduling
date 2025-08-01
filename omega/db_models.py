@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import pandas as pd
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, ForeignKeyConstraint, PrimaryKeyConstraint
+from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Numeric, CheckConstraint, Float
 from sqlalchemy.orm import registry, relationship
 from typing import Optional, List
 mapper_registry = registry()
@@ -280,6 +280,10 @@ class Job:
         "sa": Column(String(255), ForeignKey("routing.id"), nullable=False)
     })
 
+    max_bottleneck_utilization: float = field(default=0.0, metadata={
+        "sa": Column(Numeric(5, 4), nullable=False)  # 10 Stellen gesamt, 4 nach dem Komma
+    })
+
     # Zeitinformationen
     arrival: int = field(default=0, metadata={
         "sa": Column(Integer, nullable=False)
@@ -312,6 +316,9 @@ class Job:
 
     def __post_init__(self):
         self.routing_id = self.routing.id
+        if not (0 <= self.max_bottleneck_utilization <= 1):
+            raise ValueError("max_bottleneck_utilization must be between 0 and 1.")
+
         for op in self.routing.operations:
             JobOperation(
                 routing_operation=op,
@@ -323,6 +330,10 @@ class Job:
     def sum_duration(self) -> int:
         return self.routing.sum_duration
 
+    __table_args__ = (
+        CheckConstraint("max_bottleneck_utilization >= 0 AND max_bottleneck_utilization <= 1",
+                        name="check_utilization_range"),
+    )
 
 
 @mapper_registry.mapped
@@ -393,6 +404,73 @@ class JobOperation:
     def job_deadline(self) -> int:
         return self.job.earliest_start
 
+    @property
+    def job_max_bottleneck_utilization(self) -> float:
+        return self.job.max_bottleneck_utilization
+
+@mapper_registry.mapped
+@dataclass
+class Experiment:
+    __tablename__ = "experiment"
+    __sa_dataclass_metadata_key__ = "sa"
+
+    id: int = field(init=False, metadata={
+        "sa": Column(Integer, primary_key=True, autoincrement=True)
+    })
+
+    main_pct: float = field(default=0.5, metadata={
+        "sa": Column(Float, nullable=False)
+    })
+
+    w_t: int = field(default=1, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
+
+    w_e: int = field(default=1, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
+
+    w_first: int = field(default=1, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
+
+    max_bottleneck_utilization: float = field(default=0.0, metadata={
+        "sa": Column(Numeric(5, 4), nullable=False)
+    })
+
+    sim_sigma: float = field(default=0.0, metadata={
+        "sa": Column(Float, nullable=False)
+    })
+
+    def __post_init__(self):
+        if not (0 <= self.max_bottleneck_utilization <= 1):
+            raise ValueError("max_bottleneck_utilization must be between 0 and 1.")
+        if not (0 <= self.main_pct <= 1):
+            raise ValueError("main_pct must be between 0 and 1.")
+
+    __table_args__ = (
+        CheckConstraint("max_bottleneck_utilization >= 0 AND max_bottleneck_utilization <= 1",
+                        name="check_utilization_range"),
+        CheckConstraint("main_pct >= 0 AND main_pct <= 1", name="check_main_pct_range"),
+    )
+
+@mapper_registry.mapped
+@dataclass
+class Shift:
+    __tablename__ = "shift"
+    __sa_dataclass_metadata_key__ = "sa"
+
+    shift_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True)
+    })
+
+    experiment_id: int = field(metadata={
+        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
+    })
+
+    experiment: Experiment = field(default=None, repr=False, metadata={
+        "sa": relationship("Experiment", backref="shifts")
+    })
 
 
 if __name__ == "__main__":
