@@ -10,7 +10,7 @@ from src.utils.initialization.gen_deadlines import get_temporary_df_times_from_s
 from configs.path_manager import get_path
 
 # Simulation
-from src.simulation.ProductionRollingSimulation import ProductionSimulation
+from src.simulation.ProductionSimulation import ProductionSimulation
 
 
 if __name__ == '__main__':

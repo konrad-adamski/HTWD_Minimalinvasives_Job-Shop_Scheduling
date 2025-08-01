@@ -1,7 +1,7 @@
 import pandas as pd
 
 from classes.Workflow import JobOperationWorkflowCollection
-from src.simulation.ProductionRollingSimulation import ProductionSimulation
+from src.simulation.ProductionSimulation import ProductionSimulation
 
 if __name__ == "__main__":
 
@@ -16,7 +16,13 @@ if __name__ == "__main__":
 
 
     schedule_collection = JobOperationWorkflowCollection.from_dataframe(df_schedule)
-    for job_id, ops in schedule_collection.items():
-        print(f"Job: {job_id}")
-        for op in ops:
-            print(f" {op.job_id} Seq {op.sequence_number}, Machine {op.machine} Start {op.start_time}, Duration {op.duration}, End {op.end_time}")
+
+
+    #for job_id, operations in schedule_collection.items():
+    #    print(job_id, operations)
+
+    simulation = ProductionSimulation(shift_length=1440, sigma= 0.02)
+
+    simulation.run(schedule_collection, end_time= 1200)
+
+    print(simulation.get_finished_operations().to_dataframe().head(5))
