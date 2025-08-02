@@ -665,11 +665,16 @@ if __name__ == "__main__":
         experiment=experiment
     )
 
+    jobs = []
+    jobs.append(job)
+
     # 5. Ausgabe
     print(f"\nJob {job.id} (Routing: {job.routing_id}) mit {len(job.operations)} Operationen:")
-    for op in job.operations:
-        print(f"  – Step {op.position_number}: {op.machine}, {op.duration} min. "
-              f"Job earliest_start: {op.job_earliest_start}")
+
+    for job in jobs:
+        for op in job.operations:
+            print(f"  – Step {op.position_number}: {op.machine}, {op.duration} min. "
+                  f"Job earliest_start: {op.job_earliest_start}")
 
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
