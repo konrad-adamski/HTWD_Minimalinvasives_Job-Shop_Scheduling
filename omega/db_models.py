@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Numeric, CheckConstraint, Float
 from sqlalchemy.orm import relationship
@@ -283,9 +284,7 @@ class Job:
     # Zeitinformationen
     arrival: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
-    earliest_start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
-
-    deadline: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+    deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=False)})
 
     max_bottleneck_utilization: float = field(default=0.0, metadata={
         "sa": Column(Numeric(5, 4), nullable=False)  # 10 Stellen gesamt, 4 nach dem Komma
@@ -315,6 +314,10 @@ class Job:
             cascade="all, delete-orphan"
         )
     })
+
+    @property
+    def earliest_start(self) -> int:
+        return int(np.ceil(self.arrival + 1 / 1440) * 1440)
 
     def __post_init__(self):
 
@@ -660,7 +663,6 @@ if __name__ == "__main__":
         id="J1",
         routing=routing_r1,
         arrival=0,
-        earliest_start=1440,
         deadline=2800,
         experiment=experiment
     )
