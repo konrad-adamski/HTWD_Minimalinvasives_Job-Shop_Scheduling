@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, registry
 
 # 🔧 Build path relative to this file
@@ -25,7 +25,7 @@ def create_tables():
 
 def reset_tables():
     confirmation = input(
-        "⚠️ Are you sure you want to reset ALL tables? With 'yes' ALL DATA will be lost. [yes/No]"
+        "⚠️ Are you sure you want to reset ALL tables? With 'yes' ALL DATA will be lost. [yes/No]\n"
     ).strip().lower().replace("'", "").replace('"', '')
     if confirmation != "yes" :
         print("❌ Operation cancelled. Nothing has been changed.")
@@ -34,3 +34,5 @@ def reset_tables():
     mapper_registry.metadata.drop_all(my_engine)
     mapper_registry.metadata.create_all(my_engine)
     print("✅ All tables have been reset.")
+
+

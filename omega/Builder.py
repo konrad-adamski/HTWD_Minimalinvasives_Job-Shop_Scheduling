@@ -3,33 +3,14 @@ from typing import List, Optional
 
 import numpy as np
 import pandas as pd
+from sqlalchemy import inspect
+from sqlalchemy.orm import joinedload
 
 from omega.db_models import Experiment, Routing, Job, RoutingSource
+from omega.db_setup import SessionLocal, my_engine
 
 
 class ExperimentBuilder:
-    def create_experiment(
-            self, solver_main_pct: float, solver_w_t:int, solver_w_e:int,
-            solver_w_first:int, max_bottleneck_utilization: float,
-            sim_sigma: float, routings: List[Routing]):
-        experiment = Experiment(
-            main_pct=solver_main_pct,
-            w_t=solver_w_t,
-            w_e=solver_w_e,
-            w_first=solver_w_first,
-            max_bottleneck_utilization=max_bottleneck_utilization,
-            sim_sigma=sim_sigma
-        )
-
-        jobs: List[Job] = []
-        for routing in routings:
-            Job(id=f"J{routing.id.zfill(2)}{experiment.id:2}",routing=routing, arrival=0,
-                earliest_start=1440,
-                deadline=2800,
-                experiment=experiment
-            )
-
-        return experiment
 
     @staticmethod
     def _get_bottleneck_machine_from_routings(
@@ -90,7 +71,7 @@ class ExperimentBuilder:
         Berechnet die mittlere Zwischenankunftszeit t_a, sodass die gewünschte Auslastung der Engpassmaschine erreicht wird.
 
         :param routings: Liste von Routing-Objekten
-        :param u_b_mmax: Zielauslastung der Engpassmaschine (z. B. 0.9)
+        :param u_b_mmax: Zielauslastung der Engpassmaschine (z.B. 0.9)
         :param verbose: Wenn True, werden Details ausgegeben
         :return: t_a, gerundet auf 2 Nachkommastellen
         """
@@ -107,10 +88,10 @@ class ExperimentBuilder:
 
         # 3) Erwartete Bearbeitungszeit / Zielauslastung
         if p is not None and len(p) == len(vec_t_b_mmax):
-            t_a = sum(p[i] * vec_t_b_mmax[i] for i in range(n)) / u_b_mmax
+            t_a = sum(p[i] * vec_t_b_mmax[i] for i in range(n)) / float(u_b_mmax)
         else:
             # Gleichverteilte Routing - Wahrscheinlichkeit p = [1.0 / n] * n
-            t_a = np.mean(vec_t_b_mmax) / u_b_mmax
+            t_a = np.mean(vec_t_b_mmax) / float(u_b_mmax)
         return round(t_a, 4)
 
     @staticmethod
@@ -135,20 +116,11 @@ class ExperimentBuilder:
         return np.floor(arrivals).astype(int).tolist()
 
 
-    def create_experiment_with_jobs_(
-            self, routings: List[Routing], solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
-            solver_w_first:int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float  = 0.25,
+
+    def create_jobs(
+            self, routings: List[Routing], experiment: Experiment,
             shift_count: int = 1, arrival_seed: Optional[int] = 120,
             job_routing_seed: Optional[int] = 100, verbose: bool = False):
-
-        experiment = Experiment(
-            main_pct=solver_main_pct,
-            w_t=solver_w_t,
-            w_e=solver_w_e,
-            w_first=solver_w_first,
-            max_bottleneck_utilization=max_bottleneck_utilization,
-            sim_sigma=sim_sigma
-        )
 
         jobs: List[Job] = []
         last_shift_end = 1440 * (shift_count+1)
@@ -156,11 +128,11 @@ class ExperimentBuilder:
         # Compute mean interarrival time based on max bottleneck utilization
         mean_arrival_time = self.calculate_mean_interarrival_time(
             routings=routings,
-            u_b_mmax=max_bottleneck_utilization,
+            u_b_mmax=experiment.max_bottleneck_utilization,
             verbose=verbose
         )
 
-        approx_size = np.ceil(last_shift_end / mean_arrival_time)
+        approx_size = np.ceil(last_shift_end / mean_arrival_time).astype(int)
 
         arrivals = self.gen_arrivals(
             mean_interarrival_time=mean_arrival_time,
@@ -190,9 +162,48 @@ class ExperimentBuilder:
                 jobs.append(job)
                 a_idx += 1
 
-        return experiment, jobs
+        return jobs
 
+    def add_experiment_to_db(self, solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
+            solver_w_first:int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float  = 0.25) -> Experiment:
+        with SessionLocal() as session:
+            experiment = Experiment(
+                main_pct=solver_main_pct,
+                w_t=solver_w_t,
+                w_e=solver_w_e,
+                w_first=solver_w_first,
+                max_bottleneck_utilization=max_bottleneck_utilization,
+                sim_sigma=sim_sigma
+            )
+            session.add(experiment)
+            session.commit()
 
+            return session.get(Experiment, experiment.id)
+
+    def add_jobs_to_db(self, jobs: List[Job]) -> List[Job]:
+        with SessionLocal() as session:
+            session.add_all(jobs)
+            session.commit()
+
+            # IDs extrahieren
+            job_ids = [job.id for job in jobs]
+
+            # Alle Jobs mit geladenen Beziehungen nachladen
+            loaded_jobs = (
+                session.query(Job)
+                .options(
+                    joinedload(getattr(Job, "routing")),
+                    joinedload(getattr(Job, "experiment"))
+                )
+                .filter(Job.id.in_(job_ids))
+                .all()
+            )
+
+            # Detachen (damit nach session.close() noch alles nutzbar ist)
+            for job in loaded_jobs:
+                session.expunge(job)
+
+            return loaded_jobs
 
 if __name__ == "__main__":
     from configs.path_manager import get_path
@@ -212,3 +223,22 @@ if __name__ == "__main__":
 
     mean_arrival_time = builder.calculate_mean_interarrival_time(routings, u_b_mmax=0.9, verbose=True)
     print(f"\nMean interarrival time: {mean_arrival_time}")
+
+    print("-"*80)
+
+    experiment = builder.add_experiment_to_db(max_bottleneck_utilization=0.9)
+    print(f"\nExperiment ID: {experiment.id}")
+
+
+    jobs = builder.create_jobs(
+        routings=routings,
+        experiment=experiment
+    )
+
+    jobsis = builder.add_jobs_to_db(jobs)
+
+    for job in jobsis[:11]:
+        print(f"Job {job.id}, {job.routing_id}")
+        #for op in job.operations:
+    #    print(f"\t|{op.position_number}\t|{op.machine}\t|duration {op.duration}")
+        
