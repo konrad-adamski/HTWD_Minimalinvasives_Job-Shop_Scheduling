@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Numeric, CheckConstraint, Float
 from sqlalchemy.orm import relationship
 from typing import Optional, List
-from omega.db_setup import mapper_registry, create_tables
+from omega.db_setup import mapper_registry
 
 
 @mapper_registry.mapped
@@ -105,7 +105,7 @@ class Routing:
         default=None,
         repr=False,
         metadata={
-            "sa": relationship("RoutingSource", back_populates="routings")
+            "sa": relationship("RoutingSource", back_populates="routings", lazy="selectin")
         }
     )
 
@@ -116,7 +116,8 @@ class Routing:
             "sa": relationship(
                 "RoutingOperation",
                 back_populates="routing",
-                cascade="all, delete-orphan"
+                cascade="all, delete-orphan",
+                lazy="joined"
             )
         }
     )
@@ -286,23 +287,21 @@ class Job:
 
     deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=True)})
 
-    max_bottleneck_utilization: float = field(default=0.0, metadata={
-        "sa": Column(Numeric(5, 4), nullable=False)  # 10 Stellen gesamt, 4 nach dem Komma
-    })
 
     experiment_id: int = field(init=False, default=None, metadata={
         "sa": Column(Integer, ForeignKey("experiment.id"), nullable=False)
     })
 
     experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship("Experiment", back_populates="jobs")
+        "sa": relationship("Experiment", back_populates="jobs", lazy="joined")
     })
 
     # Relations
     routing: Routing = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Routing",
-            back_populates="jobs"
+            back_populates="jobs",
+            lazy="joined"
         )
     })
 
@@ -311,7 +310,8 @@ class Job:
         "sa": relationship(
             "JobOperation",
             back_populates="job",
-            cascade="all, delete-orphan"
+            cascade="all, delete-orphan",
+            lazy="joined"
         )
     })
 
@@ -319,13 +319,14 @@ class Job:
     def earliest_start(self) -> int:
         return int(np.ceil(self.arrival + 1 / 1440) * 1440)
 
+    @property
+    def max_bottleneck_utilization(self)-> float:
+        return float(self.experiment.max_bottleneck_utilization)
+
     def __post_init__(self):
 
         self.routing_id = self.routing.id
         self.experiment_id = self.experiment.id
-
-        if not (0 <= self.max_bottleneck_utilization <= 1):
-            raise ValueError("max_bottleneck_utilization must be between 0 and 1.")
 
         for op in self.routing.operations:
             JobOperation(
@@ -338,10 +339,6 @@ class Job:
     def sum_duration(self) -> int:
         return self.routing.sum_duration
 
-    __table_args__ = (
-        CheckConstraint("max_bottleneck_utilization >= 0 AND max_bottleneck_utilization <= 1",
-                        name="check_utilization_range"),
-    )
 
 @mapper_registry.mapped
 @dataclass
@@ -456,7 +453,7 @@ class Experiment:
             raise ValueError("main_pct must be between 0 and 1.")
 
     jobs: List[Job] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship("Job", back_populates="experiment", cascade="all, delete-orphan")
+        "sa": relationship("Job", back_populates="experiment", cascade="all, delete-orphan", lazy="joined")
     })
 
     def get_jobs_by_shift_start(self, shift_start: int) -> List[Job]:
@@ -495,7 +492,7 @@ class Shift:
     })
 
     experiment: Experiment = field(default=None, repr=True, metadata={
-        "sa": relationship("Experiment", backref="shifts")
+        "sa": relationship("Experiment", backref="shifts", lazy="joined")
     })
 
     @property
@@ -624,9 +621,6 @@ class SimulationJobOperation:
     @property
     def route_duration(self) -> int:
         return self.job_operation.duration
-
-
-create_tables()
 
 if __name__ == "__main__":
 
