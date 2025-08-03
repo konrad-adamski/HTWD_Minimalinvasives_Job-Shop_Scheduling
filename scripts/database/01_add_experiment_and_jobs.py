@@ -25,6 +25,6 @@ if __name__ == "__main__":
 
     jobs = JobQuery.get_by_experiment_id(experiment_id=experiment_id)
     for job in jobs:
-        print(job, job.max_bottleneck_utilization)
+        print(f"{job} {job.max_bottleneck_utilization= }")
         for op in job.operations:
             print(op)
