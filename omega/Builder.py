@@ -4,13 +4,15 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 from sqlalchemy import inspect
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, InstrumentedAttribute
 
 from omega.db_models import Experiment, Routing, Job, RoutingSource
 from omega.db_setup import SessionLocal, my_engine
 
 
 class ExperimentBuilder:
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("ExperimentBuilder is a static utility class and cannot be instantiated.")
 
     @staticmethod
     def _get_bottleneck_machine_from_routings(
@@ -40,11 +42,8 @@ class ExperimentBuilder:
 
         return max(usage, key=usage.get)
 
-
-    def _get_vec_t_b_mmax_from_routings(
-            self, routings: List[Routing],
-            verbose: bool = False
-    ) -> List[int]:
+    @classmethod
+    def _get_vec_t_b_mmax_from_routings(cls, routings: List[Routing], verbose: bool = False) -> List[int]:
         """
         Return the processing time of each routing on the bottleneck machine.
 
@@ -55,7 +54,7 @@ class ExperimentBuilder:
         :return: List of processing times on the bottleneck machine (0 if not used)
         """
         # 1) determine the bottleneck machine
-        bottleneck_machine = self._get_bottleneck_machine_from_routings(routings, verbose=verbose)
+        bottleneck_machine = cls._get_bottleneck_machine_from_routings(routings, verbose=verbose)
 
         # 2) for each routing, sum durations on that machine
         vec = []
@@ -64,8 +63,9 @@ class ExperimentBuilder:
             vec.append(t_b)
         return vec
 
+    @classmethod
     def calculate_mean_interarrival_time(
-        self, routings: List[Routing], u_b_mmax: float = 0.9, p: Optional[List[float]] = None,
+        cls, routings: List[Routing], u_b_mmax: float = 0.9, p: Optional[List[float]] = None,
         verbose: bool = False) -> float:
         """
         Berechnet die mittlere Zwischenankunftszeit t_a, sodass die gewünschte Auslastung der Engpassmaschine erreicht wird.
@@ -81,7 +81,7 @@ class ExperimentBuilder:
 
 
         # 2) Bearbeitungszeiten auf Engpassmaschine
-        vec_t_b_mmax = self._get_vec_t_b_mmax_from_routings(routings, verbose=verbose)
+        vec_t_b_mmax = cls._get_vec_t_b_mmax_from_routings(routings, verbose=verbose)
 
         if verbose:
             print(f"Bearbeitungszeiten auf der Engpassmaschine: {vec_t_b_mmax}")
@@ -116,9 +116,9 @@ class ExperimentBuilder:
         return np.floor(arrivals).astype(int).tolist()
 
 
-
+    @classmethod
     def create_jobs(
-            self, routings: List[Routing], experiment: Experiment,
+            cls, routings: List[Routing], experiment: Experiment,
             shift_count: int = 1, arrival_seed: Optional[int] = 120,
             job_routing_seed: Optional[int] = 100, verbose: bool = False):
 
@@ -126,7 +126,7 @@ class ExperimentBuilder:
         last_shift_end = 1440 * (shift_count+1)
 
         # Compute mean interarrival time based on max bottleneck utilization
-        mean_arrival_time = self.calculate_mean_interarrival_time(
+        mean_arrival_time = cls.calculate_mean_interarrival_time(
             routings=routings,
             u_b_mmax=experiment.max_bottleneck_utilization,
             verbose=verbose
@@ -134,7 +134,7 @@ class ExperimentBuilder:
 
         approx_size = np.ceil(last_shift_end / mean_arrival_time).astype(int)
 
-        arrivals = self.gen_arrivals(
+        arrivals = cls.gen_arrivals(
             mean_interarrival_time=mean_arrival_time,
             size=approx_size,
             last_arrival_time=last_shift_end,
@@ -161,10 +161,12 @@ class ExperimentBuilder:
                 )
                 jobs.append(job)
                 a_idx += 1
-
         return jobs
 
-    def add_experiment_to_db(self, solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
+
+
+    @staticmethod
+    def add_experiment(solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
             solver_w_first:int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float  = 0.25) -> Experiment:
         with SessionLocal() as session:
             experiment = Experiment(
@@ -180,30 +182,25 @@ class ExperimentBuilder:
 
             return session.get(Experiment, experiment.id)
 
-    def add_jobs_to_db(self, jobs: List[Job]) -> List[Job]:
+    @classmethod
+    def insert_jobs(cls, routings: List[Routing], experiment: Experiment,
+            shift_count: int = 1, arrival_seed: Optional[int] = 120,
+            job_routing_seed: Optional[int] = 100, verbose: bool = False):
+
+        jobs = cls.create_jobs(
+            routings=routings,
+            experiment=experiment,
+            shift_count=shift_count,
+            arrival_seed=arrival_seed,
+            job_routing_seed=job_routing_seed,
+            verbose=verbose
+        )
+
         with SessionLocal() as session:
             session.add_all(jobs)
             session.commit()
 
-            # IDs extrahieren
-            job_ids = [job.id for job in jobs]
 
-            # Alle Jobs mit geladenen Beziehungen nachladen
-            loaded_jobs = (
-                session.query(Job)
-                .options(
-                    joinedload(getattr(Job, "routing")),
-                    joinedload(getattr(Job, "experiment"))
-                )
-                .filter(Job.id.in_(job_ids))
-                .all()
-            )
-
-            # Detachen (damit nach session.close() noch alles nutzbar ist)
-            for job in loaded_jobs:
-                session.expunge(job)
-
-            return loaded_jobs
 
 if __name__ == "__main__":
     from configs.path_manager import get_path
@@ -228,6 +225,7 @@ if __name__ == "__main__":
 
     experiment = builder.add_experiment_to_db(max_bottleneck_utilization=0.9)
     print(f"\nExperiment ID: {experiment.id}")
+
 
 
     jobs = builder.create_jobs(
