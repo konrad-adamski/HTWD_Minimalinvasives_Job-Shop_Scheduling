@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Numeric, CheckConstraint, Float
 from sqlalchemy.orm import relationship
 from typing import Optional, List
-from omega.db_setup import mapper_registry
+from omega.db_setup import mapper_registry, create_tables
 
 
 @mapper_registry.mapped
@@ -284,7 +284,7 @@ class Job:
     # Zeitinformationen
     arrival: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
-    deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=False)})
+    deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=True)})
 
     max_bottleneck_utilization: float = field(default=0.0, metadata={
         "sa": Column(Numeric(5, 4), nullable=False)  # 10 Stellen gesamt, 4 nach dem Komma
@@ -625,6 +625,8 @@ class SimulationJobOperation:
     def route_duration(self) -> int:
         return self.job_operation.duration
 
+
+create_tables()
 
 if __name__ == "__main__":
 
