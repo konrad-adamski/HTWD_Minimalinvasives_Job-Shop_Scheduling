@@ -3,26 +3,25 @@ from typing import List, Optional
 
 import numpy as np
 
-from omega.db_models import Experiment, Routing, Job, RoutingSource
-from omega.db_setup import SessionLocal, my_engine
+from src.classes.orm_models import Routing, Experiment, Job
+from src.classes.orm_setup import SessionLocal
 
 
-class ExperimentBuilder:
+class ExperimentInitializer:
     def __new__(cls, *args, **kwargs):
         raise TypeError("ExperimentBuilder is a static utility class and cannot be instantiated.")
 
     @staticmethod
     def _get_bottleneck_machine_from_routings(
             routings: List[Routing],
-            verbose: bool = False
-    ) -> str:
+            verbose: bool = False) -> str:
         """
-        Identifiziert die Engpassmaschine (höchste Gesamtauslastung) aus einer Liste von Routing-Objekten.
+           Identifies the bottleneck machine (with the highest total load) from a list of Routing objects.
 
-        :param routings: Liste von Routing-Objekten, die jeweils eine Liste von RoutingOperations enthalten
-        :param verbose: Bei True werden die Maschinenlasten ausgegeben
-        :return: Maschinenname mit der höchsten Gesamtauslastung
-        """
+           :param routings: List of Routing objects, each containing a list of RoutingOperations
+           :param verbose: If True, prints the machine loads
+           :return: Name of the machine with the highest total load
+           """
         usage = defaultdict(int)
 
         for routing in routings:
@@ -30,12 +29,12 @@ class ExperimentBuilder:
                 usage[op.machine] += op.duration
 
         if verbose:
-            print("Maschinenlast (Gesamte Bearbeitungszeit):")
+            print("Machine workload (total processing time):")
             for machine, total in sorted(usage.items(), key=lambda x: str(x[0])):
                 print(f"  {machine}: {total}")
 
         if not usage:
-            raise ValueError("Keine Maschinenbelastung gefunden – Liste war eventuell leer oder ungültig.")
+            raise ValueError("No machine workload found – list may have been empty or invalid!")
 
         return max(usage, key=usage.get)
 
@@ -48,7 +47,7 @@ class ExperimentBuilder:
 
         :param routings: List of Routing objects, each with a .operations list
         :param verbose: If True, prints total usage per machine
-        :return: List of processing times on the bottleneck machine (0 if not used)
+        :return: List of processing times on the bottleneck machine
         """
         # 1) determine the bottleneck machine
         bottleneck_machine = cls._get_bottleneck_machine_from_routings(routings, verbose=verbose)
@@ -61,38 +60,38 @@ class ExperimentBuilder:
         return vec
 
     @classmethod
-    def calculate_mean_interarrival_time(
+    def _calculate_mean_interarrival_time(
         cls, routings: List[Routing], u_b_mmax: float = 0.9, p: Optional[List[float]] = None,
         verbose: bool = False) -> float:
         """
-        Berechnet die mittlere Zwischenankunftszeit t_a, sodass die gewünschte Auslastung der Engpassmaschine erreicht wird.
+        Calculates the average interarrival time t_a required to achieve the desired utilization of the bottleneck machine.
 
-        :param routings: Liste von Routing-Objekten
-        :param u_b_mmax: Zielauslastung der Engpassmaschine (z.B. 0.9)
-        :param verbose: Wenn True, werden Details ausgegeben
-        :return: t_a, gerundet auf 2 Nachkommastellen
+        :param routings: List of Routing objects
+        :param u_b_mmax: Target utilization of the bottleneck machine (e.g., 0.9)
+        :param verbose: If True, prints detailed output
+        :return: t_a, rounded to 2 decimal places
         """
         n = len(routings)
         if n == 0:
             raise ValueError("Routingliste darf nicht leer sein.")
 
 
-        # 2) Bearbeitungszeiten auf Engpassmaschine
+        # Processing times on bottleneck machine
         vec_t_b_mmax = cls._get_vec_t_b_mmax_from_routings(routings, verbose=verbose)
 
         if verbose:
-            print(f"Bearbeitungszeiten auf der Engpassmaschine: {vec_t_b_mmax}")
+            print(f"Processing times on the bottleneck machine: {vec_t_b_mmax}")
 
-        # 3) Erwartete Bearbeitungszeit / Zielauslastung
+        # 3)  Expected processing time / target utilization
         if p is not None and len(p) == len(vec_t_b_mmax):
             t_a = sum(p[i] * vec_t_b_mmax[i] for i in range(n)) / float(u_b_mmax)
         else:
-            # Gleichverteilte Routing - Wahrscheinlichkeit p = [1.0 / n] * n
+            # Equal weight routings - probability p = [1.0 / n] * n
             t_a = np.mean(vec_t_b_mmax) / float(u_b_mmax)
         return round(t_a, 4)
 
     @staticmethod
-    def gen_arrivals(
+    def _gen_arrivals(
             mean_interarrival_time: float, size: int, start_time: int = 0,
             last_arrival_time: int = 1440, random_seed: Optional[int] = 120)-> List[int]:
 
@@ -114,7 +113,7 @@ class ExperimentBuilder:
 
 
     @classmethod
-    def create_jobs(
+    def _create_jobs(
             cls, routings: List[Routing], experiment: Experiment,
             arrival_seed: Optional[int] = 120,
             job_routing_seed: Optional[int] = 100, verbose: bool = False):
@@ -124,7 +123,7 @@ class ExperimentBuilder:
         last_shift_end = 1440 * (experiment.total_shift_number+1)
 
         # Compute mean interarrival time based on max bottleneck utilization
-        mean_arrival_time = cls.calculate_mean_interarrival_time(
+        mean_arrival_time = cls._calculate_mean_interarrival_time(
             routings=routings,
             u_b_mmax=experiment.max_bottleneck_utilization,
             verbose=verbose
@@ -132,7 +131,7 @@ class ExperimentBuilder:
 
         approx_size = np.ceil(last_shift_end / mean_arrival_time).astype(int) + 2 * len(routings) # with buffer
 
-        arrivals = cls.gen_arrivals(
+        arrivals = cls._gen_arrivals(
             mean_interarrival_time=mean_arrival_time,
             size=approx_size,
             last_arrival_time=last_shift_end,
@@ -166,16 +165,17 @@ class ExperimentBuilder:
     def add_experiment(
             total_shift_number: int = 30, solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
             solver_w_first:int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float  = 0.25) -> Experiment:
+
+        experiment = Experiment(
+            total_shift_number=total_shift_number,
+            main_pct=solver_main_pct,
+            w_t=solver_w_t,
+            w_e=solver_w_e,
+            w_first=solver_w_first,
+            max_bottleneck_utilization=max_bottleneck_utilization,
+            sim_sigma=sim_sigma
+        )
         with SessionLocal() as session:
-            experiment = Experiment(
-                total_shift_number=total_shift_number,
-                main_pct=solver_main_pct,
-                w_t=solver_w_t,
-                w_e=solver_w_e,
-                w_first=solver_w_first,
-                max_bottleneck_utilization=max_bottleneck_utilization,
-                sim_sigma=sim_sigma
-            )
             session.add(experiment)
             session.commit()
 
@@ -186,7 +186,7 @@ class ExperimentBuilder:
             cls, routings: List[Routing], experiment: Experiment, arrival_seed: Optional[int] = 120,
             job_routing_seed: Optional[int] = 100, verbose: bool = False):
 
-        jobs = cls.create_jobs(
+        jobs = cls._create_jobs(
             routings=routings,
             experiment=experiment,
             arrival_seed=arrival_seed,
@@ -197,5 +197,3 @@ class ExperimentBuilder:
         with SessionLocal() as session:
             session.add_all(jobs)
             session.commit()
-
-
