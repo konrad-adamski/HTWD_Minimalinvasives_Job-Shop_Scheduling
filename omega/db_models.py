@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Numeric, CheckConstraint, Float
+from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Numeric, CheckConstraint, Float, and_
 from sqlalchemy.orm import relationship
 from typing import Optional, List
 from omega.db_setup import mapper_registry
@@ -422,6 +422,10 @@ class Experiment:
         "sa": Column(Integer, primary_key=True, autoincrement=True)
     })
 
+    total_shift_number: int = field(init=True, default=None, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
+
     main_pct: float = field(default=0.5, metadata={
         "sa": Column(Float, nullable=False)
     })
@@ -456,21 +460,13 @@ class Experiment:
         "sa": relationship("Job", back_populates="experiment", cascade="all, delete-orphan", lazy="joined")
     })
 
-    def get_jobs_by_shift_start(self, shift_start: int) -> List[Job]:
-        """
-        Gibt alle Jobs zurück, deren earliest_start dem gegebenen shift_start entspricht
-        und deren max_bottleneck_utilization gleich der des Experiments ist.
-
-        :param shift_start: Startzeit des Shifts (in Minuten)
-        :return: gefilterte Liste von Job-Objekten
-        """
-        jobs: List[Job] = []
-
-        for job in self.jobs:
-            if (job.earliest_start == shift_start and
-                    float(job.max_bottleneck_utilization) == float(self.max_bottleneck_utilization)):
-                jobs.append(job)
-        return jobs
+    #def get_jobs_by_shift_start(self, shift_start: int) -> List[Job]:
+    #    jobs: List[Job] = []
+    #
+    #    for job in self.jobs:
+    #        if job.earliest_start == shift_start and job.experiment_id == self.id:
+    #            jobs.append(job)
+    #    return jobs
 
 
 @mapper_registry.mapped
@@ -487,7 +483,7 @@ class Shift:
         "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
     })
 
-    shift_length: int = field(default=1440, metadata={
+    shift_length: int = field(init=False, default=1440, metadata={
         "sa": Column(Integer, nullable=False)
     })
 
@@ -503,9 +499,17 @@ class Shift:
     def shift_end(self) -> int:
         return self.shift_start + self.shift_length
 
-    @property
-    def jobs(self) -> List[Job]:
-        return self.experiment.get_jobs_by_shift_start(self.shift_start)
+    #@property
+    #def jobs(self) -> List[Job]:
+    #    return self.experiment.get_jobs_by_shift_start(self.shift_start)
+
+
+    # schedule_job_operations
+    # simulation_job_operations
+
+    def __post_init__(self):
+        self.shift_length = 1440
+
 
 
 @mapper_registry.mapped
@@ -576,7 +580,7 @@ class SimulationJobOperation:
     __sa_dataclass_metadata_key__ = "sa"
 
     experiment_id: int = field(metadata={
-        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)  # ⬅️ HIER!
+        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
     })
 
     job_id: str = field(metadata={"sa": Column(String, primary_key=True)})
@@ -598,11 +602,13 @@ class SimulationJobOperation:
     job_operation: JobOperation = field(default=None, repr=False, metadata={
         "sa": relationship(
             "JobOperation",
-            primaryjoin=(
-                "and_(SimulationJobOperation.job_id == JobOperation.job_id, "
-                "SimulationJobOperation.position_number == JobOperation.position_number)"
+            primaryjoin=lambda: and_(
+                SimulationJobOperation.job_id == JobOperation.job_id,
+                SimulationJobOperation.position_number == JobOperation.position_number,
+                SimulationJobOperation.experiment_id == JobOperation.experiment_id,
             ),
-            lazy="joined"
+            lazy="joined",
+            viewonly=True
         )
     })
 

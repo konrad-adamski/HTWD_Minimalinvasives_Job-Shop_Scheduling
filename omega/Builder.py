@@ -3,8 +3,6 @@ from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import inspect
-from sqlalchemy.orm import joinedload, InstrumentedAttribute
 
 from omega.db_models import Experiment, Routing, Job, RoutingSource
 from omega.db_setup import SessionLocal, my_engine
@@ -119,11 +117,12 @@ class ExperimentBuilder:
     @classmethod
     def create_jobs(
             cls, routings: List[Routing], experiment: Experiment,
-            shift_count: int = 1, arrival_seed: Optional[int] = 120,
+            arrival_seed: Optional[int] = 120,
             job_routing_seed: Optional[int] = 100, verbose: bool = False):
 
         jobs: List[Job] = []
-        last_shift_end = 1440 * (shift_count+1)
+
+        last_shift_end = 1440 * (experiment.total_shift_number+1)
 
         # Compute mean interarrival time based on max bottleneck utilization
         mean_arrival_time = cls.calculate_mean_interarrival_time(
@@ -132,7 +131,7 @@ class ExperimentBuilder:
             verbose=verbose
         )
 
-        approx_size = np.ceil(last_shift_end / mean_arrival_time).astype(int)
+        approx_size = np.ceil(last_shift_end / mean_arrival_time).astype(int) + 2 * len(routings) # with buffer
 
         arrivals = cls.gen_arrivals(
             mean_interarrival_time=mean_arrival_time,
@@ -164,12 +163,13 @@ class ExperimentBuilder:
         return jobs
 
 
-
     @staticmethod
-    def add_experiment(solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
+    def add_experiment(
+            total_shift_number: int = 30, solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
             solver_w_first:int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float  = 0.25) -> Experiment:
         with SessionLocal() as session:
             experiment = Experiment(
+                total_shift_number=total_shift_number,
                 main_pct=solver_main_pct,
                 w_t=solver_w_t,
                 w_e=solver_w_e,
@@ -183,14 +183,13 @@ class ExperimentBuilder:
             return session.get(Experiment, experiment.id)
 
     @classmethod
-    def insert_jobs(cls, routings: List[Routing], experiment: Experiment,
-            shift_count: int = 1, arrival_seed: Optional[int] = 120,
+    def insert_jobs(
+            cls, routings: List[Routing], experiment: Experiment, arrival_seed: Optional[int] = 120,
             job_routing_seed: Optional[int] = 100, verbose: bool = False):
 
         jobs = cls.create_jobs(
             routings=routings,
             experiment=experiment,
-            shift_count=shift_count,
             arrival_seed=arrival_seed,
             job_routing_seed=job_routing_seed,
             verbose=verbose
@@ -201,42 +200,3 @@ class ExperimentBuilder:
             session.commit()
 
 
-
-if __name__ == "__main__":
-    from configs.path_manager import get_path
-
-    # RoutingSource erzeugen
-    routing_source = RoutingSource(name="FT 10x10")
-
-
-    basic_data_path = get_path("data", "basic")
-    df_routings = pd.read_csv(basic_data_path / "ft10_routings.csv")
-
-
-    # Routings aus DataFrame erzeugen
-    routings = Routing.from_multiple_routings_dataframe(df_routings, source=routing_source)
-
-    builder = ExperimentBuilder()
-
-    mean_arrival_time = builder.calculate_mean_interarrival_time(routings, u_b_mmax=0.9, verbose=True)
-    print(f"\nMean interarrival time: {mean_arrival_time}")
-
-    print("-"*80)
-
-    experiment = builder.add_experiment_to_db(max_bottleneck_utilization=0.9)
-    print(f"\nExperiment ID: {experiment.id}")
-
-
-
-    jobs = builder.create_jobs(
-        routings=routings,
-        experiment=experiment
-    )
-
-    jobsis = builder.add_jobs_to_db(jobs)
-
-    for job in jobsis[:11]:
-        print(f"Job {job.id}, {job.routing_id}")
-        #for op in job.operations:
-    #    print(f"\t|{op.position_number}\t|{op.machine}\t|duration {op.duration}")
-        

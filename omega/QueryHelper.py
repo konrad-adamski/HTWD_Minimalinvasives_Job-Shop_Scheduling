@@ -3,7 +3,8 @@ from typing import List, final, Union
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload, InstrumentedAttribute, selectinload
 from omega.db_setup import SessionLocal
-from omega.db_models import Job, Routing, JobOperation, RoutingSource
+from omega.db_models import Job, Routing, JobOperation, RoutingSource, Experiment, SimulationJobOperation
+
 
 @final
 class RoutingQuery:
@@ -45,6 +46,23 @@ class RoutingQuery:
             )
             session.expunge_all()
             return routings
+
+
+class ExperientQuery:
+    @staticmethod
+    def _get_by_field(field_name: str, field_value: Union[str, int]) -> Experiment:
+        if field_name not in Experiment.__mapper__.columns.keys():  # type: ignore[attr-defined]
+            raise ValueError(f"Field '{field_name}' is not a valid column in Experiment.")
+
+        with SessionLocal() as session:
+            query = session.query(Experiment).options(
+                joinedload(Experiment.jobs).joinedload(Job.routing),
+                joinedload(Experiment.jobs).joinedload(Job.operations).joinedload(JobOperation.routing_operation),
+                joinedload(Experiment.simulation_job_operations)
+            )
+            experiment = query.filter(getattr(Experiment, field_name) == field_value).first()
+            session.expunge_all()
+            return experiment
 
 
 class JobQuery:
