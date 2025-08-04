@@ -332,11 +332,9 @@ class Job:
         for routing_op in self.routing.operations:
             operations.append(JobOperation(
                 job=self,
-                routing_id=self.routing_id,
                 position_number=routing_op.position_number,
                 machine=routing_op.machine,
                 duration=routing_op.duration,
-                experiment_id=self.experiment_id,
             ))
         return operations
 
@@ -617,14 +615,19 @@ class SimulationOperation:
 # View/Helper classes (not ORM models): wrap ORM objects for easy access.
 
 @dataclass
-class JobTemp:
+class JobTemplate:
     id: str
-    routing_id: str
-    arrival: int
+    routing_id: Optional[str] = None
+    experiment_id: Optional[int] = None
+    arrival: Optional[int] = None
     deadline: Optional[int] = None
 
-    @property
+    operations: List[JobOperation] = field(default_factory=list)
+
+    @ property
     def earliest_start(self) -> int:
+        if self.arrival is None:
+            return 0
         return int(np.ceil((self.arrival + 1) / 1440) * 1440)
 
 
@@ -637,12 +640,10 @@ class Operation:
 
 @dataclass
 class JobOperation:
-    job: Union[Job, JobTemp]
-    routing_id: str
+    job: Union[Job, JobTemplate]
     position_number: int
     machine: str
     duration: int
-    experiment_id: int
 
     shift_number: Optional[int] = None
 
@@ -654,7 +655,6 @@ class JobOperation:
     def __repr__(self) -> str:
         attrs = {
             "job_id": self.job.id,
-            "routing_id": self.routing_id,
             "position_number": self.position_number,
             "machine": self.machine,
             "duration": self.duration,
@@ -666,6 +666,10 @@ class JobOperation:
         return self.job.id
 
     @property
+    def job_arrival(self) -> int:
+        return self.job.arrival
+
+    @property
     def job_earliest_start(self) -> int:
         return self.job.earliest_start
 
@@ -673,6 +677,13 @@ class JobOperation:
     def job_deadline(self) -> int:
         return self.job.deadline
 
+    @property
+    def routing_id(self) -> str:
+        return self.job.routing_id
+
+    @property
+    def experiment_id(self) -> Optional[int]:
+        return self.job.experiment_id
 
     def __post_init__(self):
         self.operation = Operation(
