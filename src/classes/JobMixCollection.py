@@ -1,0 +1,187 @@
+from __future__ import annotations
+from collections import UserDict
+from dataclasses import dataclass
+from typing import Optional, List, Union
+
+import pandas as pd
+
+from src.classes.orm_models import JobOperation, JobTemplate, Job
+
+
+@dataclass
+class JobMixCollection(UserDict):
+    """
+    Verwaltet eine Sammlung von JobTemplates, adressiert über job_id.
+    """
+
+    def __init__(self, initial: Optional[Union[List[JobTemplate], List[Job]]] = None):
+        super().__init__()
+
+        if initial:
+            for job in initial:
+                self.data[job.id] = job
+
+    def add_operation(
+        self, job_id: str, routing_id: Optional[str], experiment_id: Optional[int],position_number: int,
+        machine: str, duration: int, start: Optional[int] = None, end: Optional[int] = None,
+        arrival: Optional[int] = None, deadline: Optional[int] = None):
+        """
+        Fügt eine Operation zu einem bestehenden oder neuen JobTemplate hinzu.
+        """
+
+        if job_id not in self.data:
+            self.data[job_id] = JobTemplate(
+                id=job_id,
+                routing_id=routing_id,
+                experiment_id=experiment_id,
+                arrival=arrival,
+                deadline=deadline,
+            )
+        job_op = JobOperation(
+            job = self.data[job_id],
+            position_number=position_number,
+            machine=machine,
+            start=start,
+            duration=duration,
+            end=end
+        )
+        self.data[job_id].operations.append(job_op)
+
+    def add_operation_instance(self, op: JobOperation):
+        """
+        Adds a complete JobWorkflowOperation instance to the collection.
+        """
+        job_id = op.job.id
+        if job_id not in self.data:
+            self.data[job_id] = JobTemplate(
+                id=job_id,
+                routing_id=op.routing_id,
+                experiment_id=op.experiment_id,
+                arrival=op.job_arrival,
+                deadline=op.job_deadline,
+            )
+
+        self.data[job_id].operations.append(op)
+
+    def sort_operations(self):
+        for job in self.values():
+            job.operations.sort(key=lambda op: op.position_number)
+
+    def get_all_jobs(self) -> [Union[List[JobTemplate], List[Job]]]:
+        return list(self.values())
+
+    def get_unique_machines(self) -> set:
+        """
+        Gibt die Menge aller in den Operationen verwendeten Maschinen zurück.
+        """
+        machines = {
+            op.machine
+            for job in self.values()
+            for op in job.operations
+            if op.machine is not None
+        }
+        return machines
+
+
+    @classmethod
+    def from_schedule_dataframe(
+            cls, df: pd.DataFrame, job_column: str = "Job", routing_column: str = "Routing_ID",
+            position_column: str = "Operation", machine_column: str = "Machine",
+            start_column: str = "Start", duration_column: str = "Processing Time",
+            end_column: str = "End") -> JobMixCollection:
+        """
+        Erstellt eine JobMixCollection aus einem DataFrame mit Zeilen für einzelne Operationen.
+        """
+        obj = cls()
+
+        for _, row in df.iterrows():
+            job_id = str(row[job_column])
+            routing_id = str(row[routing_column]) if pd.notna(row[routing_column]) else None
+            position_number = int(row[position_column])
+            machine = str(row[machine_column])
+            duration = int(row[duration_column])
+            start = int(row[start_column]) if pd.notna(row[start_column]) else None
+            end = int(row[end_column]) if pd.notna(row[end_column]) else None
+
+            obj.add_operation(
+                job_id=job_id,
+                routing_id=routing_id,
+                experiment_id=None,
+                position_number=position_number,
+                machine=machine,
+                duration=duration,
+                start=start,
+                end=end,
+                arrival=None,
+                deadline=None
+            )
+
+        obj.sort_operations()
+        return obj
+
+    def to_dataframe(
+            self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
+            machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
+            end_column: str = "End") -> pd.DataFrame:
+        """
+        Gibt einen DataFrame mit allen Operationen in der Collection zurück.
+        Nur Jobs mit Attribut 'operations' (d.h. JobTemplates) werden berücksichtigt.
+        """
+
+        records = []
+
+        for job in self.values():
+            for op in job.operations:
+                records.append({
+                    job_column: job.id,
+                    routing_column: job.routing_id,
+                    position_column: op.position_number,
+                    machine_column: op.machine,
+                    start_column: op.start,
+                    duration_column: op.duration,
+                    end_column: op.end
+                })
+
+        return pd.DataFrame(records)
+
+    @classmethod
+    def _subtract_by_job_operation_collection(
+            cls, main: JobMixCollection, exclude: JobMixCollection) -> JobMixCollection:
+        """
+        Gibt eine neue JobMixCollection zurück, die nur jene Operationen aus 'main' enthält,
+        deren (job_id, position_number) nicht in der 'exclude'-Collection vorkommen.
+
+        Für jeden verbleibenden Job wird bei Bedarf ein neuer JobTemplate mit zugehörigen
+        Operationen erzeugt.
+        """
+        result = cls()
+
+        # 1) Setze die auszuschließenden (job_id, position_number)-Paare
+        excluded_pairs = {
+            (op.job_id, op.position_number)
+            for job in exclude.values()
+            for op in job.operations
+        }
+
+        # 2) Iteriere über alle Operationen in main
+        for job in main.values():
+            for op in job.operations:
+                if (op.job_id, op.position_number) not in excluded_pairs:
+                    result.add_operation(
+                        job_id=op.job_id,
+                        routing_id=op.routing_id,
+                        experiment_id=op.experiment_id,
+                        position_number=op.position_number,
+                        machine=op.machine,
+                        duration=op.duration,
+                        start=op.start,
+                        end=op.end,
+                        arrival=op.job_arrival,
+                        deadline=op.job_deadline
+                    )
+
+        result.sort_operations()
+        return result
+
+    def __truediv__(self, other: JobMixCollection) -> JobMixCollection:
+        return self.__class__._subtract_by_job_operation_collection(main=self, exclude=other)
