@@ -2,9 +2,9 @@ from typing import List
 
 import pandas as pd
 
-from src.classes.Collections import RoutingsCollection
+from src.classes.Query import RoutingQuery
 from src.classes.orm_models import RoutingSource, Routing
-from src.classes.orm_setup import SessionLocal, reset_tables
+from src.classes.orm_setup import reset_tables
 
 if __name__ == "__main__":
     from configs.path_manager import get_path
@@ -20,20 +20,11 @@ if __name__ == "__main__":
     basic_data_path = get_path("data", "basic")
     df_routings = pd.read_csv(basic_data_path / "ft10_routings.csv")
 
-    routing_collection = RoutingsCollection.from_dataframe(
-        df_routings = df_routings,
-        source=routing_source
-    )
+    RoutingQuery.insert_from_dataframe(df_routings = df_routings, source=routing_source)
 
-    routings: List[Routing] = routing_collection.get_routings()
+    routings: List[Routing] = RoutingQuery.get_by_source_name(source_name=source_name)
 
-    with SessionLocal() as session:
-        session.add_all(routings)
-        session.commit()
-        routing_collection = RoutingsCollection()
-
-    routing_collection = RoutingsCollection.from_db_by_source_name(source_name= source_name)
-    for routing in routing_collection.values():
+    for routing in routings:
         print(routing)
 
 

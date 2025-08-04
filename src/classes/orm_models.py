@@ -624,11 +624,22 @@ class JobTemplate:
 
     operations: List[JobOperation] = field(default_factory=list)
 
-    @ property
+    @property
     def earliest_start(self) -> int:
         if self.arrival is None:
             return 0
         return int(np.ceil((self.arrival + 1) / 1440) * 1440)
+
+
+    # Custom-Property für die Planungslogik
+    @property
+    def sum_duration(self) -> int:
+        """
+        Get the total duration of all operations for this job.
+
+        :return: Sum of durations of all operations
+        """
+        return sum(op.duration for op in self.operations)
 
 
 @dataclass
