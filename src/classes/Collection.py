@@ -3,6 +3,7 @@ from collections import UserDict
 from dataclasses import dataclass
 from typing import Optional, List, Union
 
+import copy
 import pandas as pd
 
 from src.classes.orm_models import JobOperation, JobTemplate, Job, Routing
@@ -170,6 +171,25 @@ class JobMixCollection(UserDict):
                 })
         return pd.DataFrame(records)
 
+    def to_information_dataframe(
+            self, job_column: str = "Job", routing_column: str = "Routing_ID",
+            arrival_column: str = "Arrival", earliest_start_column: str = "Ready Time",
+            deadline_column: str = "Deadline") -> pd.DataFrame:
+        """
+        Gibt einen DataFrame mit allen Jobinformationen in der Collection zurück.
+        """
+        records = []
+        for job in self.values():
+            records.append({
+                job_column: job.id,
+                routing_column: job.routing_id,
+                arrival_column: job.arrival,
+                earliest_start_column: job.earliest_start,
+                deadline_column: job.deadline
+            })
+        return pd.DataFrame(records)
+
+
     @classmethod
     def _subtract_by_job_operation_collection(
             cls, main: JobMixCollection, exclude: JobMixCollection) -> JobMixCollection:
@@ -266,4 +286,72 @@ class JobMixCollection(UserDict):
                     })
             df = pd.DataFrame(records).sort_values(by=[start_column])
             return df
+
+    def get_subset_by_earliest_start(self, earliest_start: int) -> JobMixCollection:
+        """
+        Returns all jobs whose earliest_start matches the given value.
+
+        :param earliest_start: Time threshold for selecting full jobs
+        :return: Filtered JobMixCollection with complete jobs
+        """
+        subset = JobMixCollection()
+        for job in self.values():
+            if job.earliest_start == earliest_start:
+                subset[job.id] = job
+        return subset
+
+    @classmethod
+    def merge_collections(cls, a: JobMixCollection, b: JobMixCollection) -> JobMixCollection:
+        """
+        Merges two JobMixCollections into a new one.
+        If a job or operation exists in both, the version from 'a' takes precedence.
+
+        :param a: Primary JobMixCollection (priority)
+        :param b: Secondary JobMixCollection (merged if not in a)
+        :return: A new merged JobMixCollection
+        """
+        result = cls()
+
+        # Zuerst alles aus A übernehmen
+        for job_id, job in a.items():
+            result[job_id] = JobTemplate(
+                id=job.id,
+                routing_id=job.routing_id,
+                experiment_id=job.experiment_id,
+                arrival=job.arrival,
+                deadline=job.deadline,
+                operations=[copy.deepcopy(op) for op in job.operations]  # Kopieren für Sicherheit
+            )
+
+        # Dann fehlende Jobs + fehlende Operationen aus B ergänzen
+        for job_id, job_b in b.items():
+            if job_id not in result:
+                result[job_id] = JobTemplate(
+                    id=job_b.id,
+                    routing_id=job_b.routing_id,
+                    experiment_id=job_b.experiment_id,
+                    arrival=job_b.arrival,
+                    deadline=job_b.deadline,
+                    operations=[copy.deepcopy(op) for op in job_b.operations]
+                )
+            else:
+                # Nur neue Operationen übernehmen (nach position_number)
+                existing_ops = {op.position_number for op in result[job_id].operations}
+                for op in job_b.operations:
+                    if op.position_number not in existing_ops:
+                        result[job_id].operations.append(copy.deepcopy(op))
+
+        result.sort_operations()
+        return result
+
+    def __add__(self, other: JobMixCollection) -> JobMixCollection:
+        """
+        Combines two JobMixCollections using the + operator.
+        If jobs or operations exist in both, the version from 'self' takes precedence.
+
+        :param other: Another JobMixCollection
+        :return: A new merged JobMixCollection
+        """
+        return self.__class__.merge_collections(self, other)
+
 

@@ -261,6 +261,10 @@ class RoutingOperation:
         "sa": Column(Integer, nullable=False)
     })
 
+    theoretical_transition_time: int = field(init=False, default=0, metadata={
+        "sa": Column(Integer, nullable=False, default=0)
+    })
+
     routing: Routing = field(
         default=None,
         repr=False,
