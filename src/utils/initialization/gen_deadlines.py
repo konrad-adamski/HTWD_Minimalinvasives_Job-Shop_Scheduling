@@ -3,42 +3,11 @@ from typing import Optional
 import pandas as pd
 import numpy as np
 
-def get_temporary_df_times_from_schedule(
-        df_schedule: pd.DataFrame,
-        df_jssp: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-    """
-    Prepare job-level timing summary for routing-based deadline generation.
-
-    This function extracts for each job its arrival, ready, and end time,
-    as well as its total processing time (optional),
-    to support deadline generation methods that group jobs by routing.
-
-    :param df_schedule: Schedule DataFrame with columns
-        'Job', 'Operation', 'Routing_ID', 'Arrival', 'Ready Time', and 'End'.
-    :param df_jssp: Optional job-shop definition with 'Job' and 'Processing Time' columns.
-        If provided, the total processing time per job is computed and included.
-    :return: DataFrame with columns
-        'Job', 'Routing_ID', 'Arrival', 'Ready Time', 'End'
-        and optionally 'Job Processing Time' if df_jssp is provided.
-    """
-    # Select the last operation for each job
-    df_last_ops = df_schedule.sort_values("Operation").groupby("Job").last().reset_index()
-
-    # Base columns from the schedule
-    df_jobs_times = df_last_ops[["Job", "Routing_ID", "Arrival", "Ready Time", "End"]]
-
-    # Optionally add job-level total processing time
-    if df_jssp is not None:
-        df_proc_time = df_jssp.groupby("Job", as_index=False)["Processing Time"].sum()
-        df_proc_time.rename(columns={"Processing Time": "Job Processing Time"}, inplace=True)
-        df_jobs_times = df_jobs_times.merge(df_proc_time, on="Job", how="left")
-
-    return df_jobs_times
-
 
 def add_groupwise_lognormal_deadlines_by_group_mean(
-                df_times_temp: pd.DataFrame, sigma: float = 0.2,
-                routing_column: str = "Routing_ID", seed: Optional[int] = 42) -> pd.DataFrame:
+        df_times_temp: pd.DataFrame, sigma: float = 0.2, routing_column: str = "Routing_ID",
+        earliest_start_column ="Ready Time", end_column: str = "End", deadline_column: str = "Deadline",
+        seed: Optional[int] = 42) -> pd.DataFrame:
     """
     Generate stochastic deadlines per routing group using log-normal-distributed flow budgets.
 
@@ -61,20 +30,23 @@ def add_groupwise_lognormal_deadlines_by_group_mean(
         np.random.seed(seed)
 
     df_times = df_times_temp.copy()
-    df_times['Deadline'] = np.nan
+    df_times[deadline_column] = np.nan
 
     for routing_id, grp in df_times.groupby(routing_column):
-        target_flow_mean = grp['End'].mean() - grp['Ready Time'].mean()
+        target_flow_mean = grp[end_column].mean() - grp[earliest_start_column].mean()
         mu = np.log(target_flow_mean) - 0.5 * sigma**2
 
         # Für jede Zeile in Gruppe eine Deadline aus LogNormal(mu, sigma)
         flow_budgets = np.random.lognormal(mean=mu, sigma=sigma, size=len(grp))
-        df_times.loc[grp.index, 'Deadline'] = df_times.loc[grp.index, 'Ready Time'] + np.round(flow_budgets)
+        df_times.loc[grp.index, deadline_column] = df_times.loc[grp.index, earliest_start_column] + np.round(flow_budgets)
 
     return df_times
 
 
-def ensure_reasonable_deadlines(df_times: pd.DataFrame, min_coverage: float = 0.90) -> pd.DataFrame:
+def ensure_reasonable_deadlines(
+        df_times: pd.DataFrame, min_coverage: float = 0.90,
+        earliest_start_column = "Ready Time", end_column: str = "End",
+        deadline_column: str = "Deadline", total_duration_column = "Total Processing Time") -> pd.DataFrame:
     """
     Ensures that each job's deadline covers at least a minimum percentage of its total processing time.
     Also removes the 'End' column if present.
@@ -86,14 +58,14 @@ def ensure_reasonable_deadlines(df_times: pd.DataFrame, min_coverage: float = 0.
     """
     min_coverage = min(min_coverage, 1.0)
 
-    df_times['Deadline'] = np.maximum(
-        df_times['Deadline'],
-        df_times['Ready Time'] + df_times['Job Processing Time'] * min_coverage
+    df_times[deadline_column] = np.maximum(
+        df_times[deadline_column],
+        df_times[earliest_start_column] + df_times[total_duration_column] * min_coverage
     )
 
-    df_times['Deadline'] = np.ceil(df_times['Deadline']).astype(int)
+    df_times[deadline_column] = np.ceil(df_times[deadline_column]).astype(int)
 
-    if 'End' in df_times.columns:
-        df_times = df_times.drop(columns=['End'])
+    if end_column in df_times.columns:
+        df_times = df_times.drop(columns=[end_column])
 
     return df_times

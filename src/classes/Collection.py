@@ -5,7 +5,30 @@ from typing import Optional, List, Union
 
 import pandas as pd
 
-from src.classes.orm_models import JobOperation, JobTemplate, Job
+from src.classes.orm_models import JobOperation, JobTemplate, Job, Routing
+
+
+class RoutingCollection(UserDict):
+    def __init__(self, initial: List[Routing]):
+        super().__init__()
+
+        if initial:
+            for routing in initial:
+                self.data[routing.id] = routing
+
+    def to_dataframe(self) -> pd.DataFrame:
+        records = []
+
+        for routing in self.data.values():
+            for op in routing.operations:
+                records.append({
+                    "Routing_ID": routing.id,
+                    "Operation": op.position_number,
+                    "Machine": op.machine,
+                    "Processing Time": op.duration
+                })
+
+        return pd.DataFrame(records)
 
 
 @dataclass
@@ -94,9 +117,10 @@ class JobMixCollection(UserDict):
         """
         obj = cls()
 
+        has_routing_column = routing_column in df.columns
         for _, row in df.iterrows():
             job_id = str(row[job_column])
-            routing_id = str(row[routing_column]) if pd.notna(row[routing_column]) else None
+            routing_id = str(row[routing_column]) if has_routing_column and pd.notna(row[routing_column]) else None
             position_number = int(row[position_column])
             machine = str(row[machine_column])
             duration = int(row[duration_column])
@@ -122,7 +146,8 @@ class JobMixCollection(UserDict):
     def to_dataframe(
             self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
             machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
-            end_column: str = "End") -> pd.DataFrame:
+            end_column: str = "End", earliest_start_column: str = "Ready Time",
+            deadline_column: str = "Deadline") -> pd.DataFrame:
         """
         Gibt einen DataFrame mit allen Operationen in der Collection zurück.
         Nur Jobs mit Attribut 'operations' (d.h. JobTemplates) werden berücksichtigt.
@@ -139,9 +164,10 @@ class JobMixCollection(UserDict):
                     machine_column: op.machine,
                     start_column: op.start,
                     duration_column: op.duration,
-                    end_column: op.end
+                    end_column: op.end,
+                    earliest_start_column: job.earliest_start,
+                    deadline_column: job.deadline
                 })
-
         return pd.DataFrame(records)
 
     @classmethod
@@ -185,3 +211,59 @@ class JobMixCollection(UserDict):
 
     def __truediv__(self, other: JobMixCollection) -> JobMixCollection:
         return self.__class__._subtract_by_job_operation_collection(main=self, exclude=other)
+
+    def get_last_operations_only(self) -> JobMixCollection:
+        """
+        Gibt eine neue JobMixCollection mit nur der letzten Operation pro Job zurück.
+        """
+        result = JobMixCollection()
+
+        for job in self.values():
+            if not job.operations:
+                continue
+            last_op = max(job.operations, key=lambda op: op.position_number)
+            result.add_operation(
+                job_id=last_op.job_id,
+                routing_id=last_op.routing_id,
+                experiment_id=last_op.experiment_id,
+                position_number=last_op.position_number,
+                machine=last_op.machine,
+                duration=last_op.duration,
+                start=last_op.start,
+                end=last_op.end,
+                arrival=last_op.job_arrival,
+                deadline=last_op.job_deadline
+            )
+
+        result.sort_operations()
+        return result
+
+
+    def to_last_ops_dataframe(
+                self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
+                machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
+                end_column: str = "End", earliest_start_column: str = "Ready Time",
+                deadline_column: str = "Deadline") -> pd.DataFrame:
+
+            job_sum_durations = {job.id: job.sum_duration for job in self.values()}
+            last_job_ops_collection = self.get_last_operations_only()
+
+            records = []
+
+            for job in last_job_ops_collection.values():
+                for op in job.operations:
+                    records.append({
+                        job_column: job.id,
+                        routing_column: job.routing_id,
+                        position_column: op.position_number,
+                        machine_column: op.machine,
+                        start_column: op.start,
+                        duration_column: op.duration,
+                        end_column: op.end,
+                        earliest_start_column: job.earliest_start,
+                        deadline_column: job.deadline,
+                        f"Total {duration_column}": job_sum_durations[job.id],
+                    })
+            df = pd.DataFrame(records).sort_values(by=[start_column])
+            return df
+

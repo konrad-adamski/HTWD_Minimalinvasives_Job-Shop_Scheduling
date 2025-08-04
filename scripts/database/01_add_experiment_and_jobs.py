@@ -1,4 +1,4 @@
-from src.classes.Collections import RoutingsCollection, JobsCollection
+from src.classes.Query import RoutingsCollection, JobsCollection
 from src.classes.Initializer import ExperimentInitializer
 
 if __name__ == "__main__":

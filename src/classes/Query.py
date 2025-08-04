@@ -8,32 +8,16 @@ from sqlalchemy.orm import joinedload, InstrumentedAttribute
 from src.classes.orm_models import Routing, RoutingSource, RoutingOperation, Job
 from src.classes.orm_setup import SessionLocal
 
-# RoutingCollection ---------------------------------------------------------------------------------------------------
-class RoutingsCollection(UserDict):
-    def __init__(self, routings: Optional[List[Routing]] = None):
-        """Initialize collection from an optional list of Routing objects (keyed by ID)."""
-        routings = routings or []
-        super().__init__({routing.id: routing for routing in routings})
+# RoutingQuery --------------------------------------------------------------------------------------------------------
+class RoutingQuery:
 
-    def get_routing(self, routing_id: str) -> Optional[Routing]:
-        """Find a Routing by its ID."""
-        return self.data.get(routing_id)
-
-    def get_routings(self) -> List[Routing]:
-        return list(self.values())
-
-    def sort_operations(self):
-        """Sort operations in each routing by position number."""
-        for routing in self.values():
-            routing.operations.sort(key=lambda op: op.position_number)
-
-    @classmethod
-    def from_dataframe(cls, df_routings: pd.DataFrame,
+    @staticmethod
+    def insert_from_dataframe(df_routings: pd.DataFrame,
                        routing_column: str = "Routing_ID",
                        operation_column: str = "Operation",
                        machine_column: str = "Machine",
                        duration_column: str = "Processing Time",
-                       source: Optional[RoutingSource] = None) -> RoutingsCollection:
+                       source: Optional[RoutingSource] = None):
         """
         Create a RoutingCollection from a DataFrame containing one or more routings.
         """
@@ -61,10 +45,13 @@ class RoutingsCollection(UserDict):
             new_routing.operations.sort(key=lambda op: op.position_number)
             routings.append(new_routing)
 
-        return cls(routings)
+        with SessionLocal() as session:
+            session.add_all(routings)
+            session.commit()
 
-    @classmethod
-    def from_db_by_source_name(cls, source_name: str) -> RoutingsCollection:
+
+    @staticmethod
+    def get_by_source_name(source_name: str) -> List[Routing]:
         """
         Retrieve all routing entries with the given routing source name.
 
@@ -83,61 +70,14 @@ class RoutingsCollection(UserDict):
                 .all()
             )
             session.expunge_all()
-            return cls(routings)
+            return list(routings)
 
 
-    def to_dataframe(self) -> pd.DataFrame:
-        """
-        Export all routing operations to a flat DataFrame.
-
-        Columns: Routing_ID, Operation, Machine, Processing Time
-        """
-        records = []
-
-        for routing in self.values():
-            for op in routing.operations:
-                records.append({
-                    "Routing_ID": routing.id,
-                    "Operation": op.position_number,
-                    "Machine": op.machine,
-                    "Processing Time": op.duration
-                })
-
-        return pd.DataFrame(records)
-
-
-# JobsCollection -------------------------------------------------------------------------------------------------------
-class JobsCollection(UserDict):
-    def __init__(self, jobs: List[Job]):
-        """Initialize collection from a list of Job objects using their ID as key."""
-        super().__init__({job.id: job for job in jobs})
-
-    def get_job(self, job_id: str) -> Optional[Job]:
-        """Return job by ID, or None if not found."""
-        return self.data.get(job_id)
-
-    def all_jobs(self) -> List[Job]:
-        """Return all jobs as a list."""
-        return list(self.values())
-
-    def to_dataframe(
-            self, job_column: str = "Job", routing_column: str = "Routing_ID",
-            arrival_column = "Arrival", earliest_start_column = "Ready Time",
-            deadline_column = "Deadline") -> pd.DataFrame:
-        """Export all jobs to a DataFrame."""
-        records = []
-        for job in self.values():
-            records.append({
-                job_column: job.id,
-                routing_column: job.routing_id,
-                arrival_column: job.arrival,
-                earliest_start_column: job.earliest_start,
-                deadline_column: job.deadline
-            })
-        return pd.DataFrame(records)
+# JobQuery -----------------------------------------------------------------------------------------------------------
+class JobQuery:
 
     @classmethod
-    def _from_db_by_field(cls, field_name: str, field_value: Union[str, int]) -> JobsCollection:
+    def _get_by_field(cls, field_name: str, field_value: Union[str, int]) -> List[Job]:
         if field_name not in Job.__mapper__.columns.keys():  # type: ignore[attr-defined]
             raise ValueError(f"Field '{field_name}' is not a valid column in Job.")
 
@@ -151,21 +91,21 @@ class JobsCollection(UserDict):
             )
             jobs = query.filter(getattr(Job, field_name) == field_value).all()
             session.expunge_all()
-            return cls(jobs)
+            return list(jobs)
 
     @classmethod
-    def from_db_by_routing_id(cls, routing_id: str) -> JobsCollection:
-        return cls._from_db_by_field("routing_id", routing_id)
+    def get_by__routing_id(cls, routing_id: str) -> List[Job]:
+        return cls._get_by_field("routing_id", routing_id)
 
     @classmethod
-    def from_db_by_experiment_id(cls, experiment_id: int) -> JobsCollection:
-        return cls._from_db_by_field("experiment_id", experiment_id)
+    def get_by_experiment_id(cls, experiment_id: int) -> List[Job]:
+        return cls._get_by_field("experiment_id", experiment_id)
 
 
     @classmethod
-    def from_db_by_earliest_start_or_ids(
+    def get_by_earliest_start_or_ids(
             cls, experiment_id: int, earliest_start: int,
-            job_ids: Optional[List[str]] = None) -> JobsCollection:
+            job_ids: Optional[List[str]] = None) -> List[Job]:
         """
         Retrieve all jobs for a given experiment where either the earliest start time matches
         the specified value or the job ID is in the given list.
@@ -194,5 +134,18 @@ class JobsCollection(UserDict):
 
             jobs = query.all()
             session.expunge_all()
-            return cls(jobs)
+            return list(jobs)
+
+    @staticmethod
+    def update_job_deadlines_from_df(df: pd.DataFrame, job_column="Job", deadline_column="Deadline"):
+        with SessionLocal() as session:
+            for _, row in df.iterrows():
+                job_id = row[job_column]
+                new_deadline = row[deadline_column]
+
+                job = session.get(Job, job_id)
+                if job:
+                    job.deadline = new_deadline
+
+            session.commit()
 
