@@ -384,3 +384,8 @@ class JobMixCollection(UserDict):
         if not deadlines:
             raise ValueError("Keine Deadlines in der JobMixCollection gesetzt.")
         return max(deadlines)
+
+
+    # info -------------------------------------------------------------------------------------------------------------
+    def get_num_operations(self) -> int:
+        return sum(len(job.operations) for job in self.values())
