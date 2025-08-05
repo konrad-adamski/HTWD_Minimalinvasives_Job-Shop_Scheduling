@@ -668,6 +668,35 @@ class JobTemplate:
             return None
         return max(op.position_number for op in self.operations)
 
+    @classmethod
+    def copy_from(cls, other: Union[JobTemplate, Job]) -> JobTemplate:
+        """
+        Creates a JobTemplate copy from another JobTemplate or Job instance.
+        Copies metadata and converts operations to JobOperation objects.
+        """
+        new_template = cls(
+            id=other.id,
+            routing_id=other.routing_id,
+            experiment_id=other.experiment_id,
+            arrival=other.arrival,
+            deadline=other.deadline,
+            operations=[]
+        )
+
+        # Operationen kopieren
+        for op in other.operations:
+            new_op = JobOperation(
+                job=new_template,
+                position_number=op.position_number,
+                machine=op.machine,
+                duration=op.duration,
+                start=op.start,
+                end=op.end
+            )
+            new_template.operations.append(new_op)
+
+        return new_template
+
 
 @dataclass
 class Operation:

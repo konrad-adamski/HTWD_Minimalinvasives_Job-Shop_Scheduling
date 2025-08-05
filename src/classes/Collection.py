@@ -38,12 +38,20 @@ class JobMixCollection(UserDict):
     Verwaltet eine Sammlung von JobTemplates, adressiert über job_id.
     """
 
+    #def __init__(self, initial: Optional[Union[List[JobTemplate], List[Job]]] = None):
+    #    super().__init__()
+    #
+    #    if initial:
+    #        for job in initial:
+    #            self.data[job.id] = job
+
     def __init__(self, initial: Optional[Union[List[JobTemplate], List[Job]]] = None):
         super().__init__()
 
         if initial:
             for job in initial:
-                self.data[job.id] = job
+                job_template = JobTemplate.copy_from(job)
+                self.data[job_template.id] = job_template
 
     def add_operation(
         self, job_id: str, routing_id: Optional[str], experiment_id: Optional[int],position_number: int,
@@ -387,5 +395,5 @@ class JobMixCollection(UserDict):
 
 
     # info -------------------------------------------------------------------------------------------------------------
-    def get_num_operations(self) -> int:
+    def count_operations(self) -> int:
         return sum(len(job.operations) for job in self.values())
