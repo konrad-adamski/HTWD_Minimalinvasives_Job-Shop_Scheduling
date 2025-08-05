@@ -1,114 +1,83 @@
+import collections
 import math
 
 from fractions import Fraction
 from ortools.sat.python import cp_model
-from typing import Dict, Tuple, List, Optional, Literal, Any
+from typing import Dict, Tuple, List, Optional, Literal, Any, Union
 
+from src.classes.Collection import JobMixCollection
+from src.classes.orm_models import Job, JobTemplate, JobOperation
 from src.solvers.cp.model_builder import build_cp_variables, extract_active_ops_info, \
     add_machine_constraints, compute_job_total_durations, get_last_operation_index, \
     add_order_on_machines_deviation_terms, extract_original_start_times_and_machine_order, \
     add_kendall_tau_deviation_terms
+from src.solvers.cp.model_classes import MachineFixInterval, MachineFixIntervalMap, JobDelayMap
 from src.solvers.cp.model_solver import solve_cp_model_and_extract_schedule
 
 
 def solve_jssp_lateness_with_deviation_minimization(
-        job_ops: Dict[str, List[Tuple[int, str, int]]],
-        times_dict: Dict[str, Tuple[int, int]],
-        previous_schedule: Optional[List[Tuple[str, int, str, int, int, int]]] = None,
-        active_ops: Optional[List[Tuple[str, int, str, int, int, int]]] = None,
+        jobs_collection: JobMixCollection,
+        previous_schedule_jobs_collection: Optional[JobMixCollection] = None,
+        active_jobs_collection: Optional[JobMixCollection] = None,
         w_t: int = 5, w_e: int = 1, w_first: int = 1, main_pct: float = 0.5,
         duration_buffer_factor: float = 2.0, schedule_start: int = 1440,
         deviation_type: Literal["start", "order_on_machine"] = "start", msg: bool = False,
         solver_time_limit: Optional[int] = 3600, solver_relative_gap_limit: float = 0.0,
         log_file: Optional[str] = None) -> Tuple[List[Tuple[str, int, str, int, int, int]], Dict[str, Any]]:
-    """
-    Solve a Job-Shop Scheduling Problem (JSSP) using CP-SAT with soft objective terms for lateness,
-    deviation from a previous schedule, and early job start penalties.
-
-    This solver supports:
-    a) Soft deadlines via weighted tardiness and earliness penalties (for last operations).
-    b) Deviation minimization from previously planned start times (if provided).
-    c) Penalty for jobs starting too early (based on deadline and a buffer factor).
-    d) Integration of active operations, which block machines and delay job continuation.
-
-    :param job_ops: Dictionary mapping each job to a list of operations.
-                    Each operation is a tuple (operation_id, machine, duration).
-    :type job_ops: Dict[str, List[Tuple[int, str, int]]]
-    :param times_dict: Dictionary mapping each job to a tuple of (earliest_start, deadline).
-    :type times_dict: Dict[str, Tuple[int, int]]
-    :param previous_schedule: Optional list of previously scheduled operations.
-                              Format: (job, op_id, machine, start, duration, end).
-    :type previous_schedule: Optional[List[Tuple[str, int, str, int, int, int]]]
-    :param active_ops: Optional list of currently running operations (e.g., from a simulation snapshot).
-                       Format: (job, op_id, machine, start, duration, end).
-    :type active_ops: Optional[List[Tuple[str, int, str, int, int, int]]]
-    :param w_t: Weight for tardiness (end time after deadline).
-    :type w_t: int
-    :param w_e: Weight for earliness (end time before deadline).
-    :type w_e: int
-    :param w_first: Weight for early job starts (first operation starts too early w.r.t. deadline).
-    :type w_first: int
-    :param main_pct: Fraction (0.0–1.0) of total objective weight allocated to lateness components (tardiness, earliness).
-                     The remaining weight is applied to deviation penalties.
-    :type main_pct: float
-    :param duration_buffer_factor: Buffer factor for calculating relaxed desired start of first operation.
-                                   Used as: (deadline - total_duration × factor).
-    :type duration_buffer_factor: float
-    :param schedule_start: Lower bound for any newly scheduled operation (rescheduling start point).
-    :type schedule_start: int
-    :param deviation_type: Specifies the type of deviation penalty to use in the objective.
-                           - "start": penalizes absolute differences between planned and previous start times.
-                           - "order_on_machine": penalizes inversions in operation order
-                                on the same machine compared to the previous schedule.
-    :type deviation_type: Literal["start", "order_on_machine"]
-    :param msg: If True, enable solver log output.
-    :type msg: bool
-    :param solver_time_limit: Optional maximum allowed solving time (in seconds). If None, no time limit is applied.
-    :type solver_time_limit: Optional[int]
-    :param solver_relative_gap_limit: Allowed relative gap between best and proven bound.
-    :type solver_relative_gap_limit: float
-    :param log_file: Optional path to file for redirecting solver output.
-    :type log_file: Optional[str]
-
-    :return: A tuple containing:
-         - List of scheduled operations: (job, op_id, machine, start, duration, end)
-         - Dictionary of experiment log data (solver info, config, model size etc.)
-    :rtype: Tuple[List[Tuple[str, int, str, int, int, int]], Dict[str, Any]]
-    """
 
     # 1. === Model initialization and weight preprocessing ===
     model = cp_model.CpModel()
     w_t, w_e, w_first = int(w_t), int(w_e), int(w_first)
 
-    if not previous_schedule:
+    if not previous_schedule_jobs_collection:   #  or is empty!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! implementieren!!!!!!!!!!!!!!!!!!!!!!!!!
         main_pct = 1.0
 
     main_pct_frac = Fraction(main_pct).limit_denominator(100)
     main_factor = main_pct_frac.numerator
     dev_factor = main_pct_frac.denominator - main_factor
 
-    # 2. === Preprocessing: arrivals, deadlines, machines, planning horizon ===
-    jobs = list(job_ops.keys())
-    earliest_start = {job: times_dict[job][0] for job in jobs}
-    deadline = {job: times_dict[job][1] for job in jobs}
-    machines = {m for ops in job_ops.values() for _, m, _ in ops}
+    # Machines --------------------------------------------------------------------------------------------------------
+    machines = jobs_collection.get_unique_machines()
 
-    # Worst-case upper bound for time horizon
-    total_duration = sum(d for ops in job_ops.values() for (_, _, d) in ops)
-    latest_deadline = max(deadline.values())
+    machines_fix_intervals = MachineFixIntervalMap()
+
+    for machine in machines:
+        machines_fix_intervals.add_interval(machine=machine, start=schedule_start, end=schedule_start)
+
+    # Horizon ---------------------------------------------------------------------------------------------------------
+    total_duration = jobs_collection.get_total_duration()
+    latest_deadline = jobs_collection.get_latest_deadline()
     horizon = latest_deadline + total_duration
 
-    # 3. === Create variables ==
-    starts, ends, intervals, operations = build_cp_variables(
-        model=model,
-        job_ops=job_ops,
-        job_earliest_starts=earliest_start,
-        horizon=horizon
-    )
+    # Create Variables ----------------------------------------------------------------------------------------------
+    jobs_collection.sort_operations()
+    jobs_collection.sort_jobs_by_arrival()
+
+    starts, ends, intervals, index_mapper = {}, {}, {}, {}
+    index_mapper = {}
+    for job_idx, job in enumerate(jobs_collection.values()):
+        for op_idx, operation in enumerate(job.operations):
+            operation: JobOperation
+            suffix = f"{job_idx}_{op_idx}"
+            start = model.NewIntVar(job.earliest_start, horizon, f"start_{suffix}")
+            end = model.NewIntVar(job.earliest_start, horizon, f"end_{suffix}")
+
+            interval = model.NewIntervalVar(start, operation.duration, end, f"interval_{suffix}")
+            # interval = model.NewIntervalVar(start, operation.duration, start + operation.duration, f"interval_{suffix}")
+
+            starts[(job_idx, op_idx)] = start
+            ends[(job_idx, op_idx)] = end
+            intervals[(job_idx, op_idx)] = (interval, operation.machine)
+            index_mapper[(job_idx, op_idx)] = operation
+
+
+    operation_to_index = {operation: index for index, operation in index_mapper.items()}
+
+
 
     # 4. === Preparation: job durations, last operations, cost term containers ===
-    job_total_duration = compute_job_total_durations(operations)
-    last_op_index = get_last_operation_index(operations)
+    #job_total_duration = compute_job_total_durations(operations)
+    #last_op_index = get_last_operation_index(operations)
 
     # --- term containers ---
     weighted_absolute_lateness_terms = []   # List of Job Lateness Terms (Tardiness + Earliness for last operations)
@@ -116,70 +85,128 @@ def solve_jssp_lateness_with_deviation_minimization(
     deviation_terms = []                    # List of Deviation Penalty Terms (Difference from previous start times)
 
     # 5. === Previous schedule: extract start times and orders on machines for deviation penalties ===
-    original_start, original_machine_orders = extract_original_start_times_and_machine_order(
-        previous_schedule,
-        operations
-    )
+    #original_start, original_machine_orders = extract_original_start_times_and_machine_order(
+    #    previous_schedule,
+    #    operations
+    #)
+
+    original_operation_starts = {}
+    original_machine_orders = collections.defaultdict(list)
+
+    if previous_schedule_jobs_collection:  # prüfe auf None und Leere !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        for job in previous_schedule_jobs_collection.values():
+            for operation in job.operations:
+                if operation in operation_to_index:
+                    job_idx, op_idx = operation_to_index[operation]
+                    original_operation_starts[(job_idx, op_idx)] = operation.start
+                    original_machine_orders[operation.machine].append((operation.start, job_idx, op_idx))
+
+        for machine in original_machine_orders:
+            original_machine_orders[machine].sort()
+            original_machine_orders[machine] = [(job_idx, op_idx) for _, job_idx, op_idx in original_machine_orders[machine]]
+
+
 
     # 6. === Active operations: block machines and delay jobs ===
-    machines_delays, job_ops_delays = extract_active_ops_info(active_ops, schedule_start)
+    #machines_delays, job_ops_delays = extract_active_ops_info(active_ops, schedule_start)
+
+    #machines_delays: Dict[str, Tuple[int, int]] = {}
+    #job_ops_delays: Dict[str, int] = {}
+
+    job_delays = JobDelayMap()
+
+    if active_jobs_collection is not None: # oder leer --------------------------------------------------------
+        for job in active_jobs_collection.values():
+            for operation in job.operations:
+                    machines_fix_intervals.update_interval(machine=operation.machine, end=operation.end)
+                    job_delays.update_delay(job=job, time_stamp=operation.end)
 
     # 7. === Machine-level constraints (no overlap + fixed blocks from running ops) ===
-    add_machine_constraints(model, machines, intervals, machines_delays)
 
-    if deviation_type == "order_on_machine" and original_machine_orders:
-        #deviation_terms += add_order_on_machines_deviation_terms(model, original_machine_orders, operations, starts)
-        deviation_terms += add_kendall_tau_deviation_terms(model, original_machine_orders, operations)
+    #add_machine_constraints(model, machines, intervals, machines_delays)
+
+    for machine in machines:
+        machine_intervals = []
+
+        # Füge zu planende Operationen auf dieser Maschine hinzu
+        for (_, _), (interval, machine_name) in intervals.items():
+            if machine_name == machine:
+                machine_intervals.append(interval)
+
+        # Füge evtl. blockierte Maschinenzeiten hinzu
+        if machine in machines_fix_intervals:
+            machine_fix_interval = machines_fix_intervals[machine]  # type: MachineFixInterval
+            start = machine_fix_interval.start
+            end = machine_fix_interval.end
+            if start < end:
+                fixed_interval = model.NewIntervalVar(start, end - start, end, f"fixed_{machine}")
+                machine_intervals.append(fixed_interval)
+
+        # NoOverlap für diese Maschine
+        model.AddNoOverlap(machine_intervals)
+
+
+    #if deviation_type == "order_on_machine" and original_machine_orders:                                                    # TODO
+    #    pass
+    #    #deviation_terms += add_order_on_machines_deviation_terms(model, original_machine_orders, operations, starts)
+    #    deviation_terms += add_kendall_tau_deviation_terms(model, original_machine_orders, operations)
 
     # 8. === Operation-level constraints and objective terms ===
-    for job_idx, job, op_idx, op_id, machine, duration in operations:
+
+    for (job_idx, op_idx), operation in index_mapper.items():
         start_var = starts[(job_idx, op_idx)]
         end_var = ends[(job_idx, op_idx)]
 
-        # Respect the earliest start: arrival time and machine delay (based on active operations)
-        min_start = max(earliest_start[job], int(schedule_start))
-        if job in job_ops_delays:
-            min_start = max(min_start, int(math.ceil(job_ops_delays[job])))
-        model.Add(start_var >= min_start)
-
-        # Technological constraint (precedence within the job)
-        if op_idx > 0:
-            model.Add(start_var >= ends[(job_idx, op_idx - 1)])
-
-        # Deviation from original schedule
-        if deviation_type == "start":
-            key = (job, op_id)
-            if key in original_start:
-                dev = model.NewIntVar(0, horizon, f"dev_{job_idx}_{op_idx}")
-                model.AddAbsEquality(dev, start_var - original_start[key])
-                deviation_terms.append(dev)
-
-        # Earliness terms for first operations
         if op_idx == 0:
-            first_op_latest_desired_start = max(schedule_start, deadline[job]
-                                       - int(job_total_duration[job] * duration_buffer_factor))
+            # Earliest_start of the "first" operation of a job
+            min_start = max(operation.job_earliest_start, int(schedule_start))
+            if operation.job in job_delays:
+                earliest_start = job_delays.get_delay(operation.job).earliest_start
+                min_start = max(min_start, earliest_start)
+            model.Add(start_var >= min_start)
+
+            # Earliness of the "first" operation of a job
+            first_op_latest_desired_start = int(operation.job_deadline - operation.job.sum_duration * duration_buffer_factor)
+            first_op_latest_desired_start = max(schedule_start, first_op_latest_desired_start)
+
             first_op_earliness = model.NewIntVar(0, horizon, f"first_op_earliness_{job_idx}")
             model.AddMaxEquality(first_op_earliness, [first_op_latest_desired_start - start_var, 0])
             term_first = model.NewIntVar(0, horizon * w_first, f"term_first_{job_idx}")
             model.Add(term_first == w_first * first_op_earliness)
             first_op_terms.append(term_first)
 
-        # Lateness terms for last operation
-        if op_idx == last_op_index[job]:
+
+        # Technological constraint (precedence within the job)
+        if op_idx > 0:
+            model.Add(start_var >= ends[(job_idx, op_idx - 1)])
+
+
+        # Lateness terms for the job (last operation)
+        if operation.position_number == operation.job.last_operation_position_number:
 
             # Tardiness
             tardiness = model.NewIntVar(0, horizon, f"tardiness_{job_idx}")
-            model.AddMaxEquality(tardiness, [end_var - deadline[job], 0])
+            model.AddMaxEquality(tardiness, [end_var - operation.job_deadline, 0])
             term_tardiness = model.NewIntVar(0, horizon * w_t, f"term_tardiness_{job_idx}")
             model.Add(term_tardiness == w_t * tardiness)
             weighted_absolute_lateness_terms.append(term_tardiness)
 
             # Earliness
             earliness = model.NewIntVar(0, horizon, f"earliness_{job_idx}")
-            model.AddMaxEquality(earliness, [deadline[job] - end_var, 0])
+            model.AddMaxEquality(earliness, [ operation.job_deadline - end_var, 0])
             term_earliness = model.NewIntVar(0, horizon * w_e, f"term_earliness_{job_idx}")
             model.Add(term_earliness == w_e * earliness)
             weighted_absolute_lateness_terms.append(term_earliness)
+
+
+
+        # Deviation from original schedule
+        if deviation_type == "start" and (job_idx, op_idx) in original_operation_starts.keys():
+            deviation = model.NewIntVar(0, horizon, f"deviation_{job_idx}_{op_idx}")
+            original_start = original_operation_starts[(job_idx, op_idx)]
+            model.AddAbsEquality(deviation, start_var - original_start)
+            deviation_terms.append(deviation)
+
 
 
     # 9. === Objective function ===
