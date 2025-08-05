@@ -11,6 +11,7 @@ if __name__ == "__main__":
 
     reset_tables()
 
+
     # RoutingSource
     source_name = "Fisher and Thompson 10x10"
     routing_source = RoutingSource(name="Fisher and Thompson 10x10")

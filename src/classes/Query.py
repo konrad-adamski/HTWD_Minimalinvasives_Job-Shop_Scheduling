@@ -30,14 +30,14 @@ class RoutingQuery:
 
             for _, row in df_clean.iterrows():
                 step_nr = int(row[operation_column])
-                machine = str(row[machine_column])
+                machine_name = str(row[machine_column])
                 duration = int(row[duration_column])
 
                 new_routing.operations.append(
                     RoutingOperation(
                         routing_id=routing_id_str,
                         position_number=step_nr,
-                        machine=machine,
+                        machine_name=machine_name,
                         duration=duration
                     )
                 )
@@ -72,47 +72,6 @@ class RoutingQuery:
             session.expunge_all()
             return list(routings)
 
-    @staticmethod
-    def update_operations_with_theoretical_transition_times_from_dataframe(
-            df_avg_transitions: pd.DataFrame, routing_column: str = "Routing_ID",
-            position_number_column: str = "Operation", transition_time_column: str = "Avg_Transition_Time",):
-        """
-        Updates the `theoretical_transition_time` field in RoutingOperation.
-
-        :param df_avg_transitions: DataFrame with transition times per routing operation
-        :param routing_column: Column name for routing ID
-        :param position_number_column: Column name for operation position number
-        :param transition_time_column: Column name for transition time to update
-        """
-
-        # Replace NaN values with 0 and convert to int
-        df_avg_transitions = df_avg_transitions.copy()
-        df_avg_transitions[transition_time_column] = (
-            df_avg_transitions[transition_time_column]
-            .fillna(0)
-            .astype(int)
-        )
-
-        # Open session and update matching RoutingOperation records
-        with SessionLocal() as session:
-            for _, row in df_avg_transitions.iterrows():
-                routing_id = row[routing_column]
-                position = row[position_number_column]
-                transition_time = row[transition_time_column]
-
-                op = (
-                    session.query(RoutingOperation)
-                    .filter(
-                        getattr(RoutingOperation, "routing_id") == routing_id,
-                        getattr(RoutingOperation, "position_number") == position
-                    )
-                    .one_or_none()
-                )
-
-                if op:
-                    setattr(op, "theoretical_transition_time", transition_time)
-
-            session.commit()
 
 
 # JobQuery -----------------------------------------------------------------------------------------------------------
