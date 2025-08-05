@@ -91,6 +91,18 @@ class JobMixCollection(UserDict):
         for job in self.values():
             job.operations.sort(key=lambda op: op.position_number)
 
+    def sort_jobs_by_arrival(self) -> None:
+        """
+        Sortiert die JobMixCollection intern nach arrival-Zeitpunkt der Jobs.
+        Jobs ohne arrival stehen am Ende.
+        """
+        jobs_list = list(self.values())
+        jobs_list.sort(key=lambda job: (job.arrival is None, job.arrival))
+        sorted_data = {job.id: job for job in jobs_list}
+        self.data = sorted_data
+
+
+
     def get_all_jobs(self) -> [Union[List[JobTemplate], List[Job]]]:
         return list(self.values())
 
@@ -355,3 +367,20 @@ class JobMixCollection(UserDict):
         return self.__class__.merge_collections(self, other)
 
 
+    # für solver-model -----------------------------------------------------------------------------------------------
+    def get_total_duration(self) -> int:
+        """
+        Gibt die Gesamtdauer aller Jobs zurück (Summe aller job.sum_duration).
+        """
+        return sum(job.sum_duration for job in self.values())
+
+    def get_latest_deadline(self) -> int:
+        """
+        Gibt die späteste Deadline aller Jobs zurück.
+        Raises:
+            ValueError: Wenn keine Deadlines gesetzt sind.
+        """
+        deadlines = [job.deadline for job in self.values() if job.deadline is not None]
+        if not deadlines:
+            raise ValueError("Keine Deadlines in der JobMixCollection gesetzt.")
+        return max(deadlines)

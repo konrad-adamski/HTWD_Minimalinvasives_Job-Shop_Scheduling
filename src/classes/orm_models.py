@@ -354,11 +354,24 @@ class Job:
     def sum_duration(self) -> int:
         return self.routing.sum_duration if self.routing else 0
 
+    @property
+    def last_operation_position_number(self) -> Optional[int]:
+        """
+        Returns the highest position_number among all operations,
+        i.e., the last technological step of the job.
+        """
+        if not self.operations:
+            return None
+        return max(op.position_number for op in self.operations)
+
     def __post_init__(self):
         if self.routing:
             self.routing_id = self.routing.id
         if self.experiment:
             self.experiment_id = self.experiment.id
+
+
+
 
 
 @mapper_registry.mapped
@@ -645,6 +658,16 @@ class JobTemplate:
         """
         return sum(op.duration for op in self.operations)
 
+    @property
+    def last_operation_position_number(self) -> Optional[int]:
+        """
+        Returns the highest position_number among all operations,
+        i.e., the last technological step of the job.
+        """
+        if not self.operations:
+            return None
+        return max(op.position_number for op in self.operations)
+
 
 @dataclass
 class Operation:
@@ -662,8 +685,8 @@ class JobOperation:
 
     shift_number: Optional[int] = None
 
-    start: Optional[int] = None
-    end: Optional[int] = None
+    start: Optional[float] = None
+    end: Optional[float] = None
 
     operation: Operation = field(init=False)
 
