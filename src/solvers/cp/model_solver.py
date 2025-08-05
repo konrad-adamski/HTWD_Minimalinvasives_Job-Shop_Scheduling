@@ -5,8 +5,11 @@ from typing import List, Tuple, Dict, Optional, Any
 
 from ortools.sat.python import cp_model
 
+from src.solvers.cp.model_classes import OperationIndexMapper
+
+
 def solve_cp_model_and_extract_schedule(
-        model: cp_model.CpModel, operations: List[Tuple[int, str, int, int, str, int]],
+        model: cp_model.CpModel, index_mapper: OperationIndexMapper,
         starts: Dict[Tuple[int, int], cp_model.IntVar], ends: Dict[Tuple[int, int], cp_model.IntVar],
         msg: bool, time_limit: Optional[int] = None, gap_limit: float = 0.0,
         log_file: Optional[str] = None) -> Tuple[List[Tuple[str, int, str, int, int, int]], Dict[str, Any]]:
@@ -45,13 +48,13 @@ def solve_cp_model_and_extract_schedule(
     }
 
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-        return _extract_cp_schedule_from_operations(operations, starts, ends, solver), solver_info
+        return _extract_cp_schedule_from_operations(index_mapper, starts, ends, solver), solver_info
 
     return [], solver_info
 
 
 def _extract_cp_schedule_from_operations(
-    operations: List[Tuple[int, str, int, int, str, int]],
+    index_mapper: OperationIndexMapper,
     starts: Dict[Tuple[int, int], cp_model.IntVar],
     ends: Dict[Tuple[int, int], cp_model.IntVar],
     solver: cp_model.CpSolver
@@ -72,10 +75,11 @@ def _extract_cp_schedule_from_operations(
     :rtype: List[Tuple[str, int, str, int, int, int]]
     """
     schedule = []
-    for job_idx, job, op_idx, op_id, machine, duration in operations:
+    for (job_idx, op_idx), operation in index_mapper.items():
         start = solver.Value(starts[(job_idx, op_idx)])
         end = solver.Value(ends[(job_idx, op_idx)])
-        schedule.append((job, op_id, machine, start, duration, end))
+        schedule.append((operation.job_id, operation.position_number, operation.machine, start, operation.duration, end))
+
     return schedule
 
 

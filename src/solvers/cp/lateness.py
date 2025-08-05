@@ -11,7 +11,7 @@ from src.solvers.cp.model_builder import build_cp_variables, extract_active_ops_
     add_machine_constraints, compute_job_total_durations, get_last_operation_index, \
     add_order_on_machines_deviation_terms, extract_original_start_times_and_machine_order, \
     add_kendall_tau_deviation_terms
-from src.solvers.cp.model_classes import MachineFixInterval, MachineFixIntervalMap, JobDelayMap
+from src.solvers.cp.model_classes import MachineFixInterval, MachineFixIntervalMap, JobDelayMap, OperationIndexMapper
 from src.solvers.cp.model_solver import solve_cp_model_and_extract_schedule
 
 
@@ -53,8 +53,10 @@ def solve_jssp_lateness_with_deviation_minimization(
     jobs_collection.sort_operations()
     jobs_collection.sort_jobs_by_arrival()
 
-    starts, ends, intervals, index_mapper = {}, {}, {}, {}
-    index_mapper = {}
+    starts, ends, intervals = {}, {}, {}
+
+    index_mapper = OperationIndexMapper()
+
     for job_idx, job in enumerate(jobs_collection.values()):
         for op_idx, operation in enumerate(job.operations):
             operation: JobOperation
@@ -68,11 +70,7 @@ def solve_jssp_lateness_with_deviation_minimization(
             starts[(job_idx, op_idx)] = start
             ends[(job_idx, op_idx)] = end
             intervals[(job_idx, op_idx)] = (interval, operation.machine)
-            index_mapper[(job_idx, op_idx)] = operation
-
-
-    operation_to_index = {operation: index for index, operation in index_mapper.items()}
-
+            index_mapper.add(job_idx, op_idx, operation)
 
 
     # 4. === Preparation: job durations, last operations, cost term containers ===
@@ -96,8 +94,9 @@ def solve_jssp_lateness_with_deviation_minimization(
     if previous_schedule_jobs_collection is not None:
         for job in previous_schedule_jobs_collection.values():
             for operation in job.operations:
-                if operation in operation_to_index:
-                    job_idx, op_idx = operation_to_index[operation]
+                index = index_mapper.get_index_from_operation(operation)
+                if index is not None:
+                    job_idx, op_idx = index
                     original_operation_starts[(job_idx, op_idx)] = operation.start
                     original_machine_orders[operation.machine].append((operation.start, job_idx, op_idx))
 
@@ -199,7 +198,6 @@ def solve_jssp_lateness_with_deviation_minimization(
             weighted_absolute_lateness_terms.append(term_earliness)
 
 
-
         # Deviation from original schedule
         if deviation_type == "start" and (job_idx, op_idx) in original_operation_starts.keys():
             deviation = model.NewIntVar(0, horizon, f"deviation_{job_idx}_{op_idx}")
@@ -239,17 +237,16 @@ def solve_jssp_lateness_with_deviation_minimization(
 
     # 10. === Solve and extract solution ===
     schedule, solver_info = solve_cp_model_and_extract_schedule(
-        model=model, operations=operations, starts=starts, ends=ends,
+        model=model, index_mapper=index_mapper, starts=starts, ends=ends,
         msg=msg, time_limit=solver_time_limit, gap_limit=solver_relative_gap_limit, log_file=log_file)
 
     # 11. === Experiment Logging ===
     model_proto = model.Proto()
-
     experiment_log = {
         "experiment_info": {
-            "total_number_of_operations": len(operations),
-            "number_of_operations_with_previous_schedule": len(original_start),
-            "number_of_active_operation_to_consider": len(active_ops) if active_ops else 0,
+            "total_number_of_operations": jobs_collection.count_operations(),
+            "number_of_operations_with_previous_schedule": previous_schedule_jobs_collection.count_operations(),
+            "number_of_active_operation_to_consider": active_jobs_collection.count_operations(),
             "schedule_start": schedule_start,
         },
         "experiment_config": {
