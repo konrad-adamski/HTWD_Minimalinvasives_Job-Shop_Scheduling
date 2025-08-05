@@ -113,7 +113,7 @@ def solve_jssp_lateness_with_deviation_minimization(
         for job in active_jobs_collection.values():
             for operation in job.operations:
                     machines_fix_intervals.update_interval(machine=operation.machine, end=operation.end)
-                    job_delays.update_delay(job=job, time_stamp=operation.end)
+                    job_delays.update_delay(job_id=job.id, time_stamp=operation.end)
 
     # 7. === Machine-level constraints (no overlap + fixed blocks from running ops) ===
 
@@ -154,8 +154,8 @@ def solve_jssp_lateness_with_deviation_minimization(
         if op_idx == 0:
             # Earliest_start of the "first" operation of a job
             min_start = max(operation.job_earliest_start, int(schedule_start))
-            if operation.job in job_delays:
-                earliest_start = job_delays.get_delay(operation.job).earliest_start
+            if operation.job.id in job_delays:
+                earliest_start = job_delays.get_delay(operation.job.id).earliest_start
                 min_start = max(min_start, earliest_start)
             model.Add(start_var >= min_start)
 
@@ -240,8 +240,8 @@ def solve_jssp_lateness_with_deviation_minimization(
     experiment_log = {
         "experiment_info": {
             "total_number_of_operations": jobs_collection.count_operations(),
-            "number_of_operations_with_previous_schedule": previous_schedule_jobs_collection.count_operations(),
-            "number_of_active_operation_to_consider": active_jobs_collection.count_operations(),
+            "number_of_operations_with_previous_schedule": previous_schedule_jobs_collection.count_operations() if previous_schedule_jobs_collection else 0,
+            "number_of_active_operation_to_consider": active_jobs_collection.count_operations()  if active_jobs_collection else 0,
             "schedule_start": schedule_start,
         },
         "experiment_config": {

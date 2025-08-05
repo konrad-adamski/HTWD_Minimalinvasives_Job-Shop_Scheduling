@@ -31,22 +31,22 @@ class MachineFixIntervalMap(UserDict):
 
 @dataclass
 class JobDelay:
-    job: Union[Job, JobTemplate]
+    job_id: str
     earliest_start: int
 
 class JobDelayMap(UserDict):
-    def add_delay(self, job: Union[Job, JobTemplate], time_stamp: float):
+    def add_delay(self, job_id: str, time_stamp: float):
         """Set or replace delay information for a job."""
-        self.data[job] = JobDelay(job, int(math.ceil(time_stamp)))
+        self.data[job_id] = JobDelay(job_id, int(math.ceil(time_stamp)))
 
-    def update_delay(self, job: Union[Job, JobTemplate], time_stamp: float):
+    def update_delay(self, job_id: str, time_stamp: float):
         """Only updates the time_stamp if it is larger than the current."""
-        current = self.data.get(job)
+        current = self.data.get(job_id)
         if current is None or time_stamp > current.time_stamp:
-            self.data[job] = JobDelay(job, int(math.ceil(time_stamp)))
+            self.data[job_id] = JobDelay(job_id, int(math.ceil(time_stamp)))
 
-    def get_delay(self, job: Union[Job, JobTemplate]) -> Optional[JobDelay]:
-        return self.data.get(job)
+    def get_delay(self, job_id: str) -> Optional[JobDelay]:
+        return self.data.get(job_id)
 
 
 class OperationIndexMapper:
