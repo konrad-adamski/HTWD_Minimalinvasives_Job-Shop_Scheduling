@@ -5,6 +5,7 @@ from typing import List, Tuple, Dict, Optional, Any
 
 from ortools.sat.python import cp_model
 
+from src.classes.Collection import JobMixCollection
 from src.solvers.cp.model_classes import OperationIndexMapper
 
 
@@ -12,7 +13,7 @@ def solve_cp_model_and_extract_schedule(
         model: cp_model.CpModel, index_mapper: OperationIndexMapper,
         starts: Dict[Tuple[int, int], cp_model.IntVar], ends: Dict[Tuple[int, int], cp_model.IntVar],
         msg: bool, time_limit: Optional[int] = None, gap_limit: float = 0.0,
-        log_file: Optional[str] = None) -> Tuple[List[Tuple[str, int, str, int, int, int]], Dict[str, Any]]:
+        log_file: Optional[str] = None) -> Tuple[JobMixCollection, Dict[str, Any]]:
     """
     Solves a CP-SAT model and extracts the schedule if feasible.
 
@@ -50,15 +51,12 @@ def solve_cp_model_and_extract_schedule(
     if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
         return _extract_cp_schedule_from_operations(index_mapper, starts, ends, solver), solver_info
 
-    return [], solver_info
+    return JobMixCollection(), solver_info
 
 
 def _extract_cp_schedule_from_operations(
-    index_mapper: OperationIndexMapper,
-    starts: Dict[Tuple[int, int], cp_model.IntVar],
-    ends: Dict[Tuple[int, int], cp_model.IntVar],
-    solver: cp_model.CpSolver
-) -> List[Tuple[str, int, str, int, int, int]]:
+        index_mapper: OperationIndexMapper, starts: Dict[Tuple[int, int], cp_model.IntVar],
+        ends: Dict[Tuple[int, int], cp_model.IntVar], solver: cp_model.CpSolver) -> JobMixCollection:
     """
     Extracts the final schedule based on flattened operations and CP variables.
 
@@ -74,13 +72,26 @@ def _extract_cp_schedule_from_operations(
     :return: List of (job, op_id, machine, start_time, duration, end_time) tuples.
     :rtype: List[Tuple[str, int, str, int, int, int]]
     """
-    schedule = []
+
+    schedule_job_collection = JobMixCollection()
+
     for (job_idx, op_idx), operation in index_mapper.items():
         start = solver.Value(starts[(job_idx, op_idx)])
         end = solver.Value(ends[(job_idx, op_idx)])
-        schedule.append((operation.job_id, operation.position_number, operation.machine, start, operation.duration, end))
+        schedule_job_collection.add_operation(
+            job_id =operation.job_id,
+            routing_id=operation.routing_id,
+            experiment_id=operation.experiment_id,
+            position_number = operation.position_number,
+            machine = operation.machine,
+            duration = operation.duration,
+            start = start,
+            end = end,
+            arrival = operation.job_arrival,
+            deadline= operation.job_deadline
+        )
 
-    return schedule
+    return schedule_job_collection
 
 
 
