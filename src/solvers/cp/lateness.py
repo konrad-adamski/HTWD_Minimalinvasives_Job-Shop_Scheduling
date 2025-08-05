@@ -93,7 +93,7 @@ def solve_jssp_lateness_with_deviation_minimization(
     original_operation_starts = {}
     original_machine_orders = collections.defaultdict(list)
 
-    if previous_schedule_jobs_collection:  # prüfe auf None und Leere !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    if previous_schedule_jobs_collection is not None:
         for job in previous_schedule_jobs_collection.values():
             for operation in job.operations:
                 if operation in operation_to_index:
@@ -115,7 +115,7 @@ def solve_jssp_lateness_with_deviation_minimization(
 
     job_delays = JobDelayMap()
 
-    if active_jobs_collection is not None: # oder leer --------------------------------------------------------
+    if active_jobs_collection is not None:
         for job in active_jobs_collection.values():
             for operation in job.operations:
                     machines_fix_intervals.update_interval(machine=operation.machine, end=operation.end)
@@ -212,12 +212,12 @@ def solve_jssp_lateness_with_deviation_minimization(
     # 9. === Objective function ===
 
     # Weighted lateness = (tardiness + earliness) of last operation per job
-    bound_lateness = (w_t + w_e) * horizon * len(jobs)
+    bound_lateness = (w_t + w_e) * horizon * len(jobs_collection.keys())
     absolute_lateness_part = model.NewIntVar(0, bound_lateness, "absolute_lateness_part")
     model.Add(absolute_lateness_part == sum(weighted_absolute_lateness_terms))
 
     # Weighted earliness of the first operations
-    bound_first_op = w_first * horizon * len(jobs)
+    bound_first_op = w_first * horizon * len(jobs_collection.keys())
     first_op_earliness = model.NewIntVar(0, bound_first_op , "first_op_earliness")
     model.Add(first_op_earliness == sum(first_op_terms))
 
