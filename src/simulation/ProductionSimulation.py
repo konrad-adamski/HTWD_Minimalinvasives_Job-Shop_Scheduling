@@ -67,7 +67,7 @@ class ProductionSimulation:
             self._add_finished_operation(job_op=op, sim_start=sim_start, sim_end=sim_end)
 
     def _resume_operation_process(self, job_op: JobOperation):
-        remaining_time = max(0, job_op.end - self.start_time)
+        remaining_time = max(0, int(job_op.end) - self.start_time)
 
         machine = self.machines[job_op.machine]
         self._log_job_resumed_on_machine(time_stamp=self.env.now, remaining_time=remaining_time, job_op=job_op)

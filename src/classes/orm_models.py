@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 from dataclasses import dataclass, field
 from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float
 from sqlalchemy.orm import relationship
@@ -46,45 +45,52 @@ class Machine:
         "sa": Column(String(100), primary_key=True)  # Maschinenname als eindeutige ID
     })
 
-    transition_time: int = field(default=0, metadata={
-        "sa": Column(Integer, nullable=False)  # z.B. Rüstzeit oder Umlaufzeit
-    })
-
     # Optional: Beziehung zu RoutingOperations
     operations: List[RoutingOperation] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
             "RoutingOperation",
-            back_populates="machine_entity"
+            back_populates="machine"
         )
     })
 
-    @classmethod
-    def from_machines_dataframe(
-            cls, df: pd.DataFrame, machine_column: str = "Machine",
-            transition_column: str = "Transition Time", default_transition_time: int = 0) -> List[Machine]:
-        """
-        Create unique Machine objects from a DataFrame.
+    utilization_machines: List[UtilizationMachine] = field(default_factory=list, repr=False, metadata={
+        "sa": relationship("UtilizationMachine", back_populates="machine")
+    })
 
-        :param df: Input DataFrame containing machine information.
-        :param machine_column: Column name with machine identifiers.
-        :param transition_column: Optional column with transition times.
-        :param default_transition_time: Default transition time if column is missing.
-        :return: List of Machine instances.
-        """
-        df_unique = df.drop_duplicates(subset=machine_column).copy()
+    def get_transition_by_max_bottleneck_utilization(self, max_bottleneck_utilization: float) -> Optional[int]:
+        """Gibt die transition_time für das gegebene Experiment zurück, falls vorhanden."""
+        for em in self.utilization_machines:
+            if em.max_bottleneck_utilization == max_bottleneck_utilization:
+                return em.transition_time
+        return 0
 
-        if transition_column not in df.columns:
-            df_unique[transition_column] = default_transition_time
+@mapper_registry.mapped
+@dataclass
+class UtilizationMachine:
+    __tablename__ = "utilization_machine"
+    __sa_dataclass_metadata_key__ = "sa"
 
-        machine_entities = []
-        for _, row in df_unique.iterrows():
-            machine = cls(
-                name=row[machine_column],
-                transition_time=int(row[transition_column])
-            )
-            machine_entities.append(machine)
+    name: str = field(init=False, metadata={
+    "sa": Column(String(100), ForeignKey("machine.name"), primary_key=True)
+    })
 
-        return machine_entities
+
+    max_bottleneck_utilization: float = field(default=0.5, metadata={
+            "sa": Column(Float, primary_key=True)
+    })
+
+    transition_time: int = field(default=0, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
+
+    machine: Machine = field(default=None, repr=False, metadata={
+        "sa": relationship("Machine", back_populates="utilization_machines")
+    })
+
+    def __post_init__(self):
+        if self.machine:
+            self.name = self.machine.name
+
 
 
 @mapper_registry.mapped
@@ -109,30 +115,15 @@ class Routing:
         }
     )
 
-    operations: List[RoutingOperation] = field(
-        default_factory=list,
-        repr=False,
-        metadata={
-            "sa": relationship(
-                "RoutingOperation",
-                back_populates="routing",
-                cascade="all, delete-orphan",
-                lazy="joined"
-            )
-        }
-    )
+    operations: List[RoutingOperation] = field(default_factory=list, repr=False, metadata={"sa": relationship(
+                "RoutingOperation", back_populates="routing",
+                cascade="all, delete-orphan", lazy="joined")
+    })
 
-    jobs: List[Job] = field(
-        default_factory=list,
-        repr=False,
-        metadata={
-            "sa": relationship(
-                "Job",
-                back_populates="routing",
-                cascade="all, delete-orphan"
-            )
-        }
-    )
+    jobs: List[Job] = field(default_factory=list, repr=False, metadata={"sa": relationship(
+                "Job", back_populates="routing",
+                cascade="all, delete-orphan", lazy="joined")
+    })
 
     @property
     def source_name(self) -> str:
@@ -157,86 +148,6 @@ class Routing:
                 return op
         raise ValueError(f"No operation with position_number={position} in routing {self.id}")
 
-    @classmethod
-    def from_single_routing_dataframe(
-            cls, df_routing: pd.DataFrame, routing_column: str = "Routing_ID", operation_column: str = "Operation",
-            machine_column: str = "Machine", duration_column: str = "Processing Time",
-            source: Optional[RoutingSource] = None) -> Routing:
-        """
-        Create a single Routing instance from a DataFrame.
-
-        Assumes that the DataFrame contains only one unique routing ID.
-        Duplicate operations (based on routing ID and operation number) are removed.
-
-        :param df_routing: The input DataFrame containing routing and operation information.
-        :param routing_column: Column name for the routing ID.
-        :param operation_column: Column name for the operation step number.
-        :param machine_column: Column name for the machine identifier.
-        :param duration_column: Column name for the operation duration.
-        :param source: Optional RoutingSource object to associate the routing with.
-        :return: A Routing object with its associated operations.
-        """
-        df_clean = df_routing.drop_duplicates(subset=[routing_column, operation_column], keep="first")
-
-        unique_ids = df_clean[routing_column].unique()
-        if len(unique_ids) != 1:
-            raise ValueError(
-                f"Expected exactly one routing ID, but found: {unique_ids}. "
-                f"If you have multiple routings, use `from_multiple_routings_dataframe(...)` instead."
-            )
-
-        routing_id = str(unique_ids[0])
-        new_routing = cls(id=routing_id, routing_source=source, operations=[])
-
-        for _, row in df_clean.iterrows():
-            step_nr = int(row[operation_column])
-            machine = str(row[machine_column])
-            duration = int(row[duration_column])
-
-            new_routing.operations.append(
-                RoutingOperation(
-                    routing_id=routing_id,
-                    position_number=step_nr,
-                    machine=machine,
-                    duration=duration
-                )
-            )
-
-        new_routing.operations.sort(key=lambda op: op.position_number)
-        return new_routing
-
-    @classmethod
-    def from_multiple_routings_dataframe(
-            cls, df_routings: pd.DataFrame, routing_column: str = "Routing_ID", operation_column: str = "Operation",
-            machine_column: str = "Machine", duration_column: str = "Processing Time",
-            source: Optional[RoutingSource] = None) -> List[Routing]:
-        """
-        Create multiple Routing instances from a DataFrame with multiple Routing_IDs.
-
-        Internally uses `from_single_routing_dataframe()` for each routing group.
-
-        :param df_routings: DataFrame containing multiple routings.
-        :param routing_column: Column with routing IDs.
-        :param operation_column: Column with operation step numbers.
-        :param machine_column: Column with machine identifiers.
-        :param duration_column: Column with durations.
-        :param source: Optional RoutingSource to associate with all generated Routing objects.
-        :return: List of Routing objects.
-        """
-        new_routings = []
-
-        for routing_id, group in df_routings.groupby(routing_column):
-            new_routing = cls.from_single_routing_dataframe(
-                df_routing=group,
-                routing_column=routing_column,
-                operation_column=operation_column,
-                machine_column=machine_column,
-                duration_column=duration_column,
-                source=source
-            )
-            new_routings.append(new_routing)
-
-        return new_routings
 
 
 @mapper_registry.mapped
@@ -253,7 +164,7 @@ class RoutingOperation:
         "sa": Column(Integer, primary_key=True)
     })
 
-    machine: str = field(init=True, metadata={
+    machine_name: str = field(init=True, metadata={
         "sa": Column(String(100), ForeignKey("machine.name"), nullable=False)
     })
 
@@ -261,9 +172,6 @@ class RoutingOperation:
         "sa": Column(Integer, nullable=False)
     })
 
-    theoretical_transition_time: int = field(init=False, default=0, metadata={
-        "sa": Column(Integer, nullable=False, default=0)
-    })
 
     routing: Routing = field(
         default=None,
@@ -273,7 +181,7 @@ class RoutingOperation:
         }
     )
 
-    machine_entity: Optional[Machine] = field(init=False, default=None, repr=False, metadata={
+    machine: Optional[Machine] = field(init=False, default=None, repr=False, metadata={
         "sa": relationship("Machine", back_populates="operations")
     })
 
@@ -320,8 +228,8 @@ class Job:
         "sa": relationship("Routing", back_populates="jobs", lazy="joined")
     })
 
-    schedule_operations: List[ScheduleOperation] = field(default_factory=list, metadata={
-        "sa": relationship("ScheduleOperation", back_populates="job", cascade="all, delete-orphan")
+    schedule_jobs: List[ScheduleJob] = field(default_factory=list, repr=False, metadata={
+        "sa": relationship("ScheduleJob", back_populates="job", cascade="all, delete-orphan", lazy="joined")
     })
 
     simulation_operations: List[SimulationOperation] = field(default_factory=list, metadata={
@@ -337,7 +245,7 @@ class Job:
             operations.append(JobOperation(
                 job=self,
                 position_number=routing_op.position_number,
-                machine=routing_op.machine,
+                machine_name=routing_op.machine_name,
                 duration=routing_op.duration,
             ))
         return operations
@@ -371,7 +279,62 @@ class Job:
             self.experiment_id = self.experiment.id
 
 
+@mapper_registry.mapped
+@dataclass
+class ScheduleJob:
+    __tablename__ = "schedule_job"
+    __sa_dataclass_metadata_key__ = "sa"
 
+    job_id: str = field(metadata={
+        "sa": Column(String, ForeignKey("job.id"), primary_key=True)
+    })
+
+    experiment_id: int = field(metadata={
+        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
+    })
+
+    shift_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True)
+    })
+
+    # Beziehungen zu Job und Experiment
+    job: Job = field(default=None, repr=False, metadata={
+        "sa": relationship("Job", back_populates="schedule_jobs", lazy="joined")
+    })
+
+
+    # Neue Beziehung zu Shift
+    shift: Shift = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "Shift",
+            primaryjoin=(
+                "and_(ScheduleJob.experiment_id == Shift.experiment_id, "
+                "ScheduleJob.shift_number == Shift.shift_number)"
+            ),
+            back_populates="schedule_jobs",
+            lazy="joined"
+        )
+    })
+
+    operations: List[ScheduleOperation] = field(default_factory=list, metadata={
+        "sa": relationship(
+            "ScheduleOperation",
+            back_populates="schedule_job",
+            cascade="all, delete-orphan",
+            lazy="joined"
+        )
+    })
+
+    @property
+    def experiment(self) -> Experiment:
+        return self.shift.experiment
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["experiment_id", "shift_number"],
+            ["shift.experiment_id", "shift.shift_number"]
+        ),
+    )
 
 
 @mapper_registry.mapped
@@ -412,36 +375,13 @@ class Experiment:
         "sa": Column(Float, nullable=False)
     })
 
-
     jobs: List[Job] = field(default_factory=list, repr=False, metadata={
         "sa": relationship("Job", back_populates="experiment", cascade="all, delete-orphan", lazy="joined")
     })
 
-    schedule_operations: List[ScheduleOperation] = field(
-        default_factory=list,
-        repr=False,
-        metadata={
-            "sa": relationship(
-                "ScheduleOperation",
-                back_populates="experiment",
-                cascade="all, delete-orphan",
-                lazy="joined"
-            )
-        }
-    )
-
-    simulation_operations: List[SimulationOperation] = field(
-        default_factory=list,
-        repr=False,
-        metadata={
-            "sa": relationship(
-                "SimulationOperation",
-                back_populates="experiment",
-                cascade="all, delete-orphan",
-                lazy="joined"
-            )
-        }
-    )
+    shifts: List[Shift] = field(default_factory=list, repr=False, metadata={"sa": relationship(
+        "Shift", back_populates="experiment", cascade="all, delete-orphan", lazy="joined")
+    })
 
     def __post_init__(self):
         if not (0 <= self.max_bottleneck_utilization <= 1):
@@ -468,27 +408,22 @@ class Shift:
         "sa": Column(Integer, nullable=False)
     })
 
-    experiment: Experiment = field(default=None, repr=True, metadata={
-        "sa": relationship("Experiment", backref="shifts", lazy="joined")
+    experiment: Experiment = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            Experiment,
+            back_populates="shifts",
+            lazy="joined"
+        )
     })
 
-    schedule_operations: List[ScheduleOperation] = field(
-        default_factory=list,
-        repr=False,
-        metadata={
-            "sa": relationship(
-                "ScheduleOperation",
-                primaryjoin=(
-                    "and_(Shift.experiment_id == ScheduleOperation.experiment_id, "
-                    "Shift.shift_number == ScheduleOperation.shift_number)"
-                ),
-                back_populates="shift",
-                cascade="all, delete-orphan",
-                lazy="joined",
-                overlaps="experiment,schedule_operations"
-            )
-        }
-    )
+    schedule_jobs: List[ScheduleJob] = field(default_factory=list, repr=False, metadata={
+        "sa": relationship(
+            ScheduleJob,
+            back_populates="shift",
+            cascade="all, delete-orphan",
+            lazy="joined"
+        )
+    })
 
     @property
     def shift_start(self) -> int:
@@ -498,10 +433,9 @@ class Shift:
     def shift_end(self) -> int:
         return self.shift_start + self.shift_length
 
-
     def __post_init__(self):
-        self.shift_length = 1440
-
+        if self.shift_length is None:
+            self.shift_length = 1440
 
 @mapper_registry.mapped
 @dataclass
@@ -509,66 +443,56 @@ class ScheduleOperation:
     __tablename__ = "schedule_operation"
     __sa_dataclass_metadata_key__ = "sa"
 
-    shift_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+    shift_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True)
+    })
 
     experiment_id: int = field(metadata={
-        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
+        "sa": Column(Integer, primary_key=True)
     })
 
     job_id: str = field(metadata={
-        "sa": Column(String, ForeignKey("job.id"), primary_key=True)
+        "sa": Column(String, primary_key=True)
     })
 
-    position_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+    position_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True)
+    })
 
-    start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+    start: int = field(default=0, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
 
-    end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+    end: int = field(default=0, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
+    schedule_job: ScheduleJob = field(default=None, repr=False, metadata={
         "sa": relationship(
-            "Experiment",
-            back_populates="schedule_operations",
-            lazy="joined",
-            overlaps="shift,schedule_operations"
-        )
-    })
-
-    job: Job = field(default=None, repr=False, metadata={
-        "sa": relationship("Job", back_populates="schedule_operations", lazy="joined")
-    })
-
-    shift: Shift = field(default=None, repr=False, metadata={
-        "sa": relationship(
-            "Shift",
-            primaryjoin=(
-                "and_(ScheduleOperation.experiment_id == Shift.experiment_id, "
-                "ScheduleOperation.shift_number == Shift.shift_number)"
-            ),
-            back_populates="schedule_operations",
-            lazy="joined",
-            overlaps="experiment,schedule_operations"
+            ScheduleJob,
+            back_populates="operations",
+            lazy="joined"
         )
     })
 
     __table_args__ = (
         ForeignKeyConstraint(
-            ["experiment_id", "shift_number"],
-            ["shift.experiment_id", "shift.shift_number"]
+            ["experiment_id", "job_id", "shift_number"],
+            ["schedule_job.experiment_id", "schedule_job.job_id", "schedule_job.shift_number"]
         ),
     )
 
     @property
     def _routing(self) -> Routing:
-        return self.job.routing
+        return self.schedule_job.job.routing
 
     @property
     def _routing_operation(self) -> RoutingOperation:
         return self._routing.operations[self.position_number]
 
     @property
-    def machine(self) -> str:
-        return self._routing_operation.machine
+    def machine_name(self) -> str:
+        return self._routing_operation.machine_name
 
     @property
     def duration(self) -> int:
@@ -602,10 +526,6 @@ class SimulationOperation:
     end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship("Experiment", back_populates="simulation_operations")
-    })
-
     job: Job = field(default=None, repr=False, metadata={
         "sa": relationship("Job", back_populates="simulation_operations", lazy="joined")
     })
@@ -619,8 +539,8 @@ class SimulationOperation:
         return self._routing.operations[self.position_number]
 
     @property
-    def machine(self) -> str:
-        return self._routing_operation.machine
+    def machine_name(self) -> str:
+        return self._routing_operation.machine_name
 
     @property
     def route_duration(self) -> int:
@@ -638,6 +558,7 @@ class JobTemplate:
     experiment_id: Optional[int] = None
     arrival: Optional[int] = None
     deadline: Optional[int] = None
+    max_bottleneck_utilization: Optional[float] = None
 
     operations: List[JobOperation] = field(default_factory=list)
 
@@ -688,7 +609,7 @@ class JobTemplate:
             new_op = JobOperation(
                 job=new_template,
                 position_number=op.position_number,
-                machine=op.machine,
+                machine_name=op.machine_name,
                 duration=op.duration,
                 start=op.start,
                 end=op.end
@@ -702,14 +623,14 @@ class JobTemplate:
 class Operation:
     job_id: str
     position_number: int
-    machine: str
+    machine_name: str
 
 
 @dataclass
 class JobOperation:
     job: Union[Job, JobTemplate]
     position_number: int
-    machine: str
+    machine_name: str
     duration: int
 
     shift_number: Optional[int] = None
@@ -723,7 +644,7 @@ class JobOperation:
         attrs = {
             "job_id": self.job.id,
             "position_number": self.position_number,
-            "machine": self.machine,
+            "machine_name": self.machine_name,
             "duration": self.duration,
         }
         return "JobOperation(" + ", ".join(f"{key}={value!r}" for key, value in attrs.items()) + ")"
@@ -753,11 +674,12 @@ class JobOperation:
         return self.job.experiment_id
 
     def __post_init__(self):
-        self.operation = Operation(
-            job_id=self.job_id,
-            position_number=self.position_number,
-            machine=self.machine
-        )
+        if self.operation is None:
+            self.operation = Operation(
+                job_id=self.job_id,
+                position_number=self.position_number,
+                machine_name=self.machine_name
+            )
 
     def __eq__(self, other):
         if not isinstance(other, JobOperation):
