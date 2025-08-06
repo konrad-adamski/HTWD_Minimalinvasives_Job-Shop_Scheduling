@@ -1,5 +1,5 @@
 from dataclasses import replace
-from typing import List, Optional, Dict, Tuple, Union
+from typing import Optional, Dict, Tuple, Union
 
 from src.classes.Collection import JobMixCollection
 from src.classes.orm_models import JobOperation, Job, JobTemplate
@@ -47,7 +47,7 @@ class ProductionSimulation:
             yield self.env.timeout(delay)
 
         for op in job.operations:
-            machine = self.machines.get_source(op.machine)
+            machine = self.machines.get_source(op.machine_name)
             planned_start = op.start if op.start is not None else self.start_time
             delay = max(planned_start - self.env.now, 0)
             yield self.env.timeout(delay)
@@ -69,7 +69,7 @@ class ProductionSimulation:
     def _resume_operation_process(self, job_op: JobOperation):
         remaining_time = max(0, int(job_op.end) - self.start_time)
 
-        machine = self.machines[job_op.machine]
+        machine = self.machines[job_op.machine_name]
         self._log_job_resumed_on_machine(time_stamp=self.env.now, remaining_time=remaining_time, job_op=job_op)
 
         with machine.request() as req:
@@ -95,7 +95,7 @@ class ProductionSimulation:
             self.env.process(self._resume_operation_process(job_op))
 
         if schedule_collection is not None:
-            machines = schedule_collection.get_unique_machines()
+            machines = schedule_collection.get_unique_machine_names()
             self.machines.add_machines_with_env(self.env, machines)         # self._add_new_machines(machines)
 
             for job_id, job in schedule_collection.items():
@@ -120,13 +120,13 @@ class ProductionSimulation:
 
     def _log_job_started_on_machine(self, time_stamp, job_op: JobOperation):
         if self.verbose:
-            print(f"[{get_time_str(time_stamp)}] Job {job_op.job_id} started on {job_op.machine}")
+            print(f"[{get_time_str(time_stamp)}] Job {job_op.job_id} started on {job_op.machine_name}")
         if self.controller:
             time.sleep(0.05)
 
     def _log_job_finished_on_machine(self, time_stamp, job_op: JobOperation, sim_duration):
         if self.verbose:
-            print(f"[{get_time_str(time_stamp)}] Job {job_op.job_id} finished on {job_op.machine} "
+            print(f"[{get_time_str(time_stamp)}] Job {job_op.job_id} finished on {job_op.machine_name} "
                   + f"(after {get_duration(sim_duration)})")
         if self.controller:
             time.sleep(0.14)
@@ -134,7 +134,7 @@ class ProductionSimulation:
     def _log_job_resumed_on_machine(self, time_stamp, remaining_time, job_op: JobOperation):
         if self.verbose:
             print(f"[{get_time_str(time_stamp)}] Job {job_op.job_id}, Operation {job_op.position_number} "
-              + f"resumed on {job_op.machine} with {get_duration(remaining_time)} left)")
+              + f"resumed on {job_op.machine_name} with {get_duration(remaining_time)} left)")
         if self.controller:
             time.sleep(0.14)
 

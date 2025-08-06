@@ -32,7 +32,7 @@ def solve_jssp_lateness_with_deviation_minimization(
     dev_factor = main_pct_frac.denominator - main_factor
 
     # Machines --------------------------------------------------------------------------------------------------------
-    machines = jobs_collection.get_unique_machines()
+    machines = jobs_collection.get_unique_machine_names()
 
     machines_fix_intervals = MachineFixIntervalMap()
 

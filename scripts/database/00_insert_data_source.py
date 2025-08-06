@@ -1,0 +1,34 @@
+import json
+
+from colorama import Fore, Style
+from configs.path_manager import get_path
+from src.classes.Initializer import DataSourceInitializer
+from src.classes.orm_setup import reset_tables
+
+if __name__ == "__main__":
+    reset_tables()
+
+    # Load file
+    basic_data_path = get_path("data", "basic")
+    file_path = basic_data_path / "jobshop_instances.json"
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        jobshop_instances = json.load(f)
+
+    # Extract "Fisher and Thompson 10x10" job (routing) shop scheduling problem
+    data_source: dict = jobshop_instances["instance ft10"]
+
+    print("\n" + "-"*30, "Original data source [machine, duration]", "-"*30)
+    for key,value in data_source.items():
+        print(f"{key}: {value}")
+
+    print("-"*100)
+
+    # RoutingSource with Routings, RoutingOperations and Machines
+    source_name = "Fisher and Thompson 10x10"
+    success = DataSourceInitializer.insert_from_dictionary(data_source, source_name = source_name)
+
+    if success:
+        print(Fore.GREEN + f"✓ Data source '{source_name}' inserted successfully." + Style.RESET_ALL)
+    else:
+        print(Fore.RED + f"✗ Data source '{source_name}' could not be inserted (already exists?)." + Style.RESET_ALL)

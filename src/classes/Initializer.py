@@ -1,17 +1,77 @@
 from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
-from typing import List, Optional
+from typing import List, Optional, Set, Dict, Tuple
 
 import numpy as np
+import pandas as pd
 from pandas.core.nanops import bottleneck_switch
+from sqlalchemy.exc import IntegrityError
 
-from src.classes.orm_models import Routing, Experiment, Job
+from src.classes.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
 from src.classes.orm_setup import SessionLocal
 
 
-class ExperimentInitializerNew:
+class DataSourceInitializer:
     def __new__(cls, *args, **kwargs):
-        raise TypeError("ExperimentInitializer is a static utility class and cannot be instantiated.")
+        raise TypeError("RoutingInitializer is a static utility class and cannot be instantiated.")
+
+
+    @staticmethod
+    def insert_from_dictionary(routing_dict: Dict[str, List[Tuple[int, int]]], source_name: str):
+        """
+        Insert a new RoutingSource along with its Machines and Routings from a dictionary.
+        Returns True if successful, False if the source already exists or another IntegrityError occurs.
+        """
+        temp_machine_name_template = "{:02d}"
+
+        with SessionLocal() as session:
+            try:
+                # Create and add new routing source
+                source = RoutingSource(name=source_name)
+                session.add(source)
+                session.flush()
+
+                # 1a) Extract all machine names used in the routings
+                all_temp_machine_names = {
+                    temp_machine_name_template.format(machine_idx)
+                    for ops in routing_dict.values()
+                    for machine_idx, _ in ops
+                }
+
+                # 1b) Create Machine objects and map them by their original name
+                machine_dict: Dict[str, Machine] = {
+                    temp_name: Machine(name=f"M{source.id:02d}-{temp_name}")
+                    for temp_name in all_temp_machine_names
+                }
+
+                sorted_machines = sorted(machine_dict.values(), key=lambda m: m.name)
+                session.add_all(sorted_machines)
+                session.flush()
+
+                # 2) Create Routing and RoutingOperation entries
+                for routing_id, ops in routing_dict.items():
+                    routing_id_str = f"{source.id:02d}-{int(routing_id):02d}"
+                    new_routing = Routing(id=routing_id_str, routing_source=source, operations=[])
+
+                    for step_nr, (machine_idx, duration) in enumerate(ops):
+                        temp_machine_name = temp_machine_name_template.format(machine_idx)
+                        new_routing.operations.append(
+                            RoutingOperation(
+                                routing_id=routing_id_str,
+                                position_number=step_nr,
+                                machine=machine_dict[temp_machine_name],
+                                duration=duration
+                            )
+                        )
+
+                    session.add(new_routing)
+                session.commit()
+            except IntegrityError as e:
+                session.rollback()
+                print(f"\033[91mInsert failed due to IntegrityError: {e}\033[0m")
+                return False
+        return True
+
 
 
 class JobsInitializer:
@@ -162,8 +222,7 @@ class JobsInitializer:
             for i, routing in enumerate(temp_routings):
                 if a_idx >= len(arrivals):
                     break
-
-                job = Job(id=f"J{prefix}-{a_idx:04d}",
+                job = Job(id=f"{routing.source_id:02d}-{prefix}-{a_idx:04d}",
                           routing=routing,
                           arrival=arrivals[a_idx],
                           deadline=None,
@@ -191,25 +250,22 @@ class JobsInitializer:
             session.add_all(jobs)
             session.commit()
 
-# ----------------------------------------
 
-class ExperimentInitializer:
+class ExperimentInitializerNew:
     def __new__(cls, *args, **kwargs):
-        raise TypeError("ExperimentBuilder is a static utility class and cannot be instantiated.")
-
+        raise TypeError("ExperimentInitializer is a static utility class and cannot be instantiated.")
 
     @staticmethod
     def add_experiment(
-            total_shift_number: int = 30, solver_main_pct: float = 0.5, solver_w_t:int = 10, solver_w_e:int = 2,
-            solver_w_first:int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float  = 0.25) -> Experiment:
-
+            total_shift_number: int = 30, solver_main_pct: float = 0.5, solver_w_t: int = 10, solver_w_e: int = 2,
+            solver_w_first: int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float = 0.25) -> Experiment:
         experiment = Experiment(
             total_shift_number=total_shift_number,
             main_pct=solver_main_pct,
             w_t=solver_w_t,
             w_e=solver_w_e,
             w_first=solver_w_first,
-            max_bottleneck_utilization=max_bottleneck_utilization,
+            max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization:.4f}"),
             sim_sigma=sim_sigma
         )
         with SessionLocal() as session:
@@ -217,4 +273,3 @@ class ExperimentInitializer:
             session.commit()
 
             return session.get(Experiment, experiment.id)
-
