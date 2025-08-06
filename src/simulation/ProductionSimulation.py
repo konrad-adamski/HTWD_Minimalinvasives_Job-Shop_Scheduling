@@ -155,6 +155,7 @@ class ProductionSimulation:
             start=sim_start,
             end=sim_end
         )
+        print("fina")
         self.finished_operations_collection.add_operation_instance(updated_op)
         self.entire_finished_operations_collection.add_operation_instance(updated_op)
 
@@ -190,7 +191,7 @@ if __name__ == "__main__":
     df_schedule = pd.read_csv(basic_data_path / "lateness_schedule_day_01.csv")
 
     print("\n", "---" * 20, "Schedule", "---" * 20)
-    schedule_collection = JobMixCollection.from_schedule_dataframe(df_schedule)
+    schedule_collection = JobMixCollection.from_operations_dataframe(df_schedule)
 
     print(schedule_collection.to_dataframe())
 

@@ -4,7 +4,7 @@ from decimal import Decimal
 from math import isclose
 
 import numpy as np
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, and_, Table, Numeric
 from sqlalchemy.orm import relationship
 from typing import Optional, List, Union, Set, Iterable, Tuple
@@ -232,18 +232,19 @@ class Job:
     def operations(self) -> List[JobOperation]:
         operations: List[JobOperation] = []
         for routing_op in self.routing.operations:
-            operations.append(JobOperation(
-                job=self,
-                position_number=routing_op.position_number,
-                machine_name=routing_op.machine_name,
-                duration=routing_op.duration,
-            ))
+            operations.append(
+                JobOperation(
+                    job=self,
+                    position_number=routing_op.position_number,
+                    machine_name=routing_op.machine_name,
+                    duration=routing_op.duration
+                )
+            )
         return operations
 
     @property
     def earliest_start(self) -> int:
         return int(np.ceil((self.arrival + 1) / 1440) * 1440)
-
 
     @property
     def sum_duration(self) -> int:
@@ -346,6 +347,10 @@ class ScheduleJob:
         "sa": relationship("Job", lazy="joined")
     })
 
+    experiment: Experiment = field(default=None, repr=False, metadata={
+        "sa": relationship("Experiment", lazy="joined")
+    })
+
 
     operations: List[ScheduleOperation] = field(default_factory=list, metadata={
         "sa": relationship(
@@ -356,9 +361,6 @@ class ScheduleJob:
         )
     })
 
-    @property
-    def experiment(self)-> Experiment:
-        return self.shift.experiment
 
     @property
     def routing(self) -> Routing:
@@ -618,16 +620,13 @@ class SimulationOperation:
 # View/Helper classes (not ORM models): wrap ORM objects for easy access.
 
 @dataclass
-class JobTemplate:
+class LiveJob:
     id: str
     routing_id: Optional[str] = None
-    experiment_id: Optional[int] = None
     arrival: Optional[int] = None
     deadline: Optional[int] = None
 
     max_bottleneck_utilization: Optional[Decimal] = None
-
-
     operations: List[JobOperation] = field(default_factory=list)
 
     @property
@@ -674,7 +673,7 @@ class JobTemplate:
 
 
     @classmethod
-    def copy_from(cls, other: Union[JobTemplate, Job]) -> JobTemplate:
+    def copy_from(cls, other: Union[LiveJob, Job]) -> LiveJob:
         """
         Creates a JobTemplate copy from another JobTemplate or Job instance.
         Copies metadata and converts operations to JobOperation objects.
@@ -682,25 +681,33 @@ class JobTemplate:
         new_template = cls(
             id=other.id,
             routing_id=other.routing_id,
-            experiment_id=other.experiment_id,
             arrival=other.arrival,
             deadline=other.deadline,
             operations=[]
         )
 
         # Operationen kopieren
-        for op in other.operations:
-            new_op = JobOperation(
-                job=new_template,
-                position_number=op.position_number,
-                machine_name=op.machine_name,
-                duration=op.duration,
-                start=op.start,
-                end=op.end
-            )
-            new_template.operations.append(new_op)
+        for operation in other.operations:
+            new_template.add_operation_instance(operation)
 
         return new_template
+
+
+    def add_operation_instance(
+            self, operation: JobOperation, new_start: Optional[float] = None,
+            new_duration: Optional[float] = None, new_end: Optional[float] = None) -> None:
+
+        new_op = replace(
+            operation,
+            job=self,
+            start= operation.start if new_start is None else new_start,
+            duration=operation.duration if new_duration is None else new_duration,
+            end= operation.end if new_end is None else new_end,
+        )
+
+
+        self.operations.append(new_op)
+
 
     def set_transition_times(self, utilization_machines: List[UtilizationMachine]) -> None:
         relevant_machines = {
@@ -715,7 +722,7 @@ class JobTemplate:
 
 @dataclass
 class JobOperation:
-    job: Union[Job, JobTemplate]
+    job: Union[Job, LiveJob]
     position_number: int
     machine_name: str
     duration: int
@@ -757,14 +764,10 @@ class JobOperation:
     def routing_id(self) -> str:
         return self.job.routing_id
 
-    @property
-    def experiment_id(self) -> Optional[int]:
-        return self.job.experiment_id
-
 
     @property
     def _unique_operation(self) -> Tuple[str, int]:
-        return (self.job_id, self.position_number)
+        return self.job_id, self.position_number
 
 
     def __eq__(self, other):

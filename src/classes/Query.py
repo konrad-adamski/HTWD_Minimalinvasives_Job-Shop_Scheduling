@@ -48,10 +48,6 @@ class JobQuery:
         with SessionLocal() as session:
             query = session.query(Job).options(
                 joinedload(getattr(Job, "routing")).joinedload(getattr(Routing, "operations")),
-                joinedload(getattr(Job, "experiment")) #,
-          #      joinedload(getattr(Job, "schedule_operations")),
-          #      joinedload(getattr(Job, "simulation_operations"))
-
             )
             jobs = query.filter(getattr(Job, field_name) == field_value).all()
             session.expunge_all()
