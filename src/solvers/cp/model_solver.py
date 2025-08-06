@@ -6,6 +6,7 @@ from typing import List, Tuple, Dict, Optional, Any
 from ortools.sat.python import cp_model
 
 from src.classes.Collection import JobMixCollection
+from src.classes.orm_models import JobOperation
 from src.solvers.cp.model_classes import OperationIndexMapper
 
 
@@ -78,17 +79,11 @@ def _extract_cp_schedule_from_operations(
     for (job_idx, op_idx), operation in index_mapper.items():
         start = solver.Value(starts[(job_idx, op_idx)])
         end = solver.Value(ends[(job_idx, op_idx)])
-        schedule_job_collection.add_operation(
-            job_id =operation.job_id,
-            routing_id=operation.routing_id,
-            experiment_id=operation.experiment_id,
-            position_number = operation.position_number,
-            machine = operation.machine,
-            duration = operation.duration,
-            start = start,
-            end = end,
-            arrival = operation.job_arrival,
-            deadline= operation.job_deadline
+
+        schedule_job_collection.add_operation_instance(
+            op = operation,
+            new_start=start,
+            new_end=end
         )
 
     return schedule_job_collection
