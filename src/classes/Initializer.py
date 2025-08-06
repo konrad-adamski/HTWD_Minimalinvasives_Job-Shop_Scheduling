@@ -1,15 +1,22 @@
 from collections import defaultdict
+from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 
 import numpy as np
+from pandas.core.nanops import bottleneck_switch
 
 from src.classes.orm_models import Routing, Experiment, Job
 from src.classes.orm_setup import SessionLocal
 
 
-class ExperimentInitializer:
+class ExperimentInitializerNew:
     def __new__(cls, *args, **kwargs):
-        raise TypeError("ExperimentBuilder is a static utility class and cannot be instantiated.")
+        raise TypeError("ExperimentInitializer is a static utility class and cannot be instantiated.")
+
+
+class JobsInitializer:
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("JobsInitializer is a static utility class and cannot be instantiated.")
 
     @staticmethod
     def _get_bottleneck_machine_from_routings(
@@ -26,17 +33,21 @@ class ExperimentInitializer:
 
         for routing in routings:
             for op in routing.operations:
-                usage[op.machine] += op.duration
+                usage[op.machine_name] += op.duration
 
         if verbose:
             print("Machine workload (total processing time):")
-            for machine, total in sorted(usage.items(), key=lambda x: str(x[0])):
-                print(f"  {machine}: {total}")
+            for machine_name, total in sorted(usage.items(), key=lambda x: str(x[0])):
+                print(f"  {machine_name}: {total}")
 
         if not usage:
             raise ValueError("No machine workload found – list may have been empty or invalid!")
 
-        return max(usage, key=usage.get)
+        bottleneck_machine_name = max(usage, key=usage.get)
+        if verbose:
+            print(f"Bottleneck machine: {bottleneck_machine_name}")
+
+        return bottleneck_machine_name
 
     @classmethod
     def _get_vec_t_b_mmax_from_routings(cls, routings: List[Routing], verbose: bool = False) -> List[int]:
@@ -55,14 +66,14 @@ class ExperimentInitializer:
         # 2) for each routing, sum durations on that machine
         vec = []
         for routing in routings:
-            t_b = sum(op.duration for op in routing.operations if op.machine == bottleneck_machine)
+            t_b = sum(op.duration for op in routing.operations if op.machine_name == bottleneck_machine)
             vec.append(t_b)
         return vec
 
     @classmethod
     def _calculate_mean_interarrival_time(
-        cls, routings: List[Routing], u_b_mmax: float = 0.9, p: Optional[List[float]] = None,
-        verbose: bool = False) -> float:
+            cls, routings: List[Routing], u_b_mmax: float = 0.9, p: Optional[List[float]] = None,
+            verbose: bool = False) -> float:
         """
         Calculates the average interarrival time t_a required to achieve the desired utilization of the bottleneck machine.
 
@@ -74,7 +85,6 @@ class ExperimentInitializer:
         n = len(routings)
         if n == 0:
             raise ValueError("Routingliste darf nicht leer sein.")
-
 
         # Processing times on bottleneck machine
         vec_t_b_mmax = cls._get_vec_t_b_mmax_from_routings(routings, verbose=verbose)
@@ -90,10 +100,11 @@ class ExperimentInitializer:
             t_a = np.mean(vec_t_b_mmax) / float(u_b_mmax)
         return round(t_a, 4)
 
+
     @staticmethod
     def _gen_arrivals(
             mean_interarrival_time: float, size: int, start_time: int = 0,
-            last_arrival_time: int = 1440, random_seed: Optional[int] = 120)-> List[int]:
+            last_arrival_time: int = 1440, random_seed: Optional[int] = 120) -> List[int]:
 
         if random_seed is not None:
             np.random.seed(random_seed)
@@ -113,23 +124,22 @@ class ExperimentInitializer:
 
 
     @classmethod
-    def _create_jobs(
-            cls, routings: List[Routing], experiment: Experiment,
-            arrival_seed: Optional[int] = 120,
-            job_routing_seed: Optional[int] = 100, verbose: bool = False):
+    def create_jobs(
+            cls, routings: List[Routing], max_bottleneck_utilization: float = 0.90, total_shift_number: int = 500,
+            arrival_seed: Optional[int] = 120, job_routing_seed: Optional[int] = 100, verbose: bool = False):
 
         jobs: List[Job] = []
 
-        last_shift_end = 1440 * (experiment.total_shift_number+1)
+        last_shift_end = 1440 * (total_shift_number + 1)
 
         # Compute mean interarrival time based on max bottleneck utilization
         mean_arrival_time = cls._calculate_mean_interarrival_time(
             routings=routings,
-            u_b_mmax=experiment.max_bottleneck_utilization,
+            u_b_mmax=max_bottleneck_utilization,
             verbose=verbose
         )
 
-        approx_size = np.ceil(last_shift_end / mean_arrival_time).astype(int) + 2 * len(routings) # with buffer
+        approx_size = np.ceil(last_shift_end / mean_arrival_time).astype(int) + 2 * len(routings)  # with buffer
 
         arrivals = cls._gen_arrivals(
             mean_interarrival_time=mean_arrival_time,
@@ -139,26 +149,53 @@ class ExperimentInitializer:
         )
 
         a_idx = 0
+
+        max_bottleneck_utilization_db = Decimal(f"{max_bottleneck_utilization:.4f}")
+        prefix = f"{max_bottleneck_utilization_db * 10000:05.0f}"
         while a_idx < len(arrivals):
             temp_routings = routings.copy()
 
             if job_routing_seed is not None:
-                np.random.seed(job_routing_seed+a_idx)
+                np.random.seed(job_routing_seed + a_idx)
                 np.random.shuffle(temp_routings)
 
             for i, routing in enumerate(temp_routings):
                 if a_idx >= len(arrivals):
                     break
 
-                job = Job(id=f"J{experiment.id:03d}-{a_idx:04d}",
-                    routing=routing,
-                    arrival=arrivals[a_idx],
-                    deadline=None,
-                    experiment=experiment
-                )
+                job = Job(id=f"J{prefix}-{a_idx:04d}",
+                          routing=routing,
+                          arrival=arrivals[a_idx],
+                          deadline=None,
+                          max_bottleneck_utilization=max_bottleneck_utilization_db
+                          )
                 jobs.append(job)
                 a_idx += 1
         return jobs
+
+    @classmethod
+    def insert_jobs(
+            cls, routings: List[Routing], max_bottleneck_utilization: float = 0.90, total_shift_number: int = 500,
+            arrival_seed: Optional[int] = 120, job_routing_seed: Optional[int] = 100, verbose: bool = False):
+
+        jobs = cls.create_jobs(
+            routings=routings,
+            max_bottleneck_utilization= max_bottleneck_utilization,
+            total_shift_number = total_shift_number,
+            arrival_seed=arrival_seed,
+            job_routing_seed=job_routing_seed,
+            verbose=verbose
+        )
+
+        with SessionLocal() as session:
+            session.add_all(jobs)
+            session.commit()
+
+# ----------------------------------------
+
+class ExperimentInitializer:
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("ExperimentBuilder is a static utility class and cannot be instantiated.")
 
 
     @staticmethod
@@ -181,19 +218,3 @@ class ExperimentInitializer:
 
             return session.get(Experiment, experiment.id)
 
-    @classmethod
-    def insert_jobs(
-            cls, routings: List[Routing], experiment: Experiment, arrival_seed: Optional[int] = 120,
-            job_routing_seed: Optional[int] = 100, verbose: bool = False):
-
-        jobs = cls._create_jobs(
-            routings=routings,
-            experiment=experiment,
-            arrival_seed=arrival_seed,
-            job_routing_seed=job_routing_seed,
-            verbose=verbose
-        )
-
-        with SessionLocal() as session:
-            session.add_all(jobs)
-            session.commit()

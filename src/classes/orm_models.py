@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from decimal import Decimal
+from math import isclose
+
 import numpy as np
 from dataclasses import dataclass, field
-from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, and_
+from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, and_, Table, Numeric
 from sqlalchemy.orm import relationship
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Set, Iterable, Tuple
 
 from src.classes.orm_setup import mapper_registry
 
@@ -45,23 +48,14 @@ class Machine:
         "sa": Column(String(100), primary_key=True)  # Maschinenname als eindeutige ID
     })
 
-    # Optional: Beziehung zu RoutingOperations
-    operations: List[RoutingOperation] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship(
-            "RoutingOperation",
-            back_populates="machine"
-        )
-    })
-
     utilization_machines: List[UtilizationMachine] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship("UtilizationMachine", back_populates="machine")
+        "sa": relationship("UtilizationMachine", lazy="joined", cascade="all, delete-orphan")
     })
 
     def get_transition_by_max_bottleneck_utilization(self, max_bottleneck_utilization: float) -> Optional[int]:
-        """Gibt die transition_time für das gegebene Experiment zurück, falls vorhanden."""
-        for em in self.utilization_machines:
-            if em.max_bottleneck_utilization == max_bottleneck_utilization:
-                return em.transition_time
+        for utilization_m in self.utilization_machines:
+            if utilization_m.max_bottleneck_utilization == max_bottleneck_utilization:
+                return utilization_m.transition_time
         return 0
 
 @mapper_registry.mapped
@@ -70,7 +64,7 @@ class UtilizationMachine:
     __tablename__ = "utilization_machine"
     __sa_dataclass_metadata_key__ = "sa"
 
-    name: str = field(init=False, metadata={
+    name: str = field(init=True, metadata={
     "sa": Column(String(100), ForeignKey("machine.name"), primary_key=True)
     })
 
@@ -82,15 +76,6 @@ class UtilizationMachine:
     transition_time: int = field(default=0, metadata={
         "sa": Column(Integer, nullable=False)
     })
-
-    machine: Machine = field(default=None, repr=False, metadata={
-        "sa": relationship("Machine", back_populates="utilization_machines")
-    })
-
-    def __post_init__(self):
-        if self.machine:
-            self.name = self.machine.name
-
 
 
 @mapper_registry.mapped
@@ -182,8 +167,9 @@ class RoutingOperation:
     )
 
     machine: Optional[Machine] = field(init=False, default=None, repr=False, metadata={
-        "sa": relationship("Machine", back_populates="operations")
+        "sa": relationship("Machine", lazy="joined")
     })
+
 
 
 @mapper_registry.mapped
@@ -191,49 +177,46 @@ class RoutingOperation:
 class Job:
     __tablename__ = "job"
     __sa_dataclass_metadata_key__ = "sa"
-
     def __repr__(self) -> str:
         attrs = {
             "id": self.id,
             "routing_id": self.routing_id,
-            "experiment_id": self.experiment_id,
             "arrival": self.arrival,
             "earliest_start": self.earliest_start,
             "deadline": self.deadline,
             "sum_duration": self.sum_duration,
+            "max_bottleneck_utilization": self.max_bottleneck_utilization
         }
         return "Job(" + ", ".join(f"{key}={value!r}" for key, value in attrs.items()) + ")"
 
+    def __eq__(self, other):
+        if not isinstance(other, Job):
+            return False
+        return self.id == other.id
+
+    def __hash__(self):
+        return hash(self.id)
+
+
     id: str = field(default="", metadata={
         "sa": Column(String(255), nullable=False, primary_key=True)
+    })
+
+    max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
+        "sa": Column(Numeric(5, 4), nullable=False)
     })
 
     routing_id: str = field(init=False, default="", metadata={
         "sa": Column(String(255), ForeignKey("routing.id"), nullable=False)
     })
 
-    experiment_id: int = field(init=False, default=None, metadata={
-        "sa": Column(Integer, ForeignKey("experiment.id"), nullable=False)
-    })
-
     arrival: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
     deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer)})
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship("Experiment", back_populates="jobs", lazy="joined")
-    })
 
     routing: Routing = field(default=None, repr=False, metadata={
         "sa": relationship("Routing", back_populates="jobs", lazy="joined")
-    })
-
-    schedule_jobs: List[ScheduleJob] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship("ScheduleJob", back_populates="job", cascade="all, delete-orphan", lazy="joined")
-    })
-
-    simulation_job: Optional[SimulationJob] = field(default=None, metadata={
-        "sa": relationship("SimulationJob", back_populates="job", uselist=False, lazy="joined")
     })
 
 
@@ -254,9 +237,6 @@ class Job:
     def earliest_start(self) -> int:
         return int(np.ceil((self.arrival + 1) / 1440) * 1440)
 
-    @property
-    def max_bottleneck_utilization(self) -> float:
-        return float(self.experiment.max_bottleneck_utilization)
 
     @property
     def sum_duration(self) -> int:
@@ -273,10 +253,11 @@ class Job:
         return max(op.position_number for op in self.operations)
 
     def __post_init__(self):
-        if self.routing:
+        if self.routing and self.routing_id is None:
             self.routing_id = self.routing.id
-        if self.experiment:
-            self.experiment_id = self.experiment.id
+        if not (Decimal("0") <= self.max_bottleneck_utilization <= Decimal("1")):
+            raise ValueError("max_bottleneck_utilization must be between 0 and 1 (inclusive).")
+
 
 
 @mapper_registry.mapped
@@ -289,8 +270,16 @@ class SimulationJob:
         "sa": Column(String, ForeignKey("job.id"), primary_key=True)
     })
 
+    experiment_id: int = field(init=False, default=None, metadata={
+        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
+    })
+
     job: Job = field(default=None, repr=False, metadata={
-        "sa": relationship("Job", back_populates="simulation_job", lazy="joined")
+        "sa": relationship("Job", lazy="joined")
+    })
+
+    experiment: Experiment = field(default=None, repr=False, metadata={
+        "sa": relationship("Experiment", lazy="joined")
     })
 
     operations: List[SimulationOperation] = field(default_factory=list, metadata={
@@ -301,10 +290,6 @@ class SimulationJob:
             lazy="joined"
         )
     })
-
-    @property
-    def experiment_id(self) -> int:
-        return self.job.experiment_id
 
     @property
     def routing(self) -> Routing:
@@ -338,7 +323,6 @@ class SimulationJob:
 
 
 
-
 @mapper_registry.mapped
 @dataclass
 class ScheduleJob:
@@ -354,12 +338,11 @@ class ScheduleJob:
     })
 
     experiment_id: int = field(metadata={
-        "sa": Column(Integer, ForeignKey("experiment.id"), nullable=False)
+        "sa": Column(Integer, nullable=False)
     })
 
-    # Beziehungen zu Job und Experiment
     job: Job = field(default=None, repr=False, metadata={
-        "sa": relationship("Job", back_populates="schedule_jobs", lazy="joined")
+        "sa": relationship("Job", lazy="joined")
     })
 
 
@@ -384,6 +367,10 @@ class ScheduleJob:
             lazy="joined"
         )
     })
+
+    @property
+    def experiment(self)-> Experiment:
+        return self.shift.experiment
 
     @property
     def routing(self) -> Routing:
@@ -423,6 +410,15 @@ class ScheduleJob:
     )
 
 
+
+# Junction Table Experiment-Job (M:N)
+experiment_job = Table(
+    "experiment_job", mapper_registry.metadata,
+    Column("experiment_id", ForeignKey("experiment.id"), primary_key=True),
+    Column("job_id", ForeignKey("job.id"), primary_key=True)
+)
+
+
 @mapper_registry.mapped
 @dataclass
 class Experiment:
@@ -433,10 +429,7 @@ class Experiment:
         "sa": Column(Integer, primary_key=True, autoincrement=True)
     })
 
-    total_shift_number: int = field(init=True, default=None, metadata={
-        "sa": Column(Integer, nullable=False)
-    })
-
+    # Relevant parameters
     main_pct: float = field(default=0.5, metadata={
         "sa": Column(Float, nullable=False)
     })
@@ -453,28 +446,67 @@ class Experiment:
         "sa": Column(Integer, nullable=True)
     })
 
-    max_bottleneck_utilization: float = field(default=0.5, metadata={
-        "sa": Column(Float, nullable=False)
+
+    max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
+        "sa": Column(Numeric(5, 4), nullable=False)
     })
 
     sim_sigma: float = field(default=0.0, metadata={
         "sa": Column(Float, nullable=False)
     })
 
-    jobs: List[Job] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship("Job", back_populates="experiment", cascade="all, delete-orphan", lazy="joined")
+    #  general
+    total_shift_number: int = field(init=True, default=None, metadata={
+        "sa": Column(Integer, nullable=False)
+    })
+
+    shift_length: Optional[int] = field(default=1440, metadata={
+        "sa": Column(Integer, nullable=False)
     })
 
     shifts: List[Shift] = field(default_factory=list, repr=False, metadata={"sa": relationship(
         "Shift", back_populates="experiment", cascade="all, delete-orphan", lazy="joined")
     })
 
+    # Jobs
+    _jobs: Set[Job] = field(default_factory=set, init= False, repr=False, metadata={
+        "sa": relationship(
+            "Job",
+            secondary=experiment_job,
+            collection_class=set,
+            lazy="joined"
+        )
+    })
+
+    @property
+    def jobs(self) -> List[Job]:
+        return sorted(self._jobs, key=lambda job: job.arrival)
+
+    @property
+    def last_shift_start(self) -> int:
+        return self.total_shift_number * self.shift_length
+
+    def add_job(self, job: Job) -> None:
+        self._jobs.add(job)
+
+    def add_jobs(self, jobs: Iterable[Job]) -> None:
+        eligible_jobs = {
+            job for job in jobs
+            if job.earliest_start <= self.last_shift_start
+               and job.max_bottleneck_utilization == self.max_bottleneck_utilization
+        }
+        self._jobs.update(eligible_jobs)
+
+
     def __post_init__(self):
-        if not (0 <= self.max_bottleneck_utilization <= 1):
-            raise ValueError("max_bottleneck_utilization must be between 0 and 1.")
+        if not (Decimal("0") <= self.max_bottleneck_utilization <= Decimal("1")):
+            raise ValueError("max_bottleneck_utilization must be between 0 and 1 (inclusive).")
+
         if not (0 <= self.main_pct <= 1):
             raise ValueError("main_pct must be between 0 and 1.")
 
+        if self.shift_length is None:
+            self.shift_length = 1440
 
 @mapper_registry.mapped
 @dataclass
@@ -488,10 +520,6 @@ class Shift:
 
     experiment_id: int = field(metadata={
         "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
-    })
-
-    shift_length: int = field(init=False, default=1440, metadata={
-        "sa": Column(Integer, nullable=False)
     })
 
     experiment: Experiment = field(default=None, repr=False, metadata={
@@ -513,15 +541,19 @@ class Shift:
 
     @property
     def shift_start(self) -> int:
-        return self.shift_number * self.shift_length
+        if self.experiment.shift_length:
+            return self.shift_number * self.experiment.shift_length
+        else:
+            return self.shift_number * 1440
 
     @property
     def shift_end(self) -> int:
-        return self.shift_start + self.shift_length
+        if self.experiment.shift_length:
+            return (self.shift_number + 1) * self.experiment.shift_length
+        else:
+            return (self.shift_number + 1) * 1440
 
-    def __post_init__(self):
-        if self.shift_length is None:
-            self.shift_length = 1440
+
 
 @mapper_registry.mapped
 @dataclass
@@ -614,7 +646,7 @@ class JobTemplate:
     experiment_id: Optional[int] = None
     arrival: Optional[int] = None
     deadline: Optional[int] = None
-    max_bottleneck_utilization: Optional[float] = None
+    max_bottleneck_utilization: Optional[Decimal] = None
 
     operations: List[JobOperation] = field(default_factory=list)
 
@@ -676,13 +708,6 @@ class JobTemplate:
 
 
 @dataclass
-class Operation:
-    job_id: str
-    position_number: int
-    machine_name: str
-
-
-@dataclass
 class JobOperation:
     job: Union[Job, JobTemplate]
     position_number: int
@@ -694,7 +719,6 @@ class JobOperation:
     start: Optional[float] = None
     end: Optional[float] = None
 
-    operation: Operation = field(init=False)
 
     def __repr__(self) -> str:
         attrs = {
@@ -729,18 +753,16 @@ class JobOperation:
     def experiment_id(self) -> Optional[int]:
         return self.job.experiment_id
 
-    def __post_init__(self):
-        if self.operation is None:
-            self.operation = Operation(
-                job_id=self.job_id,
-                position_number=self.position_number,
-                machine_name=self.machine_name
-            )
+
+    @property
+    def _unique_operation(self) -> Tuple[str, int]:
+        return (self.job_id, self.position_number)
+
 
     def __eq__(self, other):
         if not isinstance(other, JobOperation):
             return NotImplemented
-        return self.operation == other.operation
+        return self._unique_operation == other._unique_operation
 
     def __hash__(self):
-        return hash(self.operation)
+        return hash(self._unique_operation)
