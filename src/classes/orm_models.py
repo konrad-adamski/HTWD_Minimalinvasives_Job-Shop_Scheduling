@@ -44,6 +44,14 @@ class Machine:
     __tablename__ = "machine"
     __sa_dataclass_metadata_key__ = "sa"
 
+    def __eq__(self, other):
+        if not isinstance(other, Machine):
+            return False
+        return self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
+
     name: str = field(metadata={
         "sa": Column(String(100), primary_key=True)  # Maschinenname als eindeutige ID
     })
@@ -68,9 +76,8 @@ class UtilizationMachine:
     "sa": Column(String(100), ForeignKey("machine.name"), primary_key=True)
     })
 
-
-    max_bottleneck_utilization: float = field(default=0.5, metadata={
-            "sa": Column(Float, primary_key=True)
+    max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
+        "sa": Column(Numeric(5, 4), nullable=False)
     })
 
     transition_time: int = field(default=0, metadata={
@@ -149,7 +156,7 @@ class RoutingOperation:
         "sa": Column(Integer, primary_key=True)
     })
 
-    machine_name: str = field(init=True, metadata={
+    machine_name: str = field(init=False, metadata={
         "sa": Column(String(100), ForeignKey("machine.name"), nullable=False)
     })
 
@@ -166,7 +173,7 @@ class RoutingOperation:
         }
     )
 
-    machine: Optional[Machine] = field(init=False, default=None, repr=False, metadata={
+    machine: Optional[Machine] = field(init=True, default=None, repr=False, metadata={
         "sa": relationship("Machine", lazy="joined")
     })
 
@@ -312,14 +319,8 @@ class SimulationJob:
         return self.job.deadline
 
     @property
-    def last_operation_position_number(self) -> Optional[int]:
-        """
-        Returns the highest position_number among all operations,
-        i.e., the last technological step of the job.
-        """
-        if not self.operations:
-            return None
-        return max(op.position_number for op in self.operations)
+    def max_bottleneck_utilization(self) -> Decimal:
+        return self.job.max_bottleneck_utilization
 
 
 
@@ -345,19 +346,6 @@ class ScheduleJob:
         "sa": relationship("Job", lazy="joined")
     })
 
-
-    # Neue Beziehung zu Shift
-    shift: Shift = field(default=None, repr=False, metadata={
-        "sa": relationship(
-            "Shift",
-            primaryjoin=(
-                "and_(ScheduleJob.experiment_id == Shift.experiment_id, "
-                "ScheduleJob.shift_number == Shift.shift_number)"
-            ),
-            back_populates="schedule_jobs",
-            lazy="joined"
-        )
-    })
 
     operations: List[ScheduleOperation] = field(default_factory=list, metadata={
         "sa": relationship(
@@ -393,14 +381,9 @@ class ScheduleJob:
         return self.job.deadline
 
     @property
-    def last_operation_position_number(self) -> Optional[int]:
-        """
-        Returns the highest position_number among all operations,
-        i.e., the last technological step of the job.
-        """
-        if not self.operations:
-            return None
-        return max(op.position_number for op in self.operations)
+    def max_bottleneck_utilization(self) -> Decimal:
+        return self.job.max_bottleneck_utilization
+
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -531,12 +514,7 @@ class Shift:
     })
 
     schedule_jobs: List[ScheduleJob] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship(
-            ScheduleJob,
-            back_populates="shift",
-            cascade="all, delete-orphan",
-            lazy="joined"
-        )
+        "sa": relationship(ScheduleJob, cascade="all, delete-orphan", lazy="joined")
     })
 
     @property
@@ -646,7 +624,9 @@ class JobTemplate:
     experiment_id: Optional[int] = None
     arrival: Optional[int] = None
     deadline: Optional[int] = None
+
     max_bottleneck_utilization: Optional[Decimal] = None
+
 
     operations: List[JobOperation] = field(default_factory=list)
 
@@ -677,6 +657,22 @@ class JobTemplate:
             return None
         return max(op.position_number for op in self.operations)
 
+
+
+    def sum_left_duration(self, position: int) -> int:
+        """
+        Total duration of all operations from given position for this job (inclusive)
+        """
+        return sum(op.duration for op in self.operations if op.position_number >= position)
+
+
+    def sum_left_transition_time(self, position: int) -> int:
+        """
+        Total duration of all operations after given position for this job (exclusive)
+        """
+        return sum(op.transition_time for op in self.operations if op.position_number > position)
+
+
     @classmethod
     def copy_from(cls, other: Union[JobTemplate, Job]) -> JobTemplate:
         """
@@ -706,6 +702,16 @@ class JobTemplate:
 
         return new_template
 
+    def set_transition_times(self, utilization_machines: List[UtilizationMachine]) -> None:
+        relevant_machines = {
+            um.name: um.transition_time
+            for um in utilization_machines
+            if um.max_bottleneck_utilization == self.max_bottleneck_utilization
+        }
+
+        for op in self.operations:
+            op.transition_time = relevant_machines.get(op.machine_name, 0)
+
 
 @dataclass
 class JobOperation:
@@ -713,6 +719,8 @@ class JobOperation:
     position_number: int
     machine_name: str
     duration: int
+
+    transition_time: int = 0
 
     shift_number: Optional[int] = None
 

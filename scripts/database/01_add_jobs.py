@@ -24,7 +24,12 @@ if __name__ == "__main__":
         )
         all_jobs.extend(jobs)
         
+    for job in all_jobs[:3]:
+        print(job)
+        for operation in job.operations:
+            print(f" {operation}")
 
     with SessionLocal() as session:
         session.add_all(all_jobs)
         session.commit()
+

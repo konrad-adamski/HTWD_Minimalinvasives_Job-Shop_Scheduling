@@ -25,7 +25,7 @@ class RoutingCollection(UserDict):
                 records.append({
                     "Routing_ID": routing.id,
                     "Operation": op.position_number,
-                    "Machine": op.machine,
+                    "Machine": op.machine_name,
                     "Processing Time": op.duration
                 })
 
@@ -55,7 +55,7 @@ class JobMixCollection(UserDict):
 
     def add_operation(
         self, job_id: str, routing_id: Optional[str], experiment_id: Optional[int],position_number: int,
-        machine: str, duration: int, start: Optional[int] = None, end: Optional[int] = None,
+        machine_name: str, duration: int, start: Optional[int] = None, end: Optional[int] = None,
         arrival: Optional[int] = None, deadline: Optional[int] = None):
         """
         Fügt eine Operation zu einem bestehenden oder neuen JobTemplate hinzu.
@@ -72,7 +72,7 @@ class JobMixCollection(UserDict):
         job_op = JobOperation(
             job = self.data[job_id],
             position_number=position_number,
-            machine=machine,
+            machine_name=machine_name,
             start=start,
             duration=duration,
             end=end
@@ -110,19 +110,18 @@ class JobMixCollection(UserDict):
         self.data = sorted_data
 
 
-
     def get_all_jobs(self) -> [Union[List[JobTemplate], List[Job]]]:
         return list(self.values())
 
-    def get_unique_machines(self) -> set:
+    def get_unique_machine_names(self) -> set:
         """
         Gibt die Menge aller in den Operationen verwendeten Maschinen zurück.
         """
         machines = {
-            op.machine
+            op.machine_name
             for job in self.values()
             for op in job.operations
-            if op.machine is not None
+            if op.machine_name is not None
         }
         return machines
 
@@ -143,7 +142,7 @@ class JobMixCollection(UserDict):
             job_id = str(row[job_column])
             routing_id = str(row[routing_column]) if has_routing_column and pd.notna(row[routing_column]) else None
             position_number = int(row[position_column])
-            machine = str(row[machine_column])
+            machine_name = str(row[machine_column])
             duration = int(row[duration_column])
             start = int(row[start_column]) if pd.notna(row[start_column]) else None
             end = int(row[end_column]) if pd.notna(row[end_column]) else None
@@ -153,7 +152,7 @@ class JobMixCollection(UserDict):
                 routing_id=routing_id,
                 experiment_id=None,
                 position_number=position_number,
-                machine=machine,
+                machine_name=machine_name,
                 duration=duration,
                 start=start,
                 end=end,
@@ -182,7 +181,7 @@ class JobMixCollection(UserDict):
                     job_column: job.id,
                     routing_column: job.routing_id,
                     position_column: op.position_number,
-                    machine_column: op.machine,
+                    machine_column: op.machine_name,
                     start_column: op.start,
                     duration_column: op.duration,
                     end_column: op.end,
@@ -238,7 +237,7 @@ class JobMixCollection(UserDict):
                         routing_id=op.routing_id,
                         experiment_id=op.experiment_id,
                         position_number=op.position_number,
-                        machine=op.machine,
+                        machine_name=op.machine_name,
                         duration=op.duration,
                         start=op.start,
                         end=op.end,
@@ -267,7 +266,7 @@ class JobMixCollection(UserDict):
                 routing_id=last_op.routing_id,
                 experiment_id=last_op.experiment_id,
                 position_number=last_op.position_number,
-                machine=last_op.machine,
+                machine_name=last_op.machine_name,
                 duration=last_op.duration,
                 start=last_op.start,
                 end=last_op.end,
@@ -296,7 +295,7 @@ class JobMixCollection(UserDict):
                         job_column: job.id,
                         routing_column: job.routing_id,
                         position_column: op.position_number,
-                        machine_column: op.machine,
+                        machine_column: op.machine_name,
                         start_column: op.start,
                         duration_column: op.duration,
                         end_column: op.end,
