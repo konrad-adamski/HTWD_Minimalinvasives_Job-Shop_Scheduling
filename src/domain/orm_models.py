@@ -181,27 +181,26 @@ class Job:
         return hash(self.id)
 
 
-    id: str = field(default="", metadata={
+    id: str = field(metadata={
         "sa": Column(String(255), nullable=False, primary_key=True)
     })
 
-    max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
-        "sa": Column(Numeric(5, 4), nullable=False)
+    max_bottleneck_utilization: Optional[Decimal] = field(metadata={
+        "sa": Column(Numeric(5, 4), nullable=True)
     })
 
     routing_id: str = field(init=False, default="", metadata={
         "sa": Column(String(255), ForeignKey("routing.id"), nullable=False)
     })
 
-    arrival: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+    arrival: Optional[int] = field(metadata={"sa": Column(Integer, nullable=True)})
 
-    deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer)})
+    deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=True)})
 
 
     routing: Routing = field(default=None, repr=False, metadata={
         "sa": relationship("Routing", back_populates="jobs", lazy="joined")
     })
-
 
     # Kein ORM-Relationship mehr zu JobOperation – stattdessen dynamisch generiert
     @property
@@ -220,6 +219,8 @@ class Job:
 
     @property
     def earliest_start(self) -> int:
+        if self.arrival is None:
+            return 0
         return int(np.ceil((self.arrival + 1) / 1440) * 1440)
 
     @property
@@ -239,7 +240,7 @@ class Job:
     def __post_init__(self):
         if self.routing and self.routing_id is None:
             self.routing_id = self.routing.id
-        if not (Decimal("0") <= self.max_bottleneck_utilization <= Decimal("1")):
+        if self.max_bottleneck_utilization and not (Decimal("0") <= self.max_bottleneck_utilization <= Decimal("1")):
             raise ValueError("max_bottleneck_utilization must be between 0 and 1 (inclusive).")
 
 
@@ -595,8 +596,10 @@ class LiveJob:
     arrival: Optional[int] = None
     deadline: Optional[int] = None
 
+    on_arrival: bool = False
     max_bottleneck_utilization: Optional[Decimal] = None
     operations: List[JobOperation] = field(default_factory=list)
+
 
     @property
     def earliest_start(self) -> int:

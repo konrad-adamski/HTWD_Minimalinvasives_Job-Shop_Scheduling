@@ -82,7 +82,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 id=job_id,
                 routing_id=op.routing_id,
                 arrival=op.job_arrival,
-                deadline=op.job_deadline,
+                deadline=op.job_deadline
             )
         else:
             job: LiveJob = self.data[job_id]
@@ -256,8 +256,15 @@ class LiveJobCollection(UserDict[str, LiveJob]):
 
         arrivals = [job.arrival for job in self.values() if job.arrival is not None]
         if not arrivals:
-            raise ValueError("Keine Deadlines in der LiveJobCollection gesetzt.")
+            raise ValueError("Keine Arrivals in der LiveJobCollection gesetzt.")
         return max(arrivals)
+
+    def get_latest_earliest_start(self) -> int:
+
+        earliest_starts = [job.earliest_start for job in self.values() if job.earliest_start is not None]
+        if not earliest_starts:
+            raise ValueError("Keine Earliest Starts in der LiveJobCollection gesetzt.")
+        return max(earliest_starts)
 
 
     # für solver info
