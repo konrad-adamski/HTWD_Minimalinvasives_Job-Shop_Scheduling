@@ -3,7 +3,6 @@ from collections import UserDict
 from dataclasses import dataclass
 from typing import Optional, List, Union
 
-import copy
 import pandas as pd
 
 from src.domain.orm_models import JobOperation, LiveJob, Job, Routing
@@ -267,7 +266,6 @@ class LiveJobCollection(UserDict[str, LiveJob]):
 
 
     # für LP ---------------------
-
     def get_all_operations_on_machine(self, machine_name: str) -> List[JobOperation]:
         """
         Gibt alle Operationen zurück, die auf der angegebenen Maschine stattfinden.
@@ -284,7 +282,6 @@ class LiveJobCollection(UserDict[str, LiveJob]):
 
 
     # DataFrame ----------------------------------------------------------------
-
     def to_operations_dataframe(
             self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
             machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
