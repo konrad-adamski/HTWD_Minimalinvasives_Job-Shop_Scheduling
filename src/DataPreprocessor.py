@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
@@ -9,7 +10,7 @@ class DataPreprocessor:
         raise NotImplementedError("This class cannot be instantiated.")
 
     @staticmethod
-    def step1_exclude_initial_text(content: str, skip_until_marker: int = 1) -> str:
+    def _step1_exclude_initial_text(content: str, skip_until_marker: int = 1) -> str:
         """
         Removes the text up to and including the N-th line that contains multiple '+' characters.
 
@@ -27,7 +28,7 @@ class DataPreprocessor:
         return content[matches[skip_until_marker].end():]
 
     @staticmethod
-    def step2_parse_text_with_instances_to_dict(content: str, verbose: bool = False) -> dict:
+    def _step2_parse_text_with_instances_to_dict(content: str, verbose: bool = False) -> dict:
         """
         Parses a structured text with alternating instance names and data blocks into a dictionary.
 
@@ -67,7 +68,7 @@ class DataPreprocessor:
 
 
     @staticmethod
-    def step3_structure_dict(raw_dict: Dict[str, str]) -> Dict[str, Dict[int, List[List[int]]]]:
+    def _step3_structure_dict(raw_dict: Dict[str, str]) -> Dict[str, Dict[int, List[List[int]]]]:
         """
         Parses instance strings into {instance → {routing → list of [machine, duration]}} structure.
         :param raw_dict: Dictionary mapping instance names to whitespace-separated job routing strings.
@@ -86,8 +87,23 @@ class DataPreprocessor:
             structured_dict[instance_name] = jobs
         return structured_dict
 
+    @classmethod
+    def transform_file_to_instances_dictionary(cls, file_path: Path) -> dict:
+        # Read file
+        file = open(file_path, encoding="utf-8")
+        content = file.read()
+        file.close()
+
+        content_without_introduction = cls._step1_exclude_initial_text(content)
+
+        # Dictionary with instances as keys and matrix as value (string)
+        instances_string_dict = cls._step2_parse_text_with_instances_to_dict(content_without_introduction)
+
+        # Dictionary with instances as keys and matrix as value (dictionary/JSON of routings)
+        return cls._step3_structure_dict(instances_string_dict)
+
     @staticmethod
-    def optional_step4_routing_dict_to_df(
+    def routing_dict_to_df(
             routings_dict: dict, routing_column: str = 'Routing_ID', operation_column: str = 'Operation',
             machine_column: str = "Machine", duration_column: str = "Processing Time", ) -> pd.DataFrame:
         """
@@ -113,4 +129,5 @@ class DataPreprocessor:
                 })
         df = pd.DataFrame(records, columns=[routing_column, operation_column, machine_column, duration_column])
         return df
+
 
