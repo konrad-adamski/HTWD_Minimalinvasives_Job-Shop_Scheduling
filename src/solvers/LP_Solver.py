@@ -2,43 +2,44 @@ import time
 
 import pulp
 from typing import Literal, Optional
-from src.classes.Collection import LiveJobCollection
-
+from src.domain.Collection import LiveJobCollection
 
 class Solver:
 
-    @staticmethod
-    def build_makespan_problem(
-            jobs_collection: LiveJobCollection, var_cat: Literal["Continuous", "Integer"] = "Continuous",
-            job_low_bound_on_arrival: bool = True, problem_name:str  = "jss_makespan_problem"):
+    def __init__(
+            self, jobs_collection: LiveJobCollection, problem_name:str  = "jss_makespan_problem",
+            var_cat: Literal["Continuous", "Integer"] = "Continuous"):
 
+        self.jobs_collection = jobs_collection
+        self.runtime = None
+        self.var_cat = var_cat
         # Model initialization and Helper objects ------------------------------------------------------
-        problem = pulp.LpProblem(problem_name, pulp.LpMinimize)
-        start_times = {}
+        self.problem = pulp.LpProblem(problem_name, pulp.LpMinimize)
+        self.start_times = {}
 
-        machine_names = jobs_collection.get_unique_machine_names()
+        self.machine_names = jobs_collection.get_unique_machine_names()
 
-        # Big-M (Worst-case start difference between operations) ---------------------------------------
+        # Big-M (Worst-case start difference between operation starts) ---------------------------------
         total_duration = jobs_collection.get_total_duration()
-        latest_arrival = jobs_collection.get_latest_arrival()
-        big_m = latest_arrival + total_duration
+        latest_earliest_start = jobs_collection.get_latest_earliest_start()
+        self.big_m = latest_earliest_start + total_duration
 
         # Create Variables -----------------------------------------------------------------------------
-        jobs_collection.sort_operations()
-        jobs_collection.sort_jobs_by_arrival()
+        self.jobs_collection.sort_operations()
+        self.jobs_collection.sort_jobs_by_arrival()
 
-        for job in jobs_collection.values():
+        for job in self.jobs_collection.values():
             for operation in job.operations:
                 op_numb = operation.position_number
 
-                start_times[(job.id, op_numb)] = pulp.LpVariable(
+                self.start_times[(job.id, op_numb)] = pulp.LpVariable(
                     name=f"start_{job.id}_{op_numb}",
-                    lowBound=job.arrival if job_low_bound_on_arrival else job.earliest_start,
-                    cat=var_cat
+                    lowBound=job.earliest_start,
+                    cat=self.var_cat
                 )
 
         # Operation-level constraints ------------------------------------------------------------------
-        for job in jobs_collection.values():
+        for job in self.jobs_collection.values():
             for operation in job.operations:
                 op_numb = operation.position_number
 
@@ -46,11 +47,12 @@ class Solver:
                 prev_op = job.get_previous_operation(op_numb)
                 if prev_op:
                     prev_op_numb = prev_op.position_number
-                    problem += start_times[(job.id, op_numb)] >= start_times[(job.id, prev_op_numb)] + prev_op.duration
+                    self.problem += (self.start_times[(job.id, op_numb)]
+                                     >= self.start_times[(job.id, prev_op_numb)] + prev_op.duration)
 
         # Machine-level constraints (NoOverlap) --------------------------------------------------------
-        for machine_name in machine_names:
-            machine_operations = jobs_collection.get_all_operations_on_machine(machine_name=machine_name)
+        for machine_name in self.machine_names:
+            machine_operations = self.jobs_collection.get_all_operations_on_machine(machine_name=machine_name)
 
             for operation_a in machine_operations:
                 for operation_b in machine_operations:
@@ -65,31 +67,30 @@ class Solver:
                     duration_b = operation_b.duration
 
                     y = pulp.LpVariable(
-                        name = f"y_{job_a}_{op_numb_a}_{job_b}_{op_numb_b}",
+                        name=f"y_{job_a}_{op_numb_a}_{job_b}_{op_numb_b}",
                         cat="Binary"
                     )
-                    problem += (start_times[(job_a, op_numb_a)] + duration_a <= start_times[(job_b, op_numb_b)]
-                                + big_m * (1 - y))
+                    self.problem += (self.start_times[(job_a, op_numb_a)] + duration_a
+                                     <= self.start_times[(job_b, op_numb_b)] + self.big_m * (1 - y))
 
-                    problem += (start_times[(job_b, op_numb_b)] + duration_b <= start_times[(job_a, op_numb_a)]
-                                + big_m * y)
+                    self.problem += (self.start_times[(job_b, op_numb_b)] + duration_b
+                                     <= self.start_times[(job_a, op_numb_a)] + self.big_m * y)
 
-        # Makespan -------------------------------------------------------------------------------------
-        makespan = pulp.LpVariable("makespan", lowBound=0, cat=var_cat)
-        problem += makespan
 
-        for job in jobs_collection.values():
+    def build_makespan_problem(self):
+        makespan = pulp.LpVariable("makespan", lowBound=0, cat=self.var_cat)
+        self.problem += makespan
+
+        for job in self.jobs_collection.values():
             last_operation = job.get_last_operation()
             if last_operation:
                 last_op_number = last_operation.position_number
                 last_op_duration = last_operation.duration
-                problem += makespan >= start_times[(job.id, last_op_number)] + last_op_duration
+                self.problem += makespan >= self.start_times[(job.id, last_op_number)] + last_op_duration
 
-        return problem, start_times
 
-    @staticmethod
     def solve_problem(
-            problem: pulp.LpProblem, solver_type: Literal["CBC", "HiGHS"] = "CBC",
+            self, solver_type: Literal["CBC", "HiGHS"] = "CBC",
             print_log_search_progress: bool = False, time_limit: Optional[int] = None,
             relative_gap_limit: float = 0.0, log_file: Optional[str] = None):
 
@@ -109,48 +110,39 @@ class Solver:
             cmd = pulp.PULP_CBC_CMD(**solver_args)
         else:
             raise ValueError("solver_type must be either 'CBC' or 'HiGHS'.")
-        problem.solve(cmd)
-        runtime = round(time.time() - start_timer, 2)
-        return runtime
+        self.problem.solve(cmd)
+        self.runtime = round(time.time() - start_timer, 2)
 
-    @classmethod
-    def solve_makespan_problem(
-            cls, jobs_collection: LiveJobCollection, var_cat: Literal["Continuous", "Integer"] = "Continuous",
-            job_low_bound_on_arrival: bool = True, solver_type: Literal["CBC", "HiGHS"] = "CBC",
-            print_log_search_progress: bool = False, time_limit: Optional[int] = None,
-            relative_gap_limit: float = 0.0, log_file: Optional[str] = None):
 
-        problem, start_times = cls.build_makespan_problem(jobs_collection,var_cat, job_low_bound_on_arrival)
-        runtime = cls.solve_problem(
-            problem = problem,
-            solver_type = solver_type,
-            print_log_search_progress = print_log_search_progress,
-            time_limit = time_limit,
-            relative_gap_limit = relative_gap_limit,
-            log_file = log_file
-        )
+    def get_schedule(self):
+        if self.runtime:
+            schedule_job_collection = LiveJobCollection()
 
-        schedule_job_collection = LiveJobCollection()
+            for job in self.jobs_collection.values():
+                for operation in job.operations:
+                    op_numb = operation.position_number
+                    start = self.start_times[(job.id, op_numb)].varValue
+                    end = start + operation.duration
+                    schedule_job_collection.add_operation_instance(
+                        op=operation,
+                        new_start=start,
+                        new_end=end
+                    )
+            return schedule_job_collection
+        else:
+            return "Solver not finished (or even not started)."
 
-        for job in jobs_collection.values():
-            for operation in job.operations:
-                op_numb = operation.position_number
-                start = start_times[(job.id, op_numb)].varValue
-                end = start + operation.duration
-                schedule_job_collection.add_operation_instance(
-                    op=operation,
-                    new_start=start,
-                    new_end=end
-                )
-
+    def get_solver_info(self):
         solver_info = {
-            "status": pulp.LpStatus[problem.status],
-            "objective_value": pulp.value(problem.objective),
-            "num_variables": len(problem.variables()),
-            "num_constraints": len(problem.constraints),
-            "runtime": runtime
+            "status": pulp.LpStatus[self.problem.status],
+            "objective_value": pulp.value(self.problem.objective),
+            "num_variables": len(self.problem.variables()),
+            "num_constraints": len(self.problem.constraints),
+            "runtime": self.runtime
         }
-        return schedule_job_collection, solver_info
+        return solver_info
+
+
 
 
 
