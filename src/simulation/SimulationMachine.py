@@ -1,5 +1,5 @@
 from collections import UserDict
-from typing import Set, Dict, Optional, cast, List, Union
+from typing import Set, Optional, Iterable
 
 import simpy
 
@@ -8,7 +8,7 @@ class MachineSource(simpy.Resource):
         super().__init__(env, capacity=1)
         self.name = name
 
-class Machine:
+class SimulationMachine:
     """
     Wrapper for a single machine instance that can be bound to a SimPy environment later.
     """
@@ -36,7 +36,7 @@ class Machine:
         return f"<Machine {self.name}>"
 
 
-class MachineCollection(UserDict):
+class SimulationMachineCollection(UserDict):
     """
     A dictionary-like collection managing Machine wrapper instances by name.
     """
@@ -46,9 +46,9 @@ class MachineCollection(UserDict):
         The Machine will initially be uninitialized (without env).
         """
         if machine_name not in self.data:
-            self.data[machine_name] = Machine(machine_name)
+            self.data[machine_name] = SimulationMachine(machine_name)
 
-    def add_machines(self, machine_names: Union[Set[str], List[str]]):
+    def add_machines(self, machine_names: Iterable[str]):
         """
          Adds multiple Machines by name if not already present.
          Each Machine will initially be uninitialized (without env).
@@ -77,7 +77,7 @@ class MachineCollection(UserDict):
         self.add_machines(machine_names)
         self.set_env(env)
 
-    def get_machine(self, name: str) -> Machine:
+    def get_machine(self, name: str) -> SimulationMachine:
         """
         Returns the Machine instance for the given name (not Resource).
 

@@ -57,7 +57,7 @@ def solve_cp_model_and_extract_schedule(
 
 def _extract_cp_schedule_from_operations(
         index_mapper: OperationIndexMapper, starts: Dict[Tuple[int, int], cp_model.IntVar],
-        ends: Dict[Tuple[int, int], cp_model.IntVar], solver: cp_model.CpSolver) -> JobMixCollection:
+            ends: Dict[Tuple[int, int], cp_model.IntVar], solver: cp_model.CpSolver) -> JobMixCollection:
     """
     Extracts the final schedule based on flattened operations and CP variables.
 

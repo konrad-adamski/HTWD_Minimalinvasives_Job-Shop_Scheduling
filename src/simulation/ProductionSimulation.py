@@ -1,13 +1,15 @@
-from dataclasses import replace
-from typing import Optional, Dict, Tuple, Union
-
-from src.classes.Collection import JobMixCollection
-from src.classes.orm_models import JobOperation, Job, JobTemplate
-from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
-from src.simulation.Machine import Machine, MachineCollection
 import time
 import simpy
 import pandas as pd
+
+from dataclasses import replace
+from typing import Optional, Dict, Tuple, Union
+
+from src.classes.Collection import LiveJobCollection
+from src.classes.orm_models import JobOperation, Job, LiveJob
+from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
+from src.simulation.SimulationMachine import SimulationMachine, SimulationMachineCollection
+
 
 
 class ProductionSimulation:
@@ -19,28 +21,28 @@ class ProductionSimulation:
         self.shift_length = shift_length
 
         self.with_earliest_start = with_earliest_start
-        self.machines =  MachineCollection()
+        self.machines =  SimulationMachineCollection()
         self.start_time = 0
         self.pause_time = 0
 
-        self.current_schedule = JobMixCollection()
-        self.active_operations: Dict[Tuple[str, int], JobOperation] = {}  # (job_id, operation) → operation
-        self.finished_operations_collection = JobMixCollection()
-        self.entire_finished_operations_collection = JobMixCollection()
+        self.current_schedule = LiveJobCollection()
+        self.active_operations: Dict[Tuple[str, int], JobOperation] = {}  # (job_id, position_number) → job_operation
+        self.finished_operations_collection = LiveJobCollection()
+        self.entire_finished_operations_collection = LiveJobCollection()
 
         self.controller = None
         self.env = None
 
     def _reload_machines(self):                                  # for new SimPy environment (continue)
         for machine_name, old_machine in self.machines.items():
-            self.machines[machine_name] = Machine(name = machine_name, env = self.env)
+            self.machines[machine_name] = SimulationMachine(name = machine_name, env = self.env)
 
     def _add_new_machines(self, machines: set):
         for machine_name in machines:
             if machine_name not in self.machines:
-                self.machines[machine_name] = Machine(name = machine_name, env = self.env)
+                self.machines[machine_name] = SimulationMachine(name = machine_name, env = self.env)
 
-    def _job_process(self, job_id: str, job: Union[Job, JobTemplate]):
+    def _job_process(self, job_id: str, job: Union[Job, LiveJob]):
 
         if self.with_earliest_start:                            # for FCFS
             delay = max(job.earliest_start - self.env.now, 0)
@@ -80,7 +82,7 @@ class ProductionSimulation:
         self._add_finished_operation(job_op=job_op, sim_start=job_op.start, sim_end=sim_end,)
 
     def run(
-            self, schedule_collection: Optional[JobMixCollection] = None,
+            self, schedule_collection: Optional[LiveJobCollection] = None,
             start_time: int = 0, end_time: int | None = None):
 
         self.start_time = start_time
@@ -88,8 +90,8 @@ class ProductionSimulation:
         self.env = simpy.Environment(initial_time=start_time)
         self.machines.set_env(self.env)     # statt self._reload_machines()
 
-        self.current_schedule = schedule_collection if schedule_collection else JobMixCollection()  # oder self.current_schedule
-        self.finished_operations_collection = JobMixCollection()
+        self.current_schedule = schedule_collection if schedule_collection else LiveJobCollection()  # oder self.current_schedule
+        self.finished_operations_collection = LiveJobCollection()
 
         for job_op in self.active_operations.values():
             self.env.process(self._resume_operation_process(job_op))
@@ -106,11 +108,11 @@ class ProductionSimulation:
         else:
             self.env.run()
 
-    def initialize_run(self, schedule_collection: JobMixCollection, start_time: int = 0):
+    def initialize_run(self, schedule_collection: LiveJobCollection, start_time: int = 0):
         end_time = start_time + self.shift_length
         self.run(schedule_collection=schedule_collection, start_time=start_time, end_time=end_time)
 
-    def continue_run(self, schedule_collection: Optional[JobMixCollection] = None):
+    def continue_run(self, schedule_collection: Optional[LiveJobCollection] = None):
         if self.pause_time is None:
             raise ValueError("Simulation must be initialized before continuing.")
 
@@ -155,27 +157,26 @@ class ProductionSimulation:
             start=sim_start,
             end=sim_end
         )
-        print("fina")
         self.finished_operations_collection.add_operation_instance(updated_op)
         self.entire_finished_operations_collection.add_operation_instance(updated_op)
 
         self.active_operations.pop((job_op.job_id, job_op.position_number), None)
 
     # -------------------- SETTER and GETTER --------------------
-    def set_active_operations(self, active_operations_collection: JobMixCollection):
+    def set_active_operations(self, active_operations_collection: LiveJobCollection):
         self.active_operations = {}
         for job_id, job in active_operations_collection.items():
             for op in job.operations:
                 key = (op.job_id, op.position_number)
                 self.active_operations[key] = op
 
-    def get_active_operation_collection(self) -> JobMixCollection:
-        collection = JobMixCollection()
+    def get_active_operation_collection(self) -> LiveJobCollection:
+        collection = LiveJobCollection()
         for job_op in self.active_operations.values():
             collection.add_operation_instance(job_op)
         return collection
 
-    def get_finished_operation_collection(self) -> JobMixCollection:
+    def get_finished_operation_collection(self) -> LiveJobCollection:
         return self.finished_operations_collection
 
     def get_waiting_operation_collection(self):
@@ -191,9 +192,9 @@ if __name__ == "__main__":
     df_schedule = pd.read_csv(basic_data_path / "lateness_schedule_day_01.csv")
 
     print("\n", "---" * 20, "Schedule", "---" * 20)
-    schedule_collection = JobMixCollection.from_operations_dataframe(df_schedule)
+    schedule_collection = LiveJobCollection.from_operations_dataframe(df_schedule)
 
-    print(schedule_collection.to_dataframe())
+    print(schedule_collection.to_operations_dataframe())
 
     print("\n", "---" * 20, "Simulation", "---" * 20)
     simulation = ProductionSimulation(shift_length=1440, sigma= 0.02)
@@ -204,13 +205,13 @@ if __name__ == "__main__":
     print("\n","---" * 20, "Finished Operations", "---" * 20)
     finished_operations = simulation.get_finished_operation_collection()
 
-    df_finished = finished_operations.to_dataframe()
+    df_finished = finished_operations.to_operations_dataframe()
     print(df_finished.head(5))
 
     print("\n", "---" * 20, "Active Operations", "---" * 20)
     active_operations = simulation.get_active_operation_collection()
 
-    df_active = active_operations.to_dataframe()
+    df_active = active_operations.to_operations_dataframe()
     print(df_active.head(20))
 
     print("\n", "---" * 20, "Waiting Operations", "---" * 20)
@@ -218,7 +219,7 @@ if __name__ == "__main__":
     waiting_operation = simulation.get_waiting_operation_collection()
 
 
-    df_waiting = waiting_operation.to_dataframe()
+    df_waiting = waiting_operation.to_operations_dataframe()
     print(df_waiting.head(20))
 
     print("---"*60)
