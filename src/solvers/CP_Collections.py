@@ -18,11 +18,13 @@ class MachineFixIntervalMap(UserDict):
         """Set or replace fix interval information for a machine."""
         self.data[machine] = MachineFixInterval(machine, start, int(math.ceil(end)))
 
-    def update_interval(self, machine: str, end: float):
-        """Only updates the fix interval end time if it is larger than the current."""
+    def update_interval(self, machine: str, start: int, end: float):
+        """
+        Updates the fixed interval for a machine if the end is greater
+        than the current end value or if no entry exists.
+        """
         current = self.data.get(machine)
         if current is None or end > current.end:
-            start = current.start if current else 0
             self.data[machine] = MachineFixInterval(machine, start, int(math.ceil(end)))
 
     def get_interval(self, machine: str) -> Optional[MachineFixInterval]:

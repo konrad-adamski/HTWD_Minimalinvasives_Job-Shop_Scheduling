@@ -241,29 +241,24 @@ class LiveJobCollection(UserDict[str, LiveJob]):
         """
         return sum(job.sum_duration for job in self.values())
 
-    def get_latest_deadline(self) -> int:
-        """
-        Gibt die späteste Deadline aller Jobs zurück.
-        Raises:
-            ValueError: Wenn keine Deadlines gesetzt sind.
-        """
+    def get_latest_deadline(self) -> Optional[int]:
         deadlines = [job.deadline for job in self.values() if job.deadline is not None]
         if not deadlines:
-            raise ValueError("Keine Deadlines in der LiveJobCollection gesetzt.")
+            return None
         return max(deadlines)
 
-    def get_latest_arrival(self) -> int:
+    def get_latest_arrival(self) -> Optional[int]:
 
         arrivals = [job.arrival for job in self.values() if job.arrival is not None]
         if not arrivals:
-            raise ValueError("Keine Arrivals in der LiveJobCollection gesetzt.")
+            return None
         return max(arrivals)
 
-    def get_latest_earliest_start(self) -> int:
+    def get_latest_earliest_start(self) -> Optional[int]:
 
         earliest_starts = [job.earliest_start for job in self.values() if job.earliest_start is not None]
         if not earliest_starts:
-            raise ValueError("Keine Earliest Starts in der LiveJobCollection gesetzt.")
+            return None
         return max(earliest_starts)
 
 
