@@ -5,6 +5,8 @@ import pandas as pd
 
 
 class DataEnrichment:
+    def __init__(self):
+        raise NotImplementedError("This class cannot be instantiated.")
 
     @staticmethod
     def add_groupwise_lognormal_deadlines_by_group_mean(
