@@ -50,7 +50,7 @@ class Solver:
         return model, index_mapper, start_times, end_times, intervals, horizon
 
 
-
+    # Without previous schedule or delay due to active operations
     @classmethod
     def _build_basic_model(cls, jobs_collection: LiveJobCollection, schedule_start: int = 1440):
 
@@ -96,7 +96,7 @@ class Solver:
         model.Minimize(makespan)
         return model, index_mapper, start_times, end_times
 
-
+    # With previous schedule information and delay information (due to active operations)
     @classmethod
     def _build_model(
             cls, jobs_collection: LiveJobCollection,
