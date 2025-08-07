@@ -220,6 +220,26 @@ class JobsInitializer:
         return jobs
 
     @classmethod
+    def create_simple_jobs(cls, routings: List[Routing], job_routing_seed: Optional[int] = 100, shuffle: bool = True):
+        jobs: List[Job] = []
+        temp_routings = routings.copy()
+
+        if shuffle:
+            if job_routing_seed is not None:
+                np.random.seed(job_routing_seed)
+            np.random.shuffle(temp_routings)
+
+        for i, routing in enumerate(temp_routings):
+            job = Job(id=f"{routing.source_id:02d}-{i:04d}",
+                      routing=routing,
+                      arrival=None,
+                      deadline=None,
+                      max_bottleneck_utilization=None
+                      )
+            jobs.append(job)
+        return jobs
+
+    @classmethod
     def insert_jobs(
             cls, routings: List[Routing], max_bottleneck_utilization: float = 0.90, total_shift_number: int = 500,
             arrival_seed: Optional[int] = 120, job_routing_seed: Optional[int] = 100, verbose: bool = False):

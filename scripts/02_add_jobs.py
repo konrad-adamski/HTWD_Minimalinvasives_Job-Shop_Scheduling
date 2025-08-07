@@ -1,9 +1,9 @@
 from typing import List
 
-from src.classes.Query import RoutingQuery
-from src.classes.Initializer import JobsInitializer
-from src.classes.orm_models import Job
-from src.classes.orm_setup import SessionLocal
+from src.domain.Query import RoutingQuery
+from src.domain.Initializer import JobsInitializer
+from src.domain.orm_models import Job
+from src.domain.orm_setup import SessionLocal
 
 if __name__ == "__main__":
 

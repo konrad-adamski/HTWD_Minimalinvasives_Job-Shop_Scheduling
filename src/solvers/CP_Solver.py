@@ -14,6 +14,7 @@ from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapp
 
 class Solver:
 
+
     @staticmethod
     def _build_basic_objects(jobs_collection: LiveJobCollection):
 
@@ -26,8 +27,10 @@ class Solver:
 
         # Horizon (Worst-case upper bound)--------------------------------------------------------------
         total_duration = jobs_collection.get_total_duration()
-        latest_deadline = jobs_collection.get_latest_deadline()
-        horizon = latest_deadline + total_duration
+        # latest_deadline = jobs_collection.get_latest_deadline()
+        latest_earliest_start = jobs_collection.get_latest_earliest_start()
+        #horizon = latest_deadline + total_duration
+        horizon = latest_earliest_start + total_duration
 
         # Create Variables -----------------------------------------------------------------------------
         jobs_collection.sort_operations()
@@ -87,8 +90,13 @@ class Solver:
         return model, index_mapper, start_times, end_times, horizon
 
     @classmethod
-    def build_makespan_model(cls, jobs_collection: LiveJobCollection, schedule_start: int = 1440):
-        model, index_mapper, start_times, end_times, horizon = cls._build_basic_model(jobs_collection, schedule_start)
+    def build_makespan_model(
+            cls, jobs_collection: LiveJobCollection, schedule_start: int = 0):
+
+        model, index_mapper, start_times, end_times, horizon = cls._build_basic_model(
+            jobs_collection = jobs_collection,
+            schedule_start=schedule_start
+        )
         makespan = model.NewIntVar(0, horizon, "makespan")
         for (job_idx, op_idx), operation in index_mapper.items():
             if operation.position_number == operation.job.last_operation_position_number:
@@ -397,7 +405,7 @@ class Solver:
             "objective_value": solver.ObjectiveValue() if status in [cp_model.OPTIMAL, cp_model.FEASIBLE] else None,
             "best_objective_bound": solver.BestObjectiveBound(),
             "number_of_branches": solver.NumBranches(),
-            "wall_time": solver.WallTime()
+            "wall_time": round(solver.WallTime(), 2)
         }
         return solver_info
 
