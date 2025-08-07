@@ -19,47 +19,29 @@ class DataSourceInitializer:
     @staticmethod
     def insert_from_dictionary(routing_dict: Dict[str, List[Tuple[int, int]]], source_name: str):
         """
-        Insert a new RoutingSource along with its Machines and Routings from a dictionary.
+        Insert a new RoutingSource along with Routings and Operations from a dictionary.
         Returns True if successful, False if the source already exists or another IntegrityError occurs.
         """
-        temp_machine_name_template = "{:02d}"
 
         with SessionLocal() as session:
             try:
-                # Create and add new routing source
+                # Create new routing source
                 source = RoutingSource(name=source_name)
                 session.add(source)
                 session.flush()
 
-                # 1a) Extract all machine names used in the routings
-                all_temp_machine_names = {
-                    temp_machine_name_template.format(machine_idx)
-                    for ops in routing_dict.values()
-                    for machine_idx, _ in ops
-                }
-
-                # 1b) Create Machine objects and map them by their original name
-                machine_dict: Dict[str, Machine] = {
-                    temp_name: Machine(name=f"M{source.id:02d}-{temp_name}")
-                    for temp_name in all_temp_machine_names
-                }
-
-                sorted_machines = sorted(machine_dict.values(), key=lambda m: m.name)
-                session.add_all(sorted_machines)
-                session.flush()
-
-                # 2) Create Routing and RoutingOperation entries
+                # Create Routing and RoutingOperation entries
                 for routing_id, ops in routing_dict.items():
                     routing_id_str = f"{source.id:02d}-{int(routing_id):02d}"
                     new_routing = Routing(id=routing_id_str, routing_source=source, operations=[])
 
                     for step_nr, (machine_idx, duration) in enumerate(ops):
-                        temp_machine_name = temp_machine_name_template.format(machine_idx)
+
                         new_routing.operations.append(
                             RoutingOperation(
                                 routing_id=routing_id_str,
                                 position_number=step_nr,
-                                machine=machine_dict[temp_machine_name],
+                                machine_name=f"M{source.id:02d}-{machine_idx:02d}",
                                 duration=duration
                             )
                         )

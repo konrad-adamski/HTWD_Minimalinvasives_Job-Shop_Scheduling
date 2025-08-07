@@ -89,6 +89,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
             job: LiveJob = self.data[job_id]
 
         job.add_operation_instance(op, new_start, new_duration, new_end)
+        self.data[job_id] = job
 
 
     def sort_operations(self):

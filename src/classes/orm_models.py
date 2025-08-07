@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from math import isclose
 
 import numpy as np
 from dataclasses import dataclass, field, replace
@@ -44,6 +43,10 @@ class Machine:
     __tablename__ = "machine"
     __sa_dataclass_metadata_key__ = "sa"
 
+    id: int = field(init=False, metadata={
+        "sa": Column(Integer, primary_key=True, autoincrement=True)
+    })
+
     def __eq__(self, other):
         if not isinstance(other, Machine):
             return False
@@ -52,29 +55,7 @@ class Machine:
     def __hash__(self):
         return hash(self.name)
 
-    name: str = field(metadata={
-        "sa": Column(String(100), primary_key=True)  # Maschinenname als eindeutige ID
-    })
-
-    utilization_machines: List[UtilizationMachine] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship("UtilizationMachine", lazy="joined", cascade="all, delete-orphan")
-    })
-
-    def get_transition_by_max_bottleneck_utilization(self, max_bottleneck_utilization: float) -> Optional[int]:
-        for utilization_m in self.utilization_machines:
-            if utilization_m.max_bottleneck_utilization == max_bottleneck_utilization:
-                return utilization_m.transition_time
-        return 0
-
-@mapper_registry.mapped
-@dataclass
-class UtilizationMachine:
-    __tablename__ = "utilization_machine"
-    __sa_dataclass_metadata_key__ = "sa"
-
-    name: str = field(init=True, metadata={
-    "sa": Column(String(100), ForeignKey("machine.name"), primary_key=True)
-    })
+    name: str = field(metadata={"sa": Column(String(100))})
 
     max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
         "sa": Column(Numeric(5, 4), nullable=False)
@@ -156,7 +137,7 @@ class RoutingOperation:
         "sa": Column(Integer, primary_key=True)
     })
 
-    machine_name: str = field(init=False, metadata={
+    machine_name: str = field(init=True, metadata={
         "sa": Column(String(100), ForeignKey("machine.name"), nullable=False)
     })
 
@@ -172,11 +153,6 @@ class RoutingOperation:
             "sa": relationship("Routing", back_populates="operations")
         }
     )
-
-    machine: Optional[Machine] = field(init=True, default=None, repr=False, metadata={
-        "sa": relationship("Machine", lazy="joined")
-    })
-
 
 
 @mapper_registry.mapped
@@ -340,17 +316,14 @@ class ScheduleJob:
     })
 
     experiment_id: int = field(metadata={
-        "sa": Column(Integer, nullable=False)
+        "sa": Column(Integer, ForeignKey("experiment.id"), nullable=False)
     })
 
     job: Job = field(default=None, repr=False, metadata={
         "sa": relationship("Job", lazy="joined")
     })
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship("Experiment", lazy="joined")
-    })
-
+    experiment = relationship("Experiment",overlaps="shift")
 
     operations: List[ScheduleOperation] = field(default_factory=list, metadata={
         "sa": relationship(
@@ -360,7 +333,6 @@ class ScheduleJob:
             lazy="joined"
         )
     })
-
 
     @property
     def routing(self) -> Routing:
@@ -508,15 +480,12 @@ class Shift:
     })
 
     experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship(
-            Experiment,
-            back_populates="shifts",
-            lazy="joined"
-        )
+        "sa": relationship(Experiment, back_populates="shifts", lazy="joined")
     })
 
+
     schedule_jobs: List[ScheduleJob] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship(ScheduleJob, cascade="all, delete-orphan", lazy="joined")
+        "sa": relationship(ScheduleJob, overlaps="experiment")
     })
 
     @property
@@ -709,11 +678,11 @@ class LiveJob:
         self.operations.append(new_op)
 
 
-    def set_transition_times(self, utilization_machines: List[UtilizationMachine]) -> None:
+    def set_transition_times(self, machines: List[Machine]) -> None:
         relevant_machines = {
-            um.name: um.transition_time
-            for um in utilization_machines
-            if um.max_bottleneck_utilization == self.max_bottleneck_utilization
+            machine.name: machine.transition_time
+            for machine in machines
+            if machine.max_bottleneck_utilization == self.max_bottleneck_utilization
         }
 
         for op in self.operations:
@@ -731,8 +700,8 @@ class JobOperation:
 
     shift_number: Optional[int] = None
 
-    start: Optional[float] = None
-    end: Optional[float] = None
+    start: Optional[int] = None
+    end: Optional[int] = None
 
 
     def __repr__(self) -> str:

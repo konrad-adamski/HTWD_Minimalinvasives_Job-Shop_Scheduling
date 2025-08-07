@@ -1,9 +1,11 @@
 import math
 from dataclasses import dataclass
 from collections import UserDict
-from typing import Optional, Union, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 
-from src.classes.orm_models import JobTemplate, Job, JobOperation
+from ortools.sat.python import cp_model
+
+from src.classes.orm_models import JobOperation
 
 
 @dataclass
@@ -48,7 +50,7 @@ class JobDelayMap(UserDict):
     def get_delay(self, job_id: str) -> Optional[JobDelay]:
         return self.data.get(job_id)
 
-
+"""
 class OperationIndexMapper:
     def __init__(self):
         self.index_to_operation: Dict[Tuple[int, int], JobOperation] = {}
@@ -70,3 +72,54 @@ class OperationIndexMapper:
             if op == operation:
                 return index
         return None  # Falls nicht gefunden
+"""
+
+
+class OperationIndexMapper(UserDict[Tuple[int, int], JobOperation]):
+    def add(self, job_idx: int, op_idx: int, operation: JobOperation):
+        self[(job_idx, op_idx)] = operation
+
+    def get_index_from_operation(self, operation: JobOperation) -> Optional[Tuple[int, int]]:
+        for index, op in self.items():
+            if op == operation:
+                return index
+        return None
+
+
+class StartTimes(UserDict):
+    def __setitem__(self, key: Tuple[int, int], value: cp_model.IntVar):
+        assert isinstance(value, cp_model.IntVar)
+        super().__setitem__(key, value)
+
+    def add(self, job_idx: int, op_idx: int, var: cp_model.IntVar):
+        self[(job_idx, op_idx)] = var
+
+
+class EndTimes(UserDict):
+    def __setitem__(self, key: Tuple[int, int], value: cp_model.IntVar):
+        assert isinstance(value, cp_model.IntVar)
+        super().__setitem__(key, value)
+
+    def add(self, job_idx: int, op_idx: int, var: cp_model.IntVar):
+        self[(job_idx, op_idx)] = var
+
+
+
+class Intervals(UserDict):
+    def __setitem__(self, key: Tuple[int, int], value: Tuple[cp_model.IntervalVar, str]):
+        interval, machine = value
+        assert isinstance(interval, cp_model.IntervalVar)
+        assert isinstance(machine, str)
+        super().__setitem__(key, value)
+
+    def add(self, job_idx: int, op_idx: int, interval: cp_model.IntervalVar, machine: str):
+        self[(job_idx, op_idx)] = (interval, machine)
+
+
+class OriginalOperationStarts(UserDict[Tuple[int, int], int]):
+    def add(self, job_idx: int, op_idx: int, start: int):
+        self[(job_idx, op_idx)] = start
+
+
+
+
