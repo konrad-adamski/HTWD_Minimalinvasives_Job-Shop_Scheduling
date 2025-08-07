@@ -253,10 +253,34 @@ class LiveJobCollection(UserDict[str, LiveJob]):
             raise ValueError("Keine Deadlines in der LiveJobCollection gesetzt.")
         return max(deadlines)
 
+    def get_latest_arrival(self) -> int:
+
+        arrivals = [job.arrival for job in self.values() if job.arrival is not None]
+        if not arrivals:
+            raise ValueError("Keine Deadlines in der LiveJobCollection gesetzt.")
+        return max(arrivals)
+
 
     # für solver info
     def count_operations(self) -> int:
         return sum(len(job.operations) for job in self.values())
+
+
+    # für LP ---------------------
+
+    def get_all_operations_on_machine(self, machine_name: str) -> List[JobOperation]:
+        """
+        Gibt alle Operationen zurück, die auf der angegebenen Maschine stattfinden.
+
+        :param machine_name: Name der Maschine
+        :return: Liste der passenden JobOperation-Objekte
+        """
+        return [
+            op
+            for job in self.values()
+            for op in job.operations
+            if op.machine_name == machine_name
+        ]
 
 
     # DataFrame ----------------------------------------------------------------

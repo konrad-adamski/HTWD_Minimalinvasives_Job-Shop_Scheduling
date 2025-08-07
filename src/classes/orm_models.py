@@ -625,6 +625,40 @@ class LiveJob:
             return None
         return max(op.position_number for op in self.operations)
 
+    @property
+    def first_operation_position_number(self) -> Optional[int]:
+        """
+        Returns the lowest position_number among all operations,
+        i.e., the first technological step of the job.
+        """
+        if not self.operations:
+            return None
+        return min(op.position_number for op in self.operations)
+
+    def get_previous_operation(self, this_position_number: int) -> Optional[JobOperation]:
+        """
+        Gibt die vorherige JobOperation (mit kleinerer position_number) zurück, falls vorhanden.
+
+        :param this_position_number: position_number der aktuellen Operation
+        :return: Vorherige JobOperation oder None, falls es keine gibt
+        """
+        previous_ops = [
+            op for op in self.operations
+            if op.position_number < this_position_number
+        ]
+        if not previous_ops:
+            return None
+        return max(previous_ops, key=lambda op: op.position_number)
+
+    def get_last_operation(self) -> Optional[JobOperation]:
+        """
+        Gibt die letzte Operation dieses Jobs zurück (basierend auf höchster position_number).
+
+        :return: Letzte JobOperation oder None, falls keine vorhanden
+        """
+        if not self.operations:
+            return None
+        return max(self.operations, key=lambda op: op.position_number)
 
 
     def sum_left_duration(self, position: int) -> int:

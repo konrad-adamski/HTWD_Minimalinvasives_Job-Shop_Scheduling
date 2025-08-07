@@ -8,7 +8,7 @@ from ortools.sat.cp_model_pb2 import CpSolverStatus
 from ortools.sat.python import cp_model
 
 from src.classes.Collection import LiveJobCollection
-from src.solvers.model_classes import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
+from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
     StartTimes, EndTimes, Intervals, OriginalOperationStarts
 
 
