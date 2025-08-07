@@ -4,11 +4,11 @@ from decimal import Decimal
 
 import numpy as np
 from dataclasses import dataclass, field, replace
-from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, and_, Table, Numeric
+from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, Table, Numeric
 from sqlalchemy.orm import relationship
 from typing import Optional, List, Union, Set, Iterable, Tuple
 
-from src.classes.orm_setup import mapper_registry
+from src.domain.orm_setup import mapper_registry
 
 
 @mapper_registry.mapped
@@ -586,7 +586,7 @@ class SimulationOperation:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# View/Helper classes (not ORM models): wrap ORM objects for easy access.
+# View/Helper domain (not ORM models): wrap ORM objects for easy access.
 
 @dataclass
 class LiveJob:

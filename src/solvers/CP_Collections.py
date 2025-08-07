@@ -1,11 +1,10 @@
 import math
 from dataclasses import dataclass
 from collections import UserDict
-from typing import Optional, Dict, Tuple, List
+from typing import Optional, Tuple
 
 from ortools.sat.python import cp_model
-
-from src.classes.orm_models import JobOperation
+from src.domain.orm_models import JobOperation
 
 
 @dataclass

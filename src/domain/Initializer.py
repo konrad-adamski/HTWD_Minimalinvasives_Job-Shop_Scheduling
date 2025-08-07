@@ -7,8 +7,8 @@ import pandas as pd
 from pandas.core.nanops import bottleneck_switch
 from sqlalchemy.exc import IntegrityError
 
-from src.classes.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
-from src.classes.orm_setup import SessionLocal
+from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation
+from src.domain.orm_setup import SessionLocal
 
 
 class DataSourceInitializer:

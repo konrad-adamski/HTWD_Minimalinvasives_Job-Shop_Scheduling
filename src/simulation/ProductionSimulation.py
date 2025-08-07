@@ -5,8 +5,8 @@ import pandas as pd
 from dataclasses import replace
 from typing import Optional, Dict, Tuple, Union
 
-from src.classes.Collection import LiveJobCollection
-from src.classes.orm_models import JobOperation, Job, LiveJob
+from src.domain.Collection import LiveJobCollection
+from src.domain.orm_models import JobOperation, Job, LiveJob
 from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
 from src.simulation.SimulationMachine import SimulationMachine, SimulationMachineCollection
 

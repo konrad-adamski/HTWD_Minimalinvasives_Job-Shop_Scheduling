@@ -7,7 +7,7 @@ from typing import Optional
 from ortools.sat.cp_model_pb2 import CpSolverStatus
 from ortools.sat.python import cp_model
 
-from src.classes.Collection import LiveJobCollection
+from src.domain.Collection import LiveJobCollection
 from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
     StartTimes, EndTimes, Intervals, OriginalOperationStarts
 
@@ -17,19 +17,19 @@ class Solver:
     @staticmethod
     def _build_basic_objects(jobs_collection: LiveJobCollection):
 
-        # Model initialization and Helper objects ----------------------------------------------------------------------
+        # Model initialization and Helper objects ------------------------------------------------------
         model = cp_model.CpModel()
         index_mapper = OperationIndexMapper()
         start_times = StartTimes()
         end_times = EndTimes()
         intervals = Intervals()
 
-        # Horizon (Worst-case upper bound)------------------------------------------------------------------------------
+        # Horizon (Worst-case upper bound)--------------------------------------------------------------
         total_duration = jobs_collection.get_total_duration()
         latest_deadline = jobs_collection.get_latest_deadline()
         horizon = latest_deadline + total_duration
 
-        # Create Variables ---------------------------------------------------------------------------------------------
+        # Create Variables -----------------------------------------------------------------------------
         jobs_collection.sort_operations()
         jobs_collection.sort_jobs_by_arrival()
 
@@ -54,10 +54,10 @@ class Solver:
     @classmethod
     def _build_basic_model(cls, jobs_collection: LiveJobCollection, schedule_start: int = 1440):
 
-        # Model initialization -----------------------------------------------------------------------------------------
+        # Model initialization -------------------------------------------------------------------------
         model, index_mapper, start_times, end_times, intervals, horizon = cls._build_basic_objects(jobs_collection)
 
-        #  Machine-level constraints -----------------------------------------------------------------------------------
+        #  Machine-level constraints -------------------------------------------------------------------
         machines = jobs_collection.get_unique_machine_names()
 
         for machine in machines:
@@ -71,7 +71,7 @@ class Solver:
             # NoOverlap for this machine
             model.AddNoOverlap(machine_intervals)
 
-        # Operation-level constraints ----------------------------------------------------------------------------------
+        # Operation-level constraints ------------------------------------------------------------------
         for (job_idx, op_idx), operation in index_mapper.items():
             start_var = start_times[(job_idx, op_idx)]
 
@@ -103,7 +103,7 @@ class Solver:
             previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
             active_jobs_collection: Optional[LiveJobCollection] = None, schedule_start: int = 1440):
 
-        # Model initialization and Helper objects ----------------------------------------------------------------------
+        # Model initialization and Helper objects ------------------------------------------------------
         model, index_mapper, start_times, end_times, intervals, horizon = cls._build_basic_objects(jobs_collection)
 
         # Objects for active operations
@@ -113,13 +113,13 @@ class Solver:
         # Objects for previous schedule operations starts
         original_operation_starts = OriginalOperationStarts()
 
-        # Machines -----------------------------------------------------------------------------------------------------
+        # Machines -------------------------------------------------------------------------------------
         machines = jobs_collection.get_unique_machine_names()
 
         for machine in machines:
             machines_fix_intervals.add_interval(machine=machine, start=schedule_start, end=schedule_start)
 
-        # Previous schedule: extract start times for deviation penalties -----------------------------------------------
+        # Previous schedule: extract start times for deviation penalties -------------------------------
         if previous_schedule_jobs_collection is not None:
             for job in previous_schedule_jobs_collection.values():
                 for operation in job.operations:
@@ -128,14 +128,14 @@ class Solver:
                         job_idx, op_idx = index
                         original_operation_starts[(job_idx, op_idx)] = operation.start
 
-        # Active operations: block machines and delay jobs -------------------------------------------------------------
+        # Active operations: block machines and delay jobs ---------------------------------------------
         if active_jobs_collection is not None:
             for job in active_jobs_collection.values():
                 for operation in job.operations:
                     machines_fix_intervals.update_interval(machine=operation.machine_name, end=operation.end)
                     job_delays.update_delay(job_id=job.id, time_stamp=operation.end)
 
-        # Machine-level constraints (no overlap + fixed blocks from running ops) ---------------------------------------
+        # Machine-level constraints (no overlap + fixed blocks from running ops) -----------------------
         for machine in machines:
             machine_intervals = []
 
@@ -156,8 +156,7 @@ class Solver:
             # NoOverlap für diese Maschine
             model.AddNoOverlap(machine_intervals)
 
-
-        # Operation-level constraints and objective terms --------------------------------------------------------------
+        # Operation-level constraints and objective terms ----------------------------------------------
         for (job_idx, op_idx), operation in index_mapper.items():
             start_var = start_times[(job_idx, op_idx)]
 
@@ -175,6 +174,7 @@ class Solver:
                 model.Add(start_var >= end_times[(job_idx, op_idx - 1)])
 
         return model, index_mapper, start_times, end_times, horizon, job_delays, original_operation_starts
+
 
     @classmethod
     def build_model_for_jssp_lateness_with_start_deviation_minimization(
@@ -200,13 +200,12 @@ class Solver:
         main_factor = main_pct_frac.numerator
         dev_factor = main_pct_frac.denominator - main_factor
 
-        # Cost term containers -----------------------------------------------------------------------------------------
-
+        # Cost term containers -------------------------------------------------------------------------
         weighted_absolute_lateness_terms = []  # List of Job Lateness Terms (Tardiness + Earliness for last operations)
         first_op_terms = []  # List of 'First Earliness' Terms for First Operations of Jobs
         deviation_terms = []  # List of Deviation Penalty Terms (Difference from previous start times)
 
-        # Operation-level constraints and objective terms --------------------------------------------------------------
+        # Operation-level constraints and objective terms ----------------------------------------------
 
         for (job_idx, op_idx), operation in index_mapper.items():
             start_var = start_times[(job_idx, op_idx)]
@@ -223,7 +222,6 @@ class Solver:
                 term_first = model.NewIntVar(0, horizon * w_first, f"term_first_{job_idx}")
                 model.Add(term_first == w_first * first_op_earliness)
                 first_op_terms.append(term_first)
-
 
             # Lateness terms for the job (last operation)
             if operation.position_number == operation.job.last_operation_position_number:
@@ -248,7 +246,7 @@ class Solver:
                 model.AddAbsEquality(deviation, start_var - original_start)
                 deviation_terms.append(deviation)
 
-        # Objective function ===
+        # Objective function ---------------------------------------------------------------------------
 
         # Weighted lateness = (tardiness + earliness) of last operation per job
         bound_lateness = (w_t + w_e) * horizon * len(jobs_collection.keys())
@@ -300,13 +298,11 @@ class Solver:
         main_factor = main_pct_frac.numerator
         dev_factor = main_pct_frac.denominator - main_factor
 
-        # Cost term containers -----------------------------------------------------------------------------------------
-
+        # Cost term containers -------------------------------------------------------------------------
         flowtime_terms = []
         deviation_terms = []
 
-        # Operation-level constraints and objective terms --------------------------------------------------------------
-
+        # Operation-level constraints and objective terms ----------------------------------------------
         for (job_idx, op_idx), operation in index_mapper.items():
             start_var = start_times[(job_idx, op_idx)]
             end_var = start_times[(job_idx, op_idx)]
@@ -324,8 +320,7 @@ class Solver:
                 model.AddAbsEquality(deviation, start_var - original_start)
                 deviation_terms.append(deviation)
 
-        # Objective function ------------------------------------------------------------------------------------------
-
+        # Objective function ---------------------------------------------------------------------------
         bound_scaled_flow = main_factor * horizon * len(jobs_collection.keys())
         scaled_flow = model.NewIntVar(0, bound_scaled_flow, "scaled_flow")
         model.Add(scaled_flow == main_factor * sum(flowtime_terms))
