@@ -20,8 +20,9 @@ if __name__ == "__main__":
         json.dump(instances_dict, f, indent=2)   # type: ignore
 
     # Example
-    print("\nFisher Thompson 10x10 [machine, duration]", "-" * 58)
+    print("\nFisher Thompson 10x10 (machine, duration)", "-" * 58)
     ft_10_instance = instances_dict["instance ft10"]
-    for key, value in ft_10_instance.items():
-        print(f"{key}: {value}")
+    for routing_id, operations in ft_10_instance.items():
+        op_tuples = [(op["machine"], op["duration"]) for op in operations]
+        print(f"{routing_id}: {op_tuples}")
     print("-" * 100, end="\n\n")
