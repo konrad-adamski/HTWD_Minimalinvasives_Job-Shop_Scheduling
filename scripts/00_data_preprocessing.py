@@ -1,6 +1,6 @@
 import json
 
-from src.DataPreprocessor import DataPreprocessor
+from src.DataPreprocessing import DataPreprocessor
 from configs.path_manager import get_path
 
 if __name__ == "__main__":

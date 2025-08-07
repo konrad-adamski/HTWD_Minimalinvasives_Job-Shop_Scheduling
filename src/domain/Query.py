@@ -1,13 +1,12 @@
 from __future__ import annotations
-from collections import UserDict
-from decimal import Decimal
-from typing import List, Optional, Union
 import pandas as pd
-from sqlalchemy import or_, and_, update
-from sqlalchemy.orm import joinedload, InstrumentedAttribute
 
-from src.classes.orm_models import Routing, RoutingSource, RoutingOperation, Job
-from src.classes.orm_setup import SessionLocal
+from decimal import Decimal
+from typing import List, Union
+from sqlalchemy.orm import joinedload
+
+from src.domain.orm_models import Routing, RoutingSource, Job
+from src.domain.orm_setup import SessionLocal
 
 # RoutingQuery --------------------------------------------------------------------------------------------------------
 class RoutingQuery:
@@ -34,7 +33,6 @@ class RoutingQuery:
             )
             session.expunge_all()
             return list(routings)
-
 
 
 # JobQuery -----------------------------------------------------------------------------------------------------------
