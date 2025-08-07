@@ -6,7 +6,7 @@ from typing import Optional, List, Union
 import copy
 import pandas as pd
 
-from src.classes.orm_models import JobOperation, LiveJob, Job, Routing
+from src.domain.orm_models import JobOperation, LiveJob, Job, Routing
 
 
 class RoutingCollection(UserDict[str, Routing]):

@@ -2,8 +2,8 @@ import json
 
 from colorama import Fore, Style
 from configs.path_manager import get_path
-from src.classes.Initializer import DataSourceInitializer
-from src.classes.orm_setup import reset_tables
+from src.domain.Initializer import DataSourceInitializer
+from src.domain.orm_setup import reset_tables
 
 if __name__ == "__main__":
     reset_tables()
