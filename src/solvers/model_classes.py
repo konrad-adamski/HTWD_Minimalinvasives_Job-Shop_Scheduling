@@ -50,29 +50,6 @@ class JobDelayMap(UserDict):
     def get_delay(self, job_id: str) -> Optional[JobDelay]:
         return self.data.get(job_id)
 
-"""
-class OperationIndexMapper:
-    def __init__(self):
-        self.index_to_operation: Dict[Tuple[int, int], JobOperation] = {}
-
-    def add(self, job_idx: int, op_idx: int, operation: JobOperation):
-        self.index_to_operation[(job_idx, op_idx)] = operation
-
-    def items(self):
-        return self.index_to_operation.items()
-
-    def keys(self):
-        return self.index_to_operation.keys()
-
-    def values(self):
-        return self.index_to_operation.values()
-
-    def get_index_from_operation(self, operation: JobOperation) -> Optional[Tuple[int, int]]:
-        for index, op in self.index_to_operation.items():
-            if op == operation:
-                return index
-        return None  # Falls nicht gefunden
-"""
 
 
 class OperationIndexMapper(UserDict[Tuple[int, int], JobOperation]):

@@ -3,7 +3,6 @@ import pulp
 from typing import Dict, List, Tuple, Optional, Literal
 from src.solvers.lp.problem_builder import add_machine_conflict_constraints, add_technological_constraints
 from src.solvers.lp.problem_solver import solve_lp_problem_and_extract_schedule
-from src.solvers.model_builder import get_machines_from_job_ops
 
 
 def solve_jssp_sum_tardiness_minimization(
@@ -108,4 +107,17 @@ def solve_jssp_sum_tardiness_minimization(
         print(f"  {key.replace('_', ' ').capitalize():25}: {value}")
     return schedule
 
+
+
+def get_machines_from_job_ops(job_ops: Dict[str, List[Tuple[int, str, int]]]) -> Set[str]:
+    """
+    Extracts the set of unique machines used across all operations in a job_ops model.
+
+    :param job_ops: Dictionary mapping each job to a list of operations (operation_index, machine, duration).
+    :type job_ops: dict[str, list[tuple[int, str, int]]]
+    :return: Set of unique machine identifiers used in the job shop model.
+    :rtype: set[str]
+    """
+    machines = {machine for ops in job_ops.values() for _, machine, _ in ops}
+    return machines
 

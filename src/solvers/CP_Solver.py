@@ -8,18 +8,17 @@ from ortools.sat.cp_model_pb2 import CpSolverStatus
 from ortools.sat.python import cp_model
 
 from src.classes.Collection import LiveJobCollection
-from src.solvers.cp.model_classes import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
+from src.solvers.model_classes import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
     StartTimes, EndTimes, Intervals, OriginalOperationStarts
 
 
 class Solver:
 
     @staticmethod
-    def _build_simple_model(jobs_collection: LiveJobCollection, schedule_start: int = 1440):
+    def _build_basic_objects(jobs_collection: LiveJobCollection):
 
         # Model initialization and Helper objects ----------------------------------------------------------------------
         model = cp_model.CpModel()
-
         index_mapper = OperationIndexMapper()
         start_times = StartTimes()
         end_times = EndTimes()
@@ -47,6 +46,16 @@ class Solver:
                 end_times[(job_idx, op_idx)] = end
                 intervals[(job_idx, op_idx)] = (interval, operation.machine_name)
                 index_mapper.add(job_idx, op_idx, operation)
+
+        return model, index_mapper, start_times, end_times, intervals, horizon
+
+
+
+    @classmethod
+    def _build_basic_model(cls, jobs_collection: LiveJobCollection, schedule_start: int = 1440):
+
+        # Model initialization -----------------------------------------------------------------------------------------
+        model, index_mapper, start_times, end_times, intervals, horizon = cls._build_basic_objects(jobs_collection)
 
         #  Machine-level constraints -----------------------------------------------------------------------------------
         machines = jobs_collection.get_unique_machine_names()
@@ -79,7 +88,7 @@ class Solver:
 
     @classmethod
     def build_makespan_model(cls, jobs_collection: LiveJobCollection, schedule_start: int = 1440):
-        model, index_mapper, start_times, end_times, horizon = cls._build_simple_model(jobs_collection, schedule_start)
+        model, index_mapper, start_times, end_times, horizon = cls._build_basic_model(jobs_collection, schedule_start)
         makespan = model.NewIntVar(0, horizon, "makespan")
         for (job_idx, op_idx), operation in index_mapper.items():
             if operation.position_number == operation.job.last_operation_position_number:
@@ -88,24 +97,20 @@ class Solver:
         return model, index_mapper, start_times, end_times
 
 
-    @staticmethod
+    @classmethod
     def _build_model(
-            jobs_collection: LiveJobCollection,
+            cls, jobs_collection: LiveJobCollection,
             previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
             active_jobs_collection: Optional[LiveJobCollection] = None, schedule_start: int = 1440):
 
         # Model initialization and Helper objects ----------------------------------------------------------------------
-        model = cp_model.CpModel()
+        model, index_mapper, start_times, end_times, intervals, horizon = cls._build_basic_objects(jobs_collection)
 
-        index_mapper = OperationIndexMapper()
-        start_times = StartTimes()
-        end_times = EndTimes()
-        intervals = Intervals()
-
-        # for active operations
+        # Objects for active operations
         machines_fix_intervals = MachineFixIntervalMap()
         job_delays = JobDelayMap()
 
+        # Objects for previous schedule operations starts
         original_operation_starts = OriginalOperationStarts()
 
         # Machines -----------------------------------------------------------------------------------------------------
@@ -113,29 +118,6 @@ class Solver:
 
         for machine in machines:
             machines_fix_intervals.add_interval(machine=machine, start=schedule_start, end=schedule_start)
-
-        # Horizon (Worst-case upper bound)------------------------------------------------------------------------------
-        total_duration = jobs_collection.get_total_duration()
-        latest_deadline = jobs_collection.get_latest_deadline()
-        horizon = latest_deadline + total_duration
-
-        # Create Variables ---------------------------------------------------------------------------------------------
-        jobs_collection.sort_operations()
-        jobs_collection.sort_jobs_by_arrival()
-
-        for job_idx, job in enumerate(jobs_collection.values()):
-            for op_idx, operation in enumerate(job.operations):
-                suffix = f"{job_idx}_{op_idx}"
-                start = model.NewIntVar(job.earliest_start, horizon, f"start_{suffix}")
-                end = model.NewIntVar(job.earliest_start, horizon, f"end_{suffix}")
-
-                interval = model.NewIntervalVar(start, operation.duration, end, f"interval_{suffix}")
-                # interval = model.NewIntervalVar(start, operation.duration, start + operation.duration, f"interval_{suffix}")
-
-                start_times[(job_idx, op_idx)] = start
-                end_times[(job_idx, op_idx)] = end
-                intervals[(job_idx, op_idx)] = (interval, operation.machine_name)
-                index_mapper.add(job_idx, op_idx, operation)
 
         # Previous schedule: extract start times for deviation penalties -----------------------------------------------
         if previous_schedule_jobs_collection is not None:
@@ -470,12 +452,6 @@ class Solver:
             )
         }
         return schedule_job_collection, experiment_log
-
-
-
-
-
-
 
 
 
