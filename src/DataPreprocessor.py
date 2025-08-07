@@ -67,12 +67,12 @@ class DataPreprocessor:
         return instance_dict
 
 
+
     @staticmethod
-    def _step3_structure_dict(raw_dict: Dict[str, str]) -> Dict[str, Dict[int, List[List[int]]]]:
+    def _step3_structure_dict(raw_dict: Dict[str, str]) -> Dict[str, Dict[int, List[Dict[str, int]]]]:
         """
-        Parses instance strings into {instance → {routing → list of [machine, duration]}} structure.
         :param raw_dict: Dictionary mapping instance names to whitespace-separated job routing strings.
-        :return: Nested dictionary with instance names, routing indices, and operation lists.
+        :return: Nested dictionary with structured operation dictionaries.
         """
         structured_dict = {}
         for instance_name, matrix_text in raw_dict.items():
@@ -81,7 +81,8 @@ class DataPreprocessor:
             for job_id, line in enumerate(lines):
                 try:
                     numbers = list(map(int, line.strip().split()))
-                    jobs[job_id] = [[numbers[i], numbers[i + 1]] for i in range(0, len(numbers), 2)]
+                    job_ops = [{"machine": numbers[i], "duration": numbers[i + 1]} for i in range(0, len(numbers), 2)]
+                    jobs[job_id] = job_ops
                 except ValueError:
                     continue
             structured_dict[instance_name] = jobs
@@ -102,15 +103,20 @@ class DataPreprocessor:
         # Dictionary with instances as keys and matrix as value (dictionary/JSON of routings)
         return cls._step3_structure_dict(instances_string_dict)
 
+
     @staticmethod
     def routing_dict_to_df(
-            routings_dict: dict, routing_column: str = 'Routing_ID', operation_column: str = 'Operation',
-            machine_column: str = "Machine", duration_column: str = "Processing Time", ) -> pd.DataFrame:
+            routings_dict: dict,
+            routing_column: str = 'Routing_ID',
+            operation_column: str = 'Operation',
+            machine_column: str = "Machine",
+            duration_column: str = "Processing Time",
+    ) -> pd.DataFrame:
         """
-        Converts a routing dictionary into a pandas DataFrame.
+        Converts a routing dictionary with structured operations into a pandas DataFrame.
 
         :param routings_dict: Dictionary where each key is a routing ID (e.g., 0, 1, 2)
-                              and each value is a list of operations as (machine_index, processing_time).
+                              and each value is a list of operations as {"machine": int, "duration": int}.
         :param routing_column: Name of the column that will store the routing ID.
         :param operation_column: Name of the column that will store the operation index.
         :param machine_column: Name of the column that will store the machine name (e.g., ``'M00'``).
@@ -120,12 +126,12 @@ class DataPreprocessor:
         """
         records = []
         for plan_id, ops in routings_dict.items():
-            for op_idx, (machine_idx, proc_time) in enumerate(ops):
+            for op_idx, op in enumerate(ops):
                 records.append({
                     routing_column: plan_id,
                     operation_column: op_idx,
-                    machine_column: f'M{machine_idx:02d}',
-                    duration_column: proc_time
+                    machine_column: f'M{op["machine"]:02d}',
+                    duration_column: op["duration"]
                 })
         df = pd.DataFrame(records, columns=[routing_column, operation_column, machine_column, duration_column])
         return df

@@ -15,27 +15,30 @@ class DataSourceInitializer:
     def __new__(cls, *args, **kwargs):
         raise TypeError("RoutingInitializer is a static utility class and cannot be instantiated.")
 
-
     @staticmethod
-    def insert_from_dictionary(routing_dict: Dict[str, List[Tuple[int, int]]], source_name: str):
+    def insert_from_dictionary(routing_dict: Dict[str, List[Dict[str, int]]], source_name: str):
         """
-        Insert a new RoutingSource along with Routings and Operations from a dictionary.
-        Returns True if successful, False if the source already exists or another IntegrityError occurs.
-        """
+        Inserts a RoutingSource with Routings and Operations from a structured dictionary.
 
+        :param routing_dict: e.g. {"0": [{"machine": 4, "duration": 88}, ...], ...}
+        :param source_name: Name of the new RoutingSource.
+        :return: True if inserted successfully, False on IntegrityError.
+        """
         with SessionLocal() as session:
             try:
-                # Create new routing source
+                # 1. Neue Quelle anlegen
                 source = RoutingSource(name=source_name)
                 session.add(source)
                 session.flush()
 
-                # Create Routing and RoutingOperation entries
+                # 2. Routings + Operationen anlegen
                 for routing_id, ops in routing_dict.items():
                     routing_id_str = f"{source.id:02d}-{int(routing_id):02d}"
                     new_routing = Routing(id=routing_id_str, routing_source=source, operations=[])
 
-                    for step_nr, (machine_idx, duration) in enumerate(ops):
+                    for step_nr, op in enumerate(ops):
+                        machine_idx = op["machine"]
+                        duration = op["duration"]
 
                         new_routing.operations.append(
                             RoutingOperation(
@@ -47,11 +50,13 @@ class DataSourceInitializer:
                         )
 
                     session.add(new_routing)
+
                 session.commit()
             except IntegrityError as e:
                 session.rollback()
                 print(f"\033[91mInsert failed due to IntegrityError: {e}\033[0m")
                 return False
+
         return True
 
 
