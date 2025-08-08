@@ -66,13 +66,17 @@ class Solver:
                 self.intervals[(job_idx, op_idx)] = (interval, operation.machine_name)
                 self.index_mapper.add(job_idx, op_idx, operation)
 
-        # Operation-level constraints ------------------------------------------------------------------
+
+    def _add_technological_operation_constraints(self):
+
         for (job_idx, op_idx), operation in self.index_mapper.items():
             start_var = self.start_times[(job_idx, op_idx)]
 
             # 1. Technological constraint: earliest start of the first operation
             if op_idx == 0:
                 min_start = max(operation.job_earliest_start, int(self.schedule_start))
+                if operation.job_id in self.job_delays:
+                    min_start = max(min_start, self.job_delays.get_time(operation.job_id))
                 self.model.Add(start_var >= min_start)
 
             # 2. Technological constraint: operation order within the job
@@ -83,6 +87,9 @@ class Solver:
     def build_makespan_model(self):
         if self.model_completed:
             return "Model is already completed"
+
+        # Operation-level constraints ------------------------------------------------------------------
+        self._add_technological_operation_constraints()
 
         #  Machine-level constraints -------------------------------------------------------------------
         for machine in self.machines:
@@ -127,6 +134,9 @@ class Solver:
                         end=operation.end
                     )
                     self.job_delays.update_delay(job_id=job.id, time_stamp=operation.end)
+
+        # Operation-level constraints ------------------------------------------------------------------
+        self._add_technological_operation_constraints()
 
         # Machine-level constraints (no overlap + fixed blocks from running ops) -----------------------
         for machine in self.machines:
@@ -181,8 +191,7 @@ class Solver:
         first_op_terms = []  # List of 'First Earliness' Terms for First Operations of Jobs
         deviation_terms = []  # List of Deviation Penalty Terms (Difference from previous start times)
 
-        # Operation-level constraints and objective terms ----------------------------------------------
-
+        # Additional operation-level constraints and objective terms -----------------------------------
         for (job_idx, op_idx), operation in self.index_mapper.items():
             start_var = self.start_times[(job_idx, op_idx)]
             end_var = self.end_times[(job_idx, op_idx)]
@@ -273,7 +282,7 @@ class Solver:
         flowtime_terms = []
         deviation_terms = []
 
-        # Operation-level constraints and objective terms ----------------------------------------------
+        # Additional operation-level constraints and objective terms -----------------------------------
         for (job_idx, op_idx), operation in self.index_mapper.items():
             start_var = self.start_times[(job_idx, op_idx)]
             end_var = self.end_times[(job_idx, op_idx)]
