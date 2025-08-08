@@ -26,9 +26,4 @@ if __name__ == "__main__":
 
     # RoutingSource with Routings, RoutingOperations and Machines
     source_name = "Fisher and Thompson 10x10"
-    success = DataSourceInitializer.insert_from_dictionary(data_source, source_name = source_name)
-
-    if success:
-        print(Fore.GREEN + f"✓ Data source '{source_name}' inserted successfully." + Style.RESET_ALL)
-    else:
-        print(Fore.RED + f"✗ Data source '{source_name}' could not be inserted (already exists?)." + Style.RESET_ALL)
+    DataSourceInitializer.insert_from_dictionary(data_source, source_name = source_name)
