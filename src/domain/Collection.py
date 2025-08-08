@@ -331,23 +331,34 @@ class LiveJobCollection(UserDict[str, LiveJob]):
         return pd.DataFrame(records)
 
 
-    def to_last_operations_dataframe(
-            self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
-            machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
+    def to_jobs_metrics_dataframe(
+            self, job_column: str = "Job", routing_column: str = "Routing_ID",
+            last_position_column: str = "Last Operation", total_duration_column: str = "Total Processing Time",
             end_column: str = "End", arrival_column = "Arrival", earliest_start_column: str = "Ready Time",
-            deadline_column: str = "Deadline") -> pd.DataFrame:
+            deadline_column: str = "Deadline", lateness_column: str = "Lateness", tardiness_column: str = "Tardiness",
+            earliness_column: str = "Earliness", flowtime_column: Optional[str] = "Flowtime") -> pd.DataFrame:
 
+        # Total duration (based on every operation of each job)
         job_sum_durations = {job.id: job.sum_duration for job in self.values()}
+
+        # Collection with only the last operation of each job
         last_job_ops_collection = self._get_last_operations_collection()
 
         df = last_job_ops_collection.to_operations_dataframe(
             job_column=job_column, routing_column=routing_column,
-            position_column=position_column, machine_column=machine_column,
-            start_column=start_column, duration_column=duration_column,
+            position_column=last_position_column,
             end_column=end_column, arrival_column= arrival_column,
             earliest_start_column=earliest_start_column, deadline_column=deadline_column
         )
-        df[f"Total {duration_column}"] = df[job_column].map(job_sum_durations)
+
+        df[total_duration_column] = df[job_column].map(job_sum_durations)
+        if flowtime_column:
+            df[flowtime_column] = df[end_column] - df[earliest_start_column]
+
+        df[lateness_column] = df[end_column] - df[deadline_column]
+        df[tardiness_column] = df[lateness_column].clip(lower=0)
+        df[earliness_column] = (-df[lateness_column]).clip(lower=0)
+        df = df.drop(["Machine", "Start", "Processing Time"], axis=1) # default in 'to_operations_dataframe()'
         return df
 
 
