@@ -287,7 +287,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
     def to_operations_dataframe(
             self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
             machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
-            end_column: str = "End", earliest_start_column: str = "Ready Time",
+            end_column: str = "End", arrival_column = "Arrival", earliest_start_column: str = "Ready Time",
             deadline_column: str = "Deadline") -> pd.DataFrame:
         """
         Gibt einen DataFrame mit allen Operationen in der Collection zurück.
@@ -306,6 +306,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                     start_column: op.start,
                     duration_column: op.duration,
                     end_column: op.end,
+                    arrival_column: job.arrival,
                     earliest_start_column: job.earliest_start,
                     deadline_column: job.deadline
                 })
@@ -330,19 +331,21 @@ class LiveJobCollection(UserDict[str, LiveJob]):
         return pd.DataFrame(records)
 
 
-    def to_last_ops_dataframe(
+    def to_last_operations_dataframe(
             self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
             machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
-            end_column: str = "End", earliest_start_column: str = "Ready Time",
+            end_column: str = "End", arrival_column = "Arrival", earliest_start_column: str = "Ready Time",
             deadline_column: str = "Deadline") -> pd.DataFrame:
 
         job_sum_durations = {job.id: job.sum_duration for job in self.values()}
         last_job_ops_collection = self._get_last_operations_collection()
 
         df = last_job_ops_collection.to_operations_dataframe(
-            job_column=job_column, routing_column=routing_column, position_column=position_column,
-            machine_column=machine_column, start_column=start_column, duration_column=duration_column,
-            end_column=end_column, earliest_start_column=earliest_start_column, deadline_column=deadline_column
+            job_column=job_column, routing_column=routing_column,
+            position_column=position_column, machine_column=machine_column,
+            start_column=start_column, duration_column=duration_column,
+            end_column=end_column, arrival_column= arrival_column,
+            earliest_start_column=earliest_start_column, deadline_column=deadline_column
         )
         df[f"Total {duration_column}"] = df[job_column].map(job_sum_durations)
         return df
