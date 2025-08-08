@@ -1,8 +1,8 @@
 import re
+import pandas as pd
+
 from pathlib import Path
 from typing import Dict, List
-
-import pandas as pd
 
 
 class DataPreprocessor:
@@ -15,11 +15,8 @@ class DataPreprocessor:
         Removes the text up to and including the N-th line that contains multiple '+' characters.
 
         :param content: The full text content.
-        :type content: str
         :param skip_until_marker: Index of the '+++' line after which the text should be kept.
-        :type skip_until_marker: int, optional
         :return: The remaining text starting after the specified marker line.
-        :rtype: str
         """
         # Find all lines containing +++
         matches = list(re.finditer(r"\n.*\+{3,}.*\n", content))
@@ -33,12 +30,9 @@ class DataPreprocessor:
         Parses a structured text with alternating instance names and data blocks into a dictionary.
 
         :param content: A string containing instance descriptions and matrix blocks separated by '+++' lines.
-        :type content: str
         :param verbose: If True, enables debug output (optional).
-        :type verbose: bool
         :return: A dictionary where keys are instance descriptions
             and values are the corresponding matrix blocks (as strings).
-        :rtype: dict
         """
 
         # Separate blocks using +++ lines and remove unnecessary spaces
@@ -65,7 +59,6 @@ class DataPreprocessor:
             instance_dict[key] = matrix_block
 
         return instance_dict
-
 
 
     @staticmethod
@@ -106,12 +99,8 @@ class DataPreprocessor:
 
     @staticmethod
     def routing_dict_to_df(
-            routings_dict: dict,
-            routing_column: str = 'Routing_ID',
-            operation_column: str = 'Operation',
-            machine_column: str = "Machine",
-            duration_column: str = "Processing Time",
-    ) -> pd.DataFrame:
+            routings_dict: dict, routing_column: str = 'Routing_ID', operation_column: str = 'Operation',
+            machine_column: str = "Machine", duration_column: str = "Processing Time",) -> pd.DataFrame:
         """
         Converts a routing dictionary with structured operations into a pandas DataFrame.
 
