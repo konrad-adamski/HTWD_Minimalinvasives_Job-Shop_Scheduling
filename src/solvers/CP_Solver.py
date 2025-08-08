@@ -317,6 +317,7 @@ class Solver:
                 self.solver.parameters.max_time_in_seconds = time_limit
 
             if log_file is not None:
+                self.solver.parameters.log_search_progress = True
                 with _redirect_cpp_logs(log_file):
                     self.solver_status = self.solver.Solve(self.model)
             else:

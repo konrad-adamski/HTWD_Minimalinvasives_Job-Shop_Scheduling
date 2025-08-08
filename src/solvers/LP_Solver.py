@@ -1,3 +1,4 @@
+import math
 import time
 
 import pulp
@@ -8,7 +9,7 @@ class Solver:
 
     def __init__(
             self, jobs_collection: LiveJobCollection, problem_name:str  = "jss_makespan_problem",
-            var_cat: Literal["Continuous", "Integer"] = "Continuous"):
+            var_cat: Literal["Continuous", "Integer"] = "Continuous", epsilon: float = 0.2):
 
         self.jobs_collection = jobs_collection
         self.runtime = None
@@ -70,10 +71,10 @@ class Solver:
                         name=f"y_{job_a}_{op_numb_a}_{job_b}_{op_numb_b}",
                         cat="Binary"
                     )
-                    self.problem += (self.start_times[(job_a, op_numb_a)] + duration_a
+                    self.problem += (self.start_times[(job_a, op_numb_a)] + duration_a + epsilon
                                      <= self.start_times[(job_b, op_numb_b)] + self.big_m * (1 - y))
 
-                    self.problem += (self.start_times[(job_b, op_numb_b)] + duration_b
+                    self.problem += (self.start_times[(job_b, op_numb_b)] + duration_b + epsilon
                                      <= self.start_times[(job_a, op_numb_a)] + self.big_m * y)
 
 
@@ -121,7 +122,7 @@ class Solver:
             for job in self.jobs_collection.values():
                 for operation in job.operations:
                     op_numb = operation.position_number
-                    start = self.start_times[(job.id, op_numb)].varValue
+                    start = round(self.start_times[(job.id, op_numb)].varValue, 1)
                     end = start + operation.duration
                     schedule_job_collection.add_operation_instance(
                         op=operation,
