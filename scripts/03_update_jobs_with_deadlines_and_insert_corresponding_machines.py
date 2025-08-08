@@ -48,7 +48,7 @@ if __name__ == "__main__":
         MachineInitializer.insert_from_dataframe(
             df=df_avg_transition_times,
             source_name=source_name,
-            max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}"),
+            max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}")
         )
 
 
