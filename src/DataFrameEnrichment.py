@@ -73,7 +73,6 @@ class DataFrameEnrichment:
 
 
     # Transition times -----------------------------------------------------------------------------------------------
-
     @staticmethod
     def _compute_transition_times_per_job_backward(
             df_schedule: pd.DataFrame, job_column: str = "Job", position_number_column: str = "Operation",
