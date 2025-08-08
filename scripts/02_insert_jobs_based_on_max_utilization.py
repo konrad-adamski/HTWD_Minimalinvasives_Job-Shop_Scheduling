@@ -20,6 +20,6 @@ if __name__ == "__main__":
         JobsInitializer.insert_jobs(
             routings=routings,
             max_bottleneck_utilization=max_utilization,
-            total_shift_number=500
+            total_shift_number=400
         )
 
