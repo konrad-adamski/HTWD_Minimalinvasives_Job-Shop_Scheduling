@@ -1,13 +1,15 @@
-from collections import defaultdict
-from decimal import Decimal, ROUND_HALF_UP
-from typing import List, Optional, Set, Dict, Tuple
-
 import numpy as np
 import pandas as pd
-from pandas.core.nanops import bottleneck_switch
-from sqlalchemy.exc import IntegrityError
+import warnings
 
-from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation
+from collections import defaultdict
+from decimal import Decimal
+
+from colorama import Fore, Style
+from sqlalchemy.exc import IntegrityError, SAWarning
+from typing import List, Optional, Dict
+
+from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
 from src.domain.orm_setup import SessionLocal
 
 
@@ -44,7 +46,7 @@ class DataSourceInitializer:
                             RoutingOperation(
                                 routing_id=routing_id_str,
                                 position_number=step_nr,
-                                machine_name=f"M{source.id:02d}-{machine_idx:02d}",
+                                machine_name=f"M{machine_idx:02d}", # f"M{source.id:02d}-{machine_idx:02d}"
                                 duration=duration
                             )
                         )
@@ -54,11 +56,57 @@ class DataSourceInitializer:
                 session.commit()
             except IntegrityError as e:
                 session.rollback()
-                print(f"\033[91mInsert failed due to IntegrityError: {e}\033[0m")
+                print(Fore.RED + f"✗ Data source '{source_name}' Insert failed due to IntegrityError: {e}"+ Style.RESET_ALL)
                 return False
-
+        print(Fore.GREEN + f"✓ Data source '{source_name}' inserted successfully." + Style.RESET_ALL)
         return True
 
+class MachineInitializer:
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("MachineInitializer is a static utility class and cannot be instantiated.")
+
+    @staticmethod
+    def insert_from_dataframe(
+            df: pd.DataFrame, source_name: str, max_bottleneck_utilization: Decimal, machine_column: str = "Machine",
+            average_transition_time_column: str = "Ø Transition Time") -> bool:
+        """
+        Inserts Machine entries into the database from a pandas DataFrame.
+
+        For each row in the DataFrame, a new Machine record is created with the given machine name, transition time,
+        max bottleneck utilization, and linked to the specified RoutingSource.
+
+        :param df: Pandas DataFrame containing machine data. Must contain at least the
+                   columns specified by `machine_column` and `average_transition_time_column`.
+        :param source_name: Name of the RoutingSource to associate with the machines.
+        :param max_bottleneck_utilization: Maximum bottleneck utilization value to assign to each machine.
+        :param machine_column: Name of the column in `df` that contains machine names.
+        :param average_transition_time_column: Name of the column in `df` that contains average transition times.
+        :return: True if all entries were inserted successfully, False if an IntegrityError occurred.
+        :raises ValueError: If the RoutingSource does not exist or such machines (with given max_bottleneck_utilization)
+                            already exist.
+        """
+
+        with SessionLocal() as session:
+            try:
+                routing_source = (session.query(RoutingSource).filter(RoutingSource.name == source_name).one_or_none())
+
+                for _, row in df.iterrows():
+                    machine = Machine(
+                        name=row[machine_column],
+                        transition_time=int(row[average_transition_time_column]),
+                        max_bottleneck_utilization= max_bottleneck_utilization,
+                        source= routing_source,
+                    )
+                    session.add(machine)
+                session.commit()
+            except IntegrityError as e:
+                session.rollback()
+                print(Fore.RED + f"✗ Machine Insert with {source_name = } {max_bottleneck_utilization = } "
+                                 f"failed due to IntegrityError: {e}" + Style.RESET_ALL)
+                return False
+        print(Fore.GREEN + f"✓ Machines Insert with {source_name = } {max_bottleneck_utilization = } was successful."
+              + Style.RESET_ALL)
+        return True
 
 
 class JobsInitializer:
@@ -171,7 +219,7 @@ class JobsInitializer:
 
 
     @classmethod
-    def create_jobs(
+    def _create_jobs(
             cls, routings: List[Routing], max_bottleneck_utilization: float = 0.90, total_shift_number: int = 500,
             arrival_seed: Optional[int] = 120, job_routing_seed: Optional[int] = 100, verbose: bool = False):
 
@@ -244,18 +292,37 @@ class JobsInitializer:
             cls, routings: List[Routing], max_bottleneck_utilization: float = 0.90, total_shift_number: int = 500,
             arrival_seed: Optional[int] = 120, job_routing_seed: Optional[int] = 100, verbose: bool = False):
 
-        jobs = cls.create_jobs(
+        jobs = cls._create_jobs(
             routings=routings,
-            max_bottleneck_utilization= max_bottleneck_utilization,
-            total_shift_number = total_shift_number,
+            max_bottleneck_utilization=max_bottleneck_utilization,
+            total_shift_number=total_shift_number,
             arrival_seed=arrival_seed,
             job_routing_seed=job_routing_seed,
             verbose=verbose
         )
+        job_number = len(jobs)
 
         with SessionLocal() as session:
-            session.add_all(jobs)
-            session.commit()
+            with warnings.catch_warnings():
+                warnings.filterwarnings("error", category=SAWarning)
+                try:
+                    session.add_all(jobs)
+                    session.commit()
+
+                except SAWarning as w:
+                    session.rollback()
+                    print(Fore.RED + f"✗ Jobs Insert with {max_bottleneck_utilization = } "
+                                     f"was prevented: {w}" + Style.RESET_ALL)
+                    return False
+                except IntegrityError as e:
+                    session.rollback()
+                    print(Fore.RED + f"✗ Jobs Insert with {max_bottleneck_utilization = } "
+                                     f"failed due to IntegrityError: {e}" + Style.RESET_ALL)
+                    return False
+
+        print(Fore.GREEN + f"✓ Jobs Insert with {max_bottleneck_utilization = }, {job_number = } was successful."
+              + Style.RESET_ALL)
+        return True
 
 
 class ExperimentInitializerNew:
@@ -275,6 +342,7 @@ class ExperimentInitializerNew:
             max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization:.4f}"),
             sim_sigma=sim_sigma
         )
+
         with SessionLocal() as session:
             session.add(experiment)
             session.commit()

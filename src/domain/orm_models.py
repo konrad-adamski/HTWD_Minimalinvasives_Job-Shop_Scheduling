@@ -4,7 +4,8 @@ from decimal import Decimal
 
 import numpy as np
 from dataclasses import dataclass, field, replace
-from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, Table, Numeric
+from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, Table, Numeric, \
+    UniqueConstraint
 from sqlalchemy.orm import relationship
 from typing import Optional, List, Union, Set, Iterable, Tuple
 
@@ -43,10 +44,6 @@ class Machine:
     __tablename__ = "machine"
     __sa_dataclass_metadata_key__ = "sa"
 
-    id: int = field(init=False, metadata={
-        "sa": Column(Integer, primary_key=True, autoincrement=True)
-    })
-
     def __eq__(self, other):
         if not isinstance(other, Machine):
             return False
@@ -55,15 +52,38 @@ class Machine:
     def __hash__(self):
         return hash(self.name)
 
-    name: str = field(metadata={"sa": Column(String(100))})
+    id: int = field(init=False, metadata={
+        "sa": Column(Integer, primary_key=True, autoincrement=True)
+    })
 
-    max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
+    source_id: Optional[int] = field(init= False, metadata={
+        "sa": Column(Integer, ForeignKey("routing_source.id"), nullable=False)
+    })
+
+    source: RoutingSource = field(repr=False, metadata={
+        "sa": relationship("RoutingSource", lazy="joined")
+    })
+
+    name: str = field(metadata={
+        "sa": Column(String(100), nullable=False)
+    })
+
+    max_bottleneck_utilization: Decimal = field(metadata={
         "sa": Column(Numeric(5, 4), nullable=False)
     })
 
     transition_time: int = field(default=0, metadata={
         "sa": Column(Integer, nullable=False)
     })
+
+    __table_args__ = (
+        UniqueConstraint("name", "max_bottleneck_utilization", name="uq_machine_name_utilization"),
+    )
+
+    def __post_init__(self):
+        if self.source_id is None and self.source:
+            self.source_id = self.source.id
+
 
 
 @mapper_registry.mapped
