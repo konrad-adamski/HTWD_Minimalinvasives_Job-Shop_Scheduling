@@ -42,7 +42,7 @@ if __name__ == "__main__":
             deadline_column="Deadline"
         )
 
-        # Transition Times
+        # Transition Times --------------------------------------------------------------------------------------------
         df_avg_transition_times = DataEnrichment.compute_avg_transition_times_per_machine_backward(df_fifo_schedule)
 
         MachineInitializer.insert_from_dataframe(
