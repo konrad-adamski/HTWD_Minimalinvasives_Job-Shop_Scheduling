@@ -124,7 +124,7 @@ class DataFrameEnrichment:
     def compute_avg_transition_times_per_machine_backward(
             cls, df_schedule: pd.DataFrame, job_column: str = "Job", machine_column: str = "Machine",
             position_number_column: str = "Operation", start_column: str = "Start", end_column: str = "End",
-            new_avg_transition_column: str = "Ø Transition_Time"):
+            new_avg_transition_column: str = "Ø Transition Time"):
         """
          Compute average transition times per machine for backward scheduling.
 
