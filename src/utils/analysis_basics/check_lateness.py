@@ -2,30 +2,6 @@ import numpy as np
 import pandas as pd
 from typing import Literal
 
-def get_jobs_with_lateness_metrics(
-        df_schedule_in: pd.DataFrame, job_id_column: str = "Job", operation_column: str = "Operation",
-        end_column: str = "End", deadline_column: str = "Deadline") -> pd.DataFrame:
-    """
-    Returns the last operation per job and computes lateness metrics: Lateness, Tardiness, and Earliness.
-
-    :param df_schedule_in: Input DataFrame containing job schedule information.
-    :param job_id_column: Column name for the job identifier.
-    :param operation_column: Column name for the operation sequence within each job.
-    :param end_column: Column name for the operation's actual end time.
-    :param deadline_column: Column name for the job's deadline.
-    :return: DataFrame with one row per job (last operation), including lateness metrics.
-    """
-    # 1. Select last operation per job
-    df = df_schedule_in.sort_values([job_id_column, operation_column]).drop_duplicates(job_id_column, keep='last').copy()
-
-    # 2. Compute lateness metrics
-    df["Lateness"] = df[end_column] - df[deadline_column]
-    df["Tardiness"] = df["Lateness"].clip(lower=0)
-    df["Earliness"] = (-df["Lateness"]).clip(lower=0)
-
-    return df
-
-
 def get_jobs_aggregated(
         df: pd.DataFrame,
         column: Literal['Lateness', 'Tardiness', 'Earliness'] = 'Lateness',
