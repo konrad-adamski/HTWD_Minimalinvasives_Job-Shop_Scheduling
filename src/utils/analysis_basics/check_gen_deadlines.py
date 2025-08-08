@@ -1,68 +1,80 @@
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
-import numpy as np
+from matplotlib.axes import Axes
 
-
-def plotfig_empirical_flow_budget_distributions(
-                df_times: pd.DataFrame, deadline_column = 'Deadline',
-                bins: int = 30, y_max: float = 0.001):
+def plotfig_empirical_scheduling_window_distributions(
+        df_times: pd.DataFrame, routing_column: str = "Routing_ID", simulated_end_column: str = "End",
+        earliest_start_column: str = "Ready Time", due_date_column: str = "Deadline",
+        bins: int = 30, y_max: float = 0.015):
     """
-    Plot flow budget histograms for each routing group.
-
-    For each group in the ``Routing_ID`` column, this function plots a histogram
-    of flow budgets, defined as the difference between a target time (e.g. deadline)
-    and the actual start of production. A vertical red line shows the average
-    realized time usage in the group.
+    For each routing, this function plots a histogram of scheduling windows,
+    defined as the difference between a due date and the earliest start time.
+    A vertical red line shows the average (simulated) elapsed time from the earliest start to simulated end.
+    A green line shows the average scheduling window for that group.
 
     All subplots share the same x- and y-axis limits for comparability.
 
-    :param df_times: DataFrame containing routing and timing information.
-                     Must include the columns ``Routing_ID``, ``End``,
-                     ``Start of Production`` (or equivalent), and the column
-                     specified via ``deadline_column``.
-    :type df_times: pandas.DataFrame
-    :param deadline_column: Name of the column representing the target or deadline time.
-                            Default is ``'Deadline'``.
-    :type deadline_column: str
-    :param bins: Number of bins to use for the histogram. Default is 30.
-    :type bins: int
-    :param y_max: Maximum value of the y-axis (density). Default is 0.001.
-    :type y_max: float
-
-    :return: A matplotlib Figure object containing the subplots.
-    :rtype: matplotlib.figure.Figure
+    :param df_times: DataFrame with routing and timing information.
+    :param routing_column: Column with routing group identifiers.
+    :param simulated_end_column: Column with simulated end times.
+    :param earliest_start_column: Column with the earliest possible start times.
+    :param due_date_column: Column with due dates.
+    :param bins: Number of histogram bins.
+    :param y_max: Max value of the y-axis density.
+    :return: Matplotlib Figure with the subplots.
     """
-    groups = df_times['Routing_ID'].unique()
-    n_groups = len(groups)
-    n_cols = min(4, n_groups)
-    n_rows = int(np.ceil(n_groups / n_cols))
+    routings = df_times[routing_column].unique()
+    n_routings = len(routings)
+    n_cols = min(4, n_routings)
+    n_rows = int(np.ceil(n_routings / n_cols))
 
-    # global x-axis
-    all_flow_budgets = df_times[deadline_column] - df_times['Ready Time']
-    x_min, x_max = all_flow_budgets.min(), all_flow_budgets.max()
+    # Global x-axis range
+    all_scheduling_windows = df_times[due_date_column] - df_times[earliest_start_column]
+    x_min, x_max = all_scheduling_windows.min(), all_scheduling_windows.max()
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows), squeeze=False)
+    axes = axes.ravel()
 
-    for idx, group in enumerate(groups):
-        ax = axes[idx // n_cols][idx % n_cols]
-        grp = df_times[df_times['Routing_ID'] == group]
-        flow_budgets = grp[deadline_column] - grp['Ready Time']
-        target = grp['End'].mean() - grp['Ready Time'].mean()
+    for idx, routing in enumerate(routings):
+        ax: Axes = axes[idx]
+        dfr = df_times[df_times[routing_column] == routing]
 
-        sns.histplot(flow_budgets, bins=bins, kde=True, stat='density',
-                     ax=ax, color='cornflowerblue', edgecolor='black')
+        # Scheduling window = due date - earliest start
+        scheduling_windows = dfr[due_date_column] - dfr[earliest_start_column]
+        avg_scheduling_window = scheduling_windows.mean()
 
-        ax.axvline(target, color='red', linestyle='--', label='Target')
-        ax.set_title(f'Arbeitsplan {group}')
-        ax.set_xlabel(f'Flow Budget ({deadline_column} - Ready Time)')
-        ax.set_ylabel('Dichte')
+        # Average actual elapsed time = simulated end - earliest start
+        avg_elapsed_time = (dfr[simulated_end_column] - dfr[earliest_start_column]).mean()
+
+        sns.histplot(
+            scheduling_windows, bins=bins, kde=True, stat="density",
+            ax=ax, color="cornflowerblue", edgecolor="black"
+        )
+        ax.axvline(
+            avg_elapsed_time,
+            color='red',
+            linestyle='--',
+            label="Avg. elapsed time (simulated end - earliest start)"
+        )
+        ax.axvline(
+            avg_scheduling_window,
+            color="green",
+            linestyle="--",
+            label="Avg. scheduling window (due date - earliest start)"
+        )
+
+        ax.set_title(f'Routing {routing}')
+        ax.set_xlabel("Time span from earliest start")
+        ax.set_ylabel('Density')
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(0, y_max)
         ax.legend()
 
-    for j in range(idx + 1, n_rows * n_cols):
-        fig.delaxes(axes[j // n_cols][j % n_cols])
+    # Remove unused subplot axes
+    for j in range(n_routings, len(axes)):
+        fig.delaxes(axes[j])
 
     plt.tight_layout()
     return fig
