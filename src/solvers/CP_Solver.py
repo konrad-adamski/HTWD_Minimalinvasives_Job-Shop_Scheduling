@@ -166,8 +166,11 @@ class Solver:
 
         w_t, w_e, w_first = int(w_t), int(w_e), int(w_first)
 
+
         if previous_schedule_jobs_collection is None or previous_schedule_jobs_collection.count_operations() == 0:
             main_pct = 1.0
+
+        print(f"{w_t=}, {w_e=}, {w_first=} {main_pct=}")
 
         main_pct_frac = Fraction(main_pct).limit_denominator(100)
         main_factor = main_pct_frac.numerator
@@ -182,7 +185,7 @@ class Solver:
 
         for (job_idx, op_idx), operation in self.index_mapper.items():
             start_var = self.start_times[(job_idx, op_idx)]
-            end_var = self.start_times[(job_idx, op_idx)]
+            end_var = self.end_times[(job_idx, op_idx)]
 
             if op_idx == 0:
                 # Earliness of the "first" operation of a job ?????????????????????????????????????????????????????????????????
@@ -273,7 +276,7 @@ class Solver:
         # Operation-level constraints and objective terms ----------------------------------------------
         for (job_idx, op_idx), operation in self.index_mapper.items():
             start_var = self.start_times[(job_idx, op_idx)]
-            end_var = self.start_times[(job_idx, op_idx)]
+            end_var = self.end_times[(job_idx, op_idx)]
 
             # FlowTime (only last operation)
             if operation.position_number == operation.job.last_operation_position_number:
