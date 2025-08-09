@@ -83,6 +83,31 @@ class Solver:
             if op_idx > 0:
                 self.model.Add(start_var >= self.end_times[(job_idx, op_idx - 1)])
 
+    def _add_technological_operation_constraints_with_transition_times(self):
+
+        for (job_idx, op_idx), operation in self.index_mapper.items():
+            start_var = self.start_times[(job_idx, op_idx)]
+
+            # 1. Technological constraint: earliest start of the first operation
+            if op_idx == 0:
+                min_start = max(operation.job_earliest_start, int(self.schedule_start))
+
+                if operation.position_number ==  0:                                            #  oder Datenbankabfrage!
+                    due_date = operation.job_due_date
+                    left_transition_time = operation.job.sum_left_transition_time(operation.position_number)
+                    duration = operation.job.sum_duration
+                    reasonable_min_start = due_date - duration - left_transition_time
+                    print(operation, f"{operation.job.earliest_start = } | {reasonable_min_start = } {due_date = } - {duration = }, - {left_transition_time = }")
+                    min_start = max(min_start, reasonable_min_start)
+
+                if operation.job_id in self.job_delays:
+                    min_start = max(min_start, self.job_delays.get_time(operation.job_id))
+                self.model.Add(start_var >= min_start)
+
+            # 2. Technological constraint: operation order within the job
+            if op_idx > 0:
+                self.model.Add(start_var >= self.end_times[(job_idx, op_idx - 1)])
+
 
     def build_makespan_model(self):
         if self.model_completed:
@@ -135,9 +160,6 @@ class Solver:
                     )
                     self.job_delays.update_delay(job_id=job.id, time_stamp=operation.end)
 
-        # Operation-level constraints ------------------------------------------------------------------
-        self._add_technological_operation_constraints()
-
         # Machine-level constraints (no overlap + fixed blocks from running ops) -----------------------
         for machine in self.machines:
             machine_intervals = []
@@ -173,6 +195,9 @@ class Solver:
         self.active_jobs_collection = active_jobs_collection
 
         self._build_reschedule_model()
+
+        # Operation-level constraints ------------------------------------------------------------------
+        self._add_technological_operation_constraints()
 
         w_t, w_e, w_first = int(w_t), int(w_e), int(w_first)
 
@@ -262,6 +287,83 @@ class Solver:
 
         self.model_completed = True
 
+
+    def build_model_for_jssp_lateness_with_start_deviation_minimization_with_transition_times(
+            self, previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
+            active_jobs_collection: Optional[LiveJobCollection] = None,
+            w_t: int = 1, w_e: int = 1, w_dev: int = 1):
+
+        if self.model_completed:
+            return "Model is already completed"
+
+        self.previous_schedule_jobs_collection = previous_schedule_jobs_collection
+        self.active_jobs_collection = active_jobs_collection
+        self._build_reschedule_model()
+
+        # Operation-level constraints ------------------------------------------------------------------
+        self._add_technological_operation_constraints_with_transition_times()
+
+        w_t, w_e, w_dev = int(w_t), int(w_e), int(w_dev)
+        if previous_schedule_jobs_collection is None or previous_schedule_jobs_collection.count_operations() == 0:
+            w_dev = 0
+
+
+        print(f"Tardiness Weight: {w_t}, Earliness Weight {w_e=}, Deviation Weight {w_dev=}")
+
+        # Cost term containers -------------------------------------------------------------------------
+        weighted_absolute_lateness_terms = []  # List of Job Lateness Terms (Tardiness + Earliness for last operations)
+        deviation_terms = []  # List of Deviation Penalty Terms (Difference from previous start times)
+
+        # Additional operation-level constraints and objective terms -----------------------------------
+        for (job_idx, op_idx), operation in self.index_mapper.items():
+            start_var = self.start_times[(job_idx, op_idx)]
+            end_var = self.end_times[(job_idx, op_idx)]
+
+
+            # Lateness terms for the job (last operation)
+            if operation.position_number == operation.job.last_operation_position_number:
+                # Tardiness
+                tardiness = self.model.NewIntVar(0, self.horizon, f"tardiness_{job_idx}")
+                self.model.AddMaxEquality(tardiness, [end_var - operation.job_due_date, 0])
+                term_tardiness = self.model.NewIntVar(0, self.horizon * w_t, f"term_tardiness_{job_idx}")
+                self.model.Add(term_tardiness == w_t * tardiness)
+                weighted_absolute_lateness_terms.append(term_tardiness)
+
+                # Earliness
+                earliness = self.model.NewIntVar(0, self.horizon, f"earliness_{job_idx}")
+                self.model.AddMaxEquality(earliness, [operation.job_due_date - end_var, 0])
+                term_earliness = self.model.NewIntVar(0, self.horizon * w_e, f"term_earliness_{job_idx}")
+                self.model.Add(term_earliness == w_e * earliness)
+                weighted_absolute_lateness_terms.append(term_earliness)
+
+            # Deviation from original schedule
+            if (job_idx, op_idx) in self.original_operation_starts.keys():
+                deviation = self.model.NewIntVar(0, self.horizon, f"deviation_{job_idx}_{op_idx}")
+                original_start = self.original_operation_starts[(job_idx, op_idx)]
+                self.model.AddAbsEquality(deviation, start_var - original_start)
+                deviation_terms.append(deviation)
+
+        # Objective function ---------------------------------------------------------------------------
+
+        # Weighted lateness = (tardiness + earliness) of last operation per job
+        bound_lateness = (w_t + w_e) * self.horizon * len(self.jobs_collection.keys())
+        scaled_absolute_lateness_cost = self.model.NewIntVar(0, bound_lateness, "absolute_lateness_cost")
+        self.model.Add(scaled_absolute_lateness_cost == (w_t + w_e) * sum(weighted_absolute_lateness_terms))
+
+        # Weighted deviation cost (scaled by dev_factor)
+        bound_deviation = w_dev * self.horizon * len(deviation_terms)
+        scaled_deviation_cost = self.model.NewIntVar(0, bound_deviation,"deviation_cost")
+        self.model.Add(scaled_deviation_cost == w_dev * sum(deviation_terms))
+
+        # Final cost expression
+        bound_total = bound_lateness + bound_deviation
+        total_cost = self.model.NewIntVar(0, bound_total, "total_cost")
+        self.model.Add(total_cost == scaled_absolute_lateness_cost + scaled_deviation_cost)
+        self.model.Minimize(total_cost)
+
+
+        self.model_completed = True
+
     def build_model_for_jssp_flowtime_with_start_deviation_minimization(
             self, previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
             active_jobs_collection: Optional[LiveJobCollection] = None, main_pct: float = 0.5,):
@@ -270,6 +372,9 @@ class Solver:
         self.active_jobs_collection = active_jobs_collection
 
         self._build_reschedule_model()
+
+        # Operation-level constraints ------------------------------------------------------------------
+        self._add_technological_operation_constraints()
 
         if previous_schedule_jobs_collection is None or previous_schedule_jobs_collection.count_operations() == 0:
             main_pct = 1.0
