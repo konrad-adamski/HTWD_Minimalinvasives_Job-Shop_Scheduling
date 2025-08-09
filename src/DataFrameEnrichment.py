@@ -74,7 +74,7 @@ class DataFrameEnrichment:
 
     # Transition times -----------------------------------------------------------------------------------------------
     @staticmethod
-    def _compute_transition_times_per_job_backward(
+    def _compute_transition_times_per_job_operation_backward(
             df_schedule: pd.DataFrame, job_column: str = "Job", position_number_column: str = "Operation",
             start_column: str = "Start", end_column: str = "End", new_transition_column: str = "Transition Time"):
         """
@@ -128,7 +128,7 @@ class DataFrameEnrichment:
         """
          Compute average transition times per machine for backward scheduling.
 
-         Transition times are first calculated per job, then averaged per machine.
+         Transition times are first calculated per job operations, then averaged per machine.
 
          :param df_schedule: Schedule DataFrame.
          :param job_column: Job ID column name.
@@ -139,7 +139,7 @@ class DataFrameEnrichment:
          :param new_avg_transition_column: Output column name for average transition time.
          :return: DataFrame with average transition time per machine.
          """
-        df_jobs_transition_times = cls._compute_transition_times_per_job_backward(
+        df_jobs_transition_times = cls._compute_transition_times_per_job_operation_backward(
             df_schedule = df_schedule,
             job_column=job_column,
             position_number_column=position_number_column,
