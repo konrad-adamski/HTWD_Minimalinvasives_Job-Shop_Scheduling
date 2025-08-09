@@ -333,27 +333,102 @@ class DataFramePlotGenerator:
         return f'#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}'
 
     # Check due date ------------------------------------------------------------------------------------------------
-    def get_scheduling_window_density_plot_figure(
-            df_times: pd.DataFrame, routing_column: str = "Routing_ID", simulated_end_column: str = "End",
-            earliest_start_column: str = "Ready Time", due_date_column: str = "Due Date",
-            bins: int = 30, y_max: float = 0.015):
+    @staticmethod
+    def get_elapsed_time_density_plot_figure(
+            df_times: pd.DataFrame, routing_column: str = "Routing_ID", earliest_start_column: str = "Ready Time",
+            simulated_end_column: str = "End", total_duration_column: str = "Total Processing Time",
+            bins: int = 30, y_max: float = 0.002):
         """
-        Create a density plot figure of scheduling windows for each routing.
+        Plot density histograms of elapsed times per routing group.
 
-        A scheduling window is defined as the time between the earliest start and the due date.
-        A vertical red line shows the average (simulated) elapsed time from the earliest start to simulated end.
-        A green line shows the average scheduling window for that group.
+        Elapsed time = simulated_end_column - earliest_start_column.
+        Each subplot shows the density distribution for one routing,
+        with a dashed line for the mean elapsed time.
 
-        All subplots share the same x- and y-axis limits for comparability.
-
-        :param df_times: DataFrame with routing and timing information.
-        :param routing_column: Column with routing group identifiers.
+        :param df_times: DataFrame with routing and timing data.
+        :param routing_column: Column with routing IDs.
+        :param earliest_start_column: Column with the earliest start times.
         :param simulated_end_column: Column with simulated end times.
-        :param earliest_start_column: Column with the earliest possible start times.
-        :param due_date_column: Column with due dates.
+        :param total_duration_column: Column with total processing times.
         :param bins: Number of histogram bins.
-        :param y_max: Max value of the y-axis density.
-        :return: Matplotlib Figure with the subplots.
+        :param y_max: Max y-axis value (density).
+        :return: Matplotlib Figure with subplots.
+        """
+        routings = df_times[routing_column].unique()
+        n_routings = len(routings)
+        n_cols = min(4, n_routings)
+        n_rows = int(np.ceil(n_routings / n_cols))
+
+        # Global x-axis range
+        elapsed_times = df_times[simulated_end_column] - df_times[earliest_start_column]
+        x_max = elapsed_times.max()
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows), squeeze=False)
+        axes = axes.ravel()
+
+        for idx, routing in enumerate(routings):
+            ax: Axes = axes[idx]  # type: ignore
+            dfr = df_times[df_times[routing_column] == routing]
+
+            # Average actual elapsed time = simulated end - earliest start
+            avg_elapsed_times = dfr[simulated_end_column] - dfr[earliest_start_column]
+            avg_elapsed_time = avg_elapsed_times.mean()
+
+            duration = dfr[total_duration_column].mean()  # .first()
+
+            sns.histplot(
+                avg_elapsed_times, bins=bins, kde=True, stat="density",
+                ax=ax, color="cornflowerblue", edgecolor="black"
+            )
+
+            ax.axvline(
+                duration,
+                color="gray",
+                linestyle="--",
+                label="Duration"
+            )
+
+            ax.axvline(
+                avg_elapsed_time,
+                color='orange',
+                linestyle='--',
+                label="Avg. elapsed time"
+            )
+
+            ax.set_title(f'Routing {routing}')
+            ax.set_xlabel("Elapsed time [min]\n(simulated end - earliest start)")
+            ax.set_ylabel('Density [1/min]')
+            ax.set_xlim(0, x_max)
+            ax.set_ylim(0, y_max)
+            ax.legend()
+
+        # Remove unused subplot axes
+        for j in range(n_routings, len(axes)):
+            fig.delaxes(axes[j])  # type: ignore
+
+        plt.tight_layout()
+        return fig
+
+    @staticmethod
+    def get_scheduling_window_density_plot_figure(
+            df_times: pd.DataFrame, routing_column: str = "Routing_ID",
+            earliest_start_column: str = "Ready Time", due_date_column: str = "Due Date",
+            total_duration_column: str = "Total Processing Time", bins: int = 30, y_max: float = 0.002):
+        """
+        Plot density histograms of scheduling windows per routing group.
+
+        Scheduling window = due_date_column - earliest_start_column.
+        Each subplot shows the density distribution for one routing,
+        with a dashed line for the mean scheduling window.
+
+        :param df_times: DataFrame with routing and timing data.
+        :param routing_column: Column with routing IDs.
+        :param earliest_start_column: Column with the earliest start times.
+        :param due_date_column: Column with due dates.
+        :param total_duration_column: Column with total processing times.
+        :param bins: Number of histogram bins.
+        :param y_max: Max y-axis value (density).
+        :return: Matplotlib Figure with subplots.
         """
         routings = df_times[routing_column].unique()
         n_routings = len(routings)
@@ -362,52 +437,54 @@ class DataFramePlotGenerator:
 
         # Global x-axis range
         all_scheduling_windows = df_times[due_date_column] - df_times[earliest_start_column]
-        x_min, x_max = all_scheduling_windows.min(), all_scheduling_windows.max()
+        x_max = all_scheduling_windows.max()
 
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows), squeeze=False)
         axes = axes.ravel()
 
         for idx, routing in enumerate(routings):
-            ax: Axes = axes[idx]    # type: ignore
+            ax: Axes = axes[idx]  # type: ignore
             dfr = df_times[df_times[routing_column] == routing]
 
             # Scheduling window = due date - earliest start
             scheduling_windows = dfr[due_date_column] - dfr[earliest_start_column]
             avg_scheduling_window = scheduling_windows.mean()
 
-            # Average actual elapsed time = simulated end - earliest start
-            avg_elapsed_time = (dfr[simulated_end_column] - dfr[earliest_start_column]).mean()
+            duration = dfr[total_duration_column].mean()
 
             sns.histplot(
                 scheduling_windows, bins=bins, kde=True, stat="density",
                 ax=ax, color="cornflowerblue", edgecolor="black"
             )
+
             ax.axvline(
-                avg_elapsed_time,
-                color='red',
-                linestyle='--',
-                label="Avg. elapsed time (simulated end - earliest start)"
+                duration,
+                color="gray",
+                linestyle="--",
+                label="Duration"
             )
+
             ax.axvline(
                 avg_scheduling_window,
-                color="green",
+                color="orange",
                 linestyle="--",
-                label="Avg. scheduling window (due date - earliest start)"
+                label="Avg. scheduling window"
             )
 
             ax.set_title(f'Routing {routing}')
-            ax.set_xlabel("Time span from earliest start")
-            ax.set_ylabel('Density')
-            ax.set_xlim(x_min, x_max)
+            ax.set_xlabel("Scheduling time window [min]\n(due date - earliest start)")
+            ax.set_ylabel('Density [1/min]')
+            ax.set_xlim(0, x_max)
             ax.set_ylim(0, y_max)
             ax.legend()
 
         # Remove unused subplot axes
         for j in range(n_routings, len(axes)):
-            fig.delaxes(axes[j])    # type: ignore
+            fig.delaxes(axes[j])  # type: ignore
 
         plt.tight_layout()
         return fig
+
 
     # Gantt chart for schedule or simulation -------------------------------------------------------------------------
     @classmethod
