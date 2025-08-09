@@ -690,13 +690,21 @@ class LiveJob:
         """
         return sum(op.duration for op in self.operations if op.position_number >= position)
 
-
     def sum_left_transition_time(self, position: int) -> int:
         """
-        Total duration of all operations after given position for this job (exclusive)
+        Total transition time of all operations after the given position for this job (exclusive),
+        excluding the very last operation in the job.
         """
-        return sum(op.transition_time for op in self.operations if op.position_number > position)
+        if not self.operations:
+            return 0
 
+        last_pos = max(op.position_number for op in self.operations)
+
+        return sum(
+            op.transition_time
+            for op in self.operations
+            if position < op.position_number < last_pos
+        )
 
     @classmethod
     def copy_from(cls, other: Union[LiveJob, Job]) -> LiveJob:
