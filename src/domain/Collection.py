@@ -135,6 +135,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 subset[job.id] = job
         return subset
 
+
     def _get_last_operations_collection(self) -> LiveJobCollection:
         """
         Gibt eine neue LiveJobCollection mit nur der letzten Operation pro Job zurück.
