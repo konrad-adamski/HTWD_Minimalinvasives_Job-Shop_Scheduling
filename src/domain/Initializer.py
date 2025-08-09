@@ -212,7 +212,7 @@ class JobsInitializer:
                 job = Job(id=f"{routing.source_id:02d}-{prefix}-{a_idx:04d}",
                           routing=routing,
                           arrival=arrivals[a_idx],
-                          deadline=None,
+                          due_date=None,
                           max_bottleneck_utilization=max_bottleneck_utilization_db
                           )
                 jobs.append(job)
@@ -233,7 +233,7 @@ class JobsInitializer:
             job = Job(id=f"{routing.source_id:02d}-{i:04d}",
                       routing=routing,
                       arrival=None,
-                      deadline=None,
+                      due_date=None,
                       max_bottleneck_utilization=None
                       )
             jobs.append(job)

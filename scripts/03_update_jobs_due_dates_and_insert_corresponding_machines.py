@@ -29,17 +29,17 @@ if __name__ == "__main__":
 
         df_jobs_times_temp = finished_operations.to_jobs_metrics_dataframe()
 
-        # Generation of deadlines using log-normal distribution -------------------------------------------------------
-        df_jobs_times = DataEnrichment.add_groupwise_lognormal_deadlines_by_group_mean(
+        # Generation of due_dates using log-normal distribution -------------------------------------------------------
+        df_jobs_times = DataEnrichment.add_groupwise_lognormal_due_dates_by_group_mean(
             df_times_temp = df_jobs_times_temp,
             sigma= 0.25
         )
 
-        df_jobs_times_final = DataEnrichment.ensure_reasonable_deadlines(df_jobs_times, min_coverage=1.0)
-        JobQuery.update_job_deadlines_from_df(
+        df_jobs_times_final = DataEnrichment.ensure_reasonable_due_dates(df_jobs_times, min_coverage=1.0)
+        JobQuery.update_job_due_dates_from_df(
             df=df_jobs_times_final,
             job_column="Job",
-            deadline_column="Deadline"
+            due_date_column="Due Date"
         )
 
         # Transition Times --------------------------------------------------------------------------------------------

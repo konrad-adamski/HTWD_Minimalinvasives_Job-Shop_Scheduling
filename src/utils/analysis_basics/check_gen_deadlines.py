@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.axes import Axes
 
-def plotfig_empirical_scheduling_window_distributions(
+
+def get_scheduling_window_density_plot_figure(
         df_times: pd.DataFrame, routing_column: str = "Routing_ID", simulated_end_column: str = "End",
-        earliest_start_column: str = "Ready Time", due_date_column: str = "Deadline",
+        earliest_start_column: str = "Ready Time", due_date_column: str = "Due Date",
         bins: int = 30, y_max: float = 0.015):
     """
-    For each routing, this function plots a histogram of scheduling windows,
-    defined as the difference between a due date and the earliest start time.
+    Create a density plot figure of scheduling windows for each routing.
+
+    A scheduling window is defined as the time between the earliest start and the due date.
     A vertical red line shows the average (simulated) elapsed time from the earliest start to simulated end.
     A green line shows the average scheduling window for that group.
 

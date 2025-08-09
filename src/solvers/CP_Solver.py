@@ -42,8 +42,8 @@ class Solver:
         # Horizon (Worst-case upper bound)--------------------------------------------------------------
         total_duration = jobs_collection.get_total_duration()
 
-        if jobs_collection.get_latest_deadline():
-            known_highest_value = jobs_collection.get_latest_deadline()
+        if jobs_collection.get_latest_due_date():
+            known_highest_value = jobs_collection.get_latest_due_date()
         else:
             known_highest_value = jobs_collection.get_latest_earliest_start()
         self.horizon = known_highest_value + total_duration
@@ -199,7 +199,7 @@ class Solver:
             if op_idx == 0:
                 # Earliness of the "first" operation of a job ?????????????????????????????????????????????????????????????????
                 first_op_latest_desired_start = int(
-                    operation.job_deadline - operation.job.sum_duration * duration_buffer_factor)
+                    operation.job_due_date - operation.job.sum_duration * duration_buffer_factor)
                 first_op_latest_desired_start = max(self.schedule_start, first_op_latest_desired_start)
 
                 first_op_earliness = self.model.NewIntVar(0, self.horizon, f"first_op_earliness_{job_idx}")
@@ -212,14 +212,14 @@ class Solver:
             if operation.position_number == operation.job.last_operation_position_number:
                 # Tardiness
                 tardiness = self.model.NewIntVar(0, self.horizon, f"tardiness_{job_idx}")
-                self.model.AddMaxEquality(tardiness, [end_var - operation.job_deadline, 0])
+                self.model.AddMaxEquality(tardiness, [end_var - operation.job_due_date, 0])
                 term_tardiness = self.model.NewIntVar(0, self.horizon * w_t, f"term_tardiness_{job_idx}")
                 self.model.Add(term_tardiness == w_t * tardiness)
                 weighted_absolute_lateness_terms.append(term_tardiness)
 
                 # Earliness
                 earliness = self.model.NewIntVar(0, self.horizon, f"earliness_{job_idx}")
-                self.model.AddMaxEquality(earliness, [operation.job_deadline - end_var, 0])
+                self.model.AddMaxEquality(earliness, [operation.job_due_date - end_var, 0])
                 term_earliness = self.model.NewIntVar(0, self.horizon * w_e, f"term_earliness_{job_idx}")
                 self.model.Add(term_earliness == w_e * earliness)
                 weighted_absolute_lateness_terms.append(term_earliness)
