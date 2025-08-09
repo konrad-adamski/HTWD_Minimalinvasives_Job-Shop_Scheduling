@@ -186,7 +186,7 @@ class Job:
             "routing_id": self.routing_id,
             "arrival": self.arrival,
             "earliest_start": self.earliest_start,
-            "deadline": self.deadline,
+            "due_date": self.due_date,
             "sum_duration": self.sum_duration,
             "max_bottleneck_utilization": self.max_bottleneck_utilization
         }
@@ -215,7 +215,7 @@ class Job:
 
     arrival: Optional[int] = field(metadata={"sa": Column(Integer, nullable=True)})
 
-    deadline: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=True)})
+    due_date: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=True)})
 
 
     routing: Routing = field(default=None, repr=False, metadata={
@@ -313,8 +313,8 @@ class SimulationJob:
         return self.job.earliest_start
 
     @property
-    def deadline(self) -> int:
-        return self.job.deadline
+    def due_date(self) -> int:
+        return self.job.due_date
 
     @property
     def max_bottleneck_utilization(self) -> Decimal:
@@ -372,8 +372,8 @@ class ScheduleJob:
         return self.job.earliest_start
 
     @property
-    def deadline(self) -> int:
-        return self.job.deadline
+    def due_date(self) -> int:
+        return self.job.due_date
 
     @property
     def max_bottleneck_utilization(self) -> Decimal:
@@ -614,7 +614,7 @@ class LiveJob:
     id: str
     routing_id: Optional[str] = None
     arrival: Optional[int] = None
-    deadline: Optional[int] = None
+    due_date: Optional[int] = None
 
     on_arrival: bool = False
     max_bottleneck_utilization: Optional[Decimal] = None
@@ -708,7 +708,7 @@ class LiveJob:
             id=other.id,
             routing_id=other.routing_id,
             arrival=other.arrival,
-            deadline=other.deadline,
+            due_date=other.due_date,
             operations=[]
         )
 
@@ -783,8 +783,8 @@ class JobOperation:
         return self.job.earliest_start
 
     @property
-    def job_deadline(self) -> int:
-        return self.job.deadline
+    def job_due_date(self) -> int:
+        return self.job.due_date
 
     @property
     def routing_id(self) -> str:

@@ -111,15 +111,15 @@ class JobQuery:
         )
 
     @staticmethod
-    def update_job_deadlines_from_df(df: pd.DataFrame, job_column="Job", deadline_column="Deadline"):
+    def update_job_due_dates_from_df(df: pd.DataFrame, job_column="Job", due_date_column="Due Date"):
         with SessionLocal() as session:
             for _, row in df.iterrows():
                 job_id = row[job_column]
-                new_deadline = row[deadline_column]
+                new_due_date = row[due_date_column]
 
                 job = session.get(Job, job_id)
                 if job:
-                    job.deadline = new_deadline
+                    job.due_date = new_due_date
 
             session.commit()
 

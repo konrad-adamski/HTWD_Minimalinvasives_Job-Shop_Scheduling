@@ -47,7 +47,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
     def add_operation(
         self, job_id: str, routing_id: Optional[str],position_number: int,
         machine_name: str, duration: int, start: Optional[int] = None, end: Optional[int] = None,
-        arrival: Optional[int] = None, deadline: Optional[int] = None):
+        arrival: Optional[int] = None, due_date: Optional[int] = None):
         """
         Fügt eine Operation zu einem bestehenden oder neuen LiveJob hinzu.
         """
@@ -57,7 +57,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 id=job_id,
                 routing_id=routing_id,
                 arrival=arrival,
-                deadline=deadline,
+                due_date=due_date,
             )
         job_op = JobOperation(
             job = self.data[job_id],
@@ -82,7 +82,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 id=job_id,
                 routing_id=op.routing_id,
                 arrival=op.job_arrival,
-                deadline=op.job_deadline
+                due_date=op.job_due_date
             )
         else:
             job: LiveJob = self.data[job_id]
@@ -182,7 +182,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                         start=op.start,
                         end=op.end,
                         arrival=op.job_arrival,
-                        deadline=op.job_deadline
+                        due_date=op.job_due_date
                     )
 
         result.sort_operations()
@@ -241,11 +241,11 @@ class LiveJobCollection(UserDict[str, LiveJob]):
         """
         return sum(job.sum_duration for job in self.values())
 
-    def get_latest_deadline(self) -> Optional[int]:
-        deadlines = [job.deadline for job in self.values() if job.deadline is not None]
-        if not deadlines:
+    def get_latest_due_date(self) -> Optional[int]:
+        due_dates = [job.due_date for job in self.values() if job.due_date is not None]
+        if not due_dates:
             return None
-        return max(deadlines)
+        return max(due_dates)
 
     def get_latest_arrival(self) -> Optional[int]:
 
@@ -288,7 +288,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
             self, job_column: str = "Job", routing_column: str = "Routing_ID", position_column: str = "Operation",
             machine_column: str = "Machine", start_column: str = "Start", duration_column: str = "Processing Time",
             end_column: str = "End", arrival_column = "Arrival", earliest_start_column: str = "Ready Time",
-            deadline_column: str = "Deadline") -> pd.DataFrame:
+            due_date_column: str = "Due Date") -> pd.DataFrame:
         """
         Gibt einen DataFrame mit allen Operationen in der Collection zurück.
         Nur Jobs mit Attribut 'operations' (d.h. LiveJobs) werden berücksichtigt.
@@ -308,14 +308,14 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                     end_column: op.end,
                     arrival_column: job.arrival,
                     earliest_start_column: job.earliest_start,
-                    deadline_column: job.deadline
+                    due_date_column: job.due_date
                 })
         return pd.DataFrame(records)
 
     def to_jobs_dataframe(
             self, job_column: str = "Job", routing_column: str = "Routing_ID",
             arrival_column: str = "Arrival", earliest_start_column: str = "Ready Time",
-            deadline_column: str = "Deadline") -> pd.DataFrame:
+            due_date_column: str = "Due Date") -> pd.DataFrame:
         """
         Gibt einen DataFrame mit allen Jobinformationen in der Collection zurück.
         """
@@ -326,7 +326,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 routing_column: job.routing_id,
                 arrival_column: job.arrival,
                 earliest_start_column: job.earliest_start,
-                deadline_column: job.deadline
+                due_date_column: job.due_date
             })
         return pd.DataFrame(records)
 
@@ -335,7 +335,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
             self, job_column: str = "Job", routing_column: str = "Routing_ID",
             last_position_column: str = "Last Operation", total_duration_column: str = "Total Processing Time",
             end_column: str = "End", arrival_column = "Arrival", earliest_start_column: str = "Ready Time",
-            deadline_column: str = "Deadline", lateness_column: str = "Lateness", tardiness_column: str = "Tardiness",
+            due_date_column: str = "Due Date", lateness_column: str = "Lateness", tardiness_column: str = "Tardiness",
             earliness_column: str = "Earliness", flowtime_column: Optional[str] = "Flowtime") -> pd.DataFrame:
 
         # Total duration (based on every operation of each job)
@@ -348,14 +348,14 @@ class LiveJobCollection(UserDict[str, LiveJob]):
             job_column=job_column, routing_column=routing_column,
             position_column=last_position_column,
             end_column=end_column, arrival_column= arrival_column,
-            earliest_start_column=earliest_start_column, deadline_column=deadline_column
+            earliest_start_column=earliest_start_column, due_date_column=due_date_column
         )
 
         df[total_duration_column] = df[job_column].map(job_sum_durations)
         if flowtime_column:
             df[flowtime_column] = df[end_column] - df[earliest_start_column]
 
-        df[lateness_column] = df[end_column] - df[deadline_column]
+        df[lateness_column] = df[end_column] - df[due_date_column]
         df[tardiness_column] = df[lateness_column].clip(lower=0)
         df[earliness_column] = (-df[lateness_column]).clip(lower=0)
         df = df.drop(["Machine", "Start", "Processing Time"], axis=1) # default in 'to_operations_dataframe()'
@@ -369,7 +369,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
             position_column: str = "Operation", machine_column: str = "Machine",
             start_column: str = "Start", duration_column: str = "Processing Time",
             end_column: str = "End", arrival_column:str ="Arrival",
-            deadline_column:str  = "Deadline") -> LiveJobCollection:
+            due_date_column:str  = "Due Date") -> LiveJobCollection:
         """
         Erstellt eine LiveJobCollection aus einem DataFrame mit Zeilen für einzelne Operationen.
         """
@@ -377,11 +377,11 @@ class LiveJobCollection(UserDict[str, LiveJob]):
 
         has_routing_column = routing_column in df.columns
         has_arrival_column = arrival_column in df.columns
-        has_deadline_column = deadline_column in df.columns
+        has_due_date_column = due_date_column in df.columns
         for _, row in df.iterrows():
             routing_id = str(row[routing_column]) if has_routing_column and pd.notna(row[routing_column]) else None
             arrival = int(row[arrival_column]) if has_arrival_column and pd.notna(row[arrival_column]) else None
-            deadline = int(row[deadline_column]) if has_deadline_column and pd.notna(row[deadline_column]) else None
+            due_date = int(row[due_date_column]) if has_due_date_column and pd.notna(row[due_date_column]) else None
 
             obj.add_operation(
                 job_id=str(row[job_column]),
@@ -392,7 +392,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 start=int(row[start_column]) if pd.notna(row[start_column]) else None,
                 end=int(row[end_column]) if pd.notna(row[end_column]) else None,
                 arrival=arrival,
-                deadline=deadline
+                due_date=due_date
             )
 
         obj.sort_operations()
