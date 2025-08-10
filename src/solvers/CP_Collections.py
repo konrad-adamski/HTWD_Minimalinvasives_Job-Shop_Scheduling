@@ -6,6 +6,24 @@ from typing import Optional, Tuple
 from ortools.sat.python import cp_model
 from src.domain.orm_models import JobOperation
 
+class CostVarCollection(list):
+    def __init__(self, weight=1):
+        super().__init__()
+        self.weight = weight
+
+    def set_weight(self, weight):
+        self.weight = weight
+
+    def add(self, var):
+        self.append(var)
+
+    def objective_expr(self):
+        return sum(self.weight * var for var in self)
+
+    def total_cost(self, solver):
+        return sum(self.weight * solver.Value(var) for var in self)
+
+
 
 class OperationIndexMapper(UserDict[Tuple[int, int], JobOperation]):
     def add(self, job_idx: int, op_idx: int, operation: JobOperation):
