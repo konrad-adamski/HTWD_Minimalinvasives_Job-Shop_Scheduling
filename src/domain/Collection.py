@@ -44,31 +44,6 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 job_template = LiveJob.copy_from(job)
                 self.data[job_template.id] = job_template
 
-    def add_operation(
-        self, job_id: str, routing_id: Optional[str],position_number: int,
-        machine_name: str, duration: int, start: Optional[int] = None, end: Optional[int] = None,
-        arrival: Optional[int] = None, due_date: Optional[int] = None):
-        """
-        Fügt eine Operation zu einem bestehenden oder neuen LiveJob hinzu.
-        """
-
-        if job_id not in self.data:
-            self.data[job_id] = LiveJob(
-                id=job_id,
-                routing_id=routing_id,
-                arrival=arrival,
-                due_date=due_date,
-            )
-        job_op = JobOperation(
-            job = self.data[job_id],
-            position_number=position_number,
-            machine_name=machine_name,
-            start=start,
-            duration=duration,
-            end=end
-        )
-        self.data[job_id].operations.append(job_op)
-
 
     def add_operation_instance(self, op: JobOperation, new_start: Optional[float] = None,
             new_duration: Optional[float] = None, new_end: Optional[float] = None):
@@ -89,7 +64,6 @@ class LiveJobCollection(UserDict[str, LiveJob]):
 
         job.add_operation_instance(op, new_start, new_duration, new_end)
         self.data[job_id] = job
-
 
     def sort_operations(self):
         for job in self.values():
@@ -120,7 +94,6 @@ class LiveJobCollection(UserDict[str, LiveJob]):
             if op.machine_name is not None
         }
         return machines
-
 
     def get_subset_by_earliest_start(self, earliest_start: int) -> LiveJobCollection:
         """
