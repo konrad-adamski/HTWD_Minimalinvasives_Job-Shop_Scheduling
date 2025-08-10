@@ -1,28 +1,39 @@
-from ortools.sat.python import cp_model
+from fractions import Fraction
 
-def sum_values(solver: cp_model.CpSolver, vars_):
-    return sum(solver.Value(v) for v in vars_) if vars_ else 0
 
-def get_cost_breakdown(solver: cp_model.CpSolver,
-                       w_t: int, w_e: int, w_first: int, w_dev: int,
-                       tardiness_vars, earliness_vars, first_op_vars, deviation_vars):
-    tardiness_sum = sum_values(solver, tardiness_vars)
-    earliness_sum = sum_values(solver, earliness_vars)
-    first_sum     = sum_values(solver, first_op_vars)
-    dev_sum       = sum_values(solver, deviation_vars)
+tardiness_ration = 0.75
+lateness_ratio = 0.75
 
-    costs = {
-        "tardiness_raw": tardiness_sum,
-        "earliness_raw": earliness_sum,
-        "first_raw":     first_sum,
-        "deviation_raw": dev_sum,
-        "tardiness_cost": w_t * tardiness_sum,
-        "earliness_cost": w_e * earliness_sum,
-        "first_cost":     w_first * first_sum,
-        "deviation_cost": w_dev * dev_sum,
-    }
-    costs["total_cost_estimated"] = (
-        costs["tardiness_cost"] + costs["earliness_cost"] +
-        costs["first_cost"] + costs["deviation_cost"]
-    )
-    return costs
+
+tardiness_frac = Fraction(tardiness_ration)
+
+tardiness = tardiness_frac.numerator
+earliness = tardiness_frac.denominator - tardiness
+
+print(f"w_t = {tardiness}, w_e = {earliness}")
+
+print("-"*60)
+
+lateness_frac = Fraction(lateness_ratio)
+
+lateness_factor = lateness_frac.numerator
+dev_factor = lateness_frac.denominator - lateness_factor
+
+print(f"lateness_factor = {lateness_factor}, dev_factor = {dev_factor}")
+
+print("-"*60)
+
+amount = tardiness + earliness
+
+w_t = tardiness * lateness_factor
+w_e = earliness * lateness_factor
+
+w_dev = amount * dev_factor
+
+
+print(f"w_t = {w_t}, w_e = {w_e}, w_dev = {w_dev}")
+
+
+
+
+

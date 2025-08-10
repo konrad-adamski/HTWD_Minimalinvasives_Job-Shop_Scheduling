@@ -1,10 +1,10 @@
 import json
 
 from src.DataPreprocessing import DataPreprocessor
-from configs.path_manager import get_path
+from project_config import get_data_path
 
 if __name__ == "__main__":
-    basic_data_path = get_path("data", "basic")
+    basic_data_path = get_data_path("basic")
     input_file_path = basic_data_path / "jobshop.txt"
     output_file_path = basic_data_path / "jobshop_instances.json"
 

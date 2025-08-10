@@ -1,9 +1,9 @@
 import os
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, registry
 
-from configs.path_manager import PROJECT_ROOT
+from project_config import PROJECT_ROOT
 
 # 🔧 Build path relative to this file
 #BASE_DIR = os.path.dirname(os.path.abspath(__file__))

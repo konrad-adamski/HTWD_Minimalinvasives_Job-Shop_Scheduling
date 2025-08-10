@@ -1,8 +1,7 @@
-import math
 import time
-
 import pulp
 from typing import Literal, Optional
+
 from src.domain.Collection import LiveJobCollection
 
 class Solver:
@@ -112,7 +111,7 @@ class Solver:
         else:
             raise ValueError("solver_type must be either 'CBC' or 'HiGHS'.")
         self.problem.solve(cmd)
-        self.runtime = round(time.time() - start_timer, 2)
+        self.runtime = time.time() - start_timer
 
 
     def get_schedule(self):
@@ -137,11 +136,19 @@ class Solver:
         solver_info = {
             "status": pulp.LpStatus[self.problem.status],
             "objective_value": pulp.value(self.problem.objective),
-            "num_variables": len(self.problem.variables()),
-            "num_constraints": len(self.problem.constraints),
-            "runtime": self.runtime
+            "number_of_variables": len(self.problem.variables()),
+            "number_of_constraints": len(self.problem.constraints),
+            "runtime": round(self.runtime, 2)
         }
         return solver_info
+
+
+    def print_solver_info(self):
+        info = self.get_solver_info()
+        for key, value in info.items():
+            label = key.replace("_", " ").capitalize()
+            print(f"{label:21}: {value}")
+        return None
 
 
 
