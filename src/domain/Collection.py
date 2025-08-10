@@ -174,17 +174,7 @@ class LiveJobCollection(UserDict[str, LiveJob]):
         for job in main.values():
             for op in job.operations:
                 if (op.job_id, op.position_number) not in excluded_pairs:
-                    result.add_operation(
-                        job_id=op.job_id,
-                        routing_id=op.routing_id,
-                        position_number=op.position_number,
-                        machine_name=op.machine_name,
-                        duration=op.duration,
-                        start=op.start,
-                        end=op.end,
-                        arrival=op.job_arrival,
-                        due_date=op.job_due_date
-                    )
+                    result.add_operation_instance(op)
 
         result.sort_operations()
         return result
@@ -379,22 +369,35 @@ class LiveJobCollection(UserDict[str, LiveJob]):
         has_routing_column = routing_column in df.columns
         has_arrival_column = arrival_column in df.columns
         has_due_date_column = due_date_column in df.columns
-        for _, row in df.iterrows():
-            routing_id = str(row[routing_column]) if has_routing_column and pd.notna(row[routing_column]) else None
-            arrival = int(row[arrival_column]) if has_arrival_column and pd.notna(row[arrival_column]) else None
-            due_date = int(row[due_date_column]) if has_due_date_column and pd.notna(row[due_date_column]) else None
 
-            obj.add_operation(
-                job_id=str(row[job_column]),
+        for job_id, group in df.groupby(job_column, sort=True):
+
+            routing_not_na = pd.notna(group[routing_column].iloc[0]) if has_routing_column else False
+            routing_id = str(group[routing_column].iloc[0]) if routing_not_na else None
+
+            arrival_not_na = pd.notna(group[arrival_column].iloc[0]) if has_arrival_column else False
+            arrival = int(group[arrival_column].iloc[0]) if arrival_not_na else None
+
+            due_date_not_na = pd.notna(group[due_date_column].iloc[0]) if has_due_date_column else False
+            due_date = int(group[due_date_column].iloc[0]) if due_date_not_na else None
+
+            job = LiveJob(
+                id=str(job_id),
                 routing_id=routing_id,
-                position_number=int(row[position_column]),
-                machine_name=str(row[machine_column]),
-                duration=int(row[duration_column]),
-                start=int(row[start_column]) if pd.notna(row[start_column]) else None,
-                end=int(row[end_column]) if pd.notna(row[end_column]) else None,
                 arrival=arrival,
                 due_date=due_date
             )
+
+            for _, row in group.iterrows():
+                operation = JobOperation(
+                    job=job,
+                    position_number=row[position_column],
+                    machine_name=str(row[machine_column]),
+                    duration=int(row[duration_column]),
+                    start=int(row[start_column]) if pd.notna(row[start_column]) else None,
+                    end=int(row[end_column]) if pd.notna(row[end_column]) else None,
+                )
+                obj.add_operation_instance(operation)
 
         obj.sort_operations()
         return obj
