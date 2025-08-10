@@ -3,10 +3,10 @@ import simpy
 import pandas as pd
 
 from dataclasses import replace
-from typing import Optional, Dict, Tuple, Union
+from typing import Optional, Dict, Tuple
 
 from src.domain.Collection import LiveJobCollection
-from src.domain.orm_models import JobOperation, Job, LiveJob
+from src.domain.orm_models import JobOperation, LiveJob
 from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
 from src.simulation.SimulationMachine import SimulationMachine, SimulationMachineCollection
 
@@ -42,7 +42,7 @@ class ProductionSimulation:
             if machine_name not in self.machines:
                 self.machines[machine_name] = SimulationMachine(name = machine_name, env = self.env)
 
-    def _job_process(self, job_id: str, job: Union[Job, LiveJob]):
+    def _job_process(self, job_id: str, job: LiveJob):
 
         if self.with_earliest_start:                            # for FCFS
             delay = max(job.earliest_start - self.env.now, 0)
