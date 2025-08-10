@@ -132,7 +132,7 @@ class Solver:
                     left_transition_time = operation.job.sum_left_transition_time(operation.position_number)
                     duration = operation.job.sum_duration
                     reasonable_min_start = due_date - duration - left_transition_time
-                    print(operation, f"{operation.job.earliest_start = } | {reasonable_min_start = } {due_date = } - {duration = }, - {left_transition_time = }")
+                    #print(operation, f"{operation.job.earliest_start = } | {reasonable_min_start = } {due_date = } - {duration = }, - {left_transition_time = }")
                     min_start = max(min_start, reasonable_min_start)
 
                 if operation.job_id in self.job_delays:
@@ -436,16 +436,16 @@ class Solver:
         if self.model_completed:
             model_proto = self.model.Proto()
             model_info = {
-                "number_of_operations_to_schedule": self.jobs_collection.count_operations(),
-                "number_of_operations_with_previous_schedule": self.previous_schedule_jobs_collection.count_operations() if self.previous_schedule_jobs_collection else 0,
-                "number_of_active_operation_to_consider": self.active_jobs_collection.count_operations() if self.active_jobs_collection else 0,
+                "number_of_preparable_operations": self.jobs_collection.count_operations(),
+                "number_of_previous_operations": self.previous_schedule_jobs_collection.count_operations() if self.previous_schedule_jobs_collection else 0,
+                "number_of_active_operation": self.active_jobs_collection.count_operations() if self.active_jobs_collection else 0,
                 "number_of_variables": len(model_proto.variables),
                 "number_of_constraints": len(model_proto.constraints)
             }
             return model_info
-        return "Model is not complete!"
+        return {"access_fault": "Model is not complete!"}
 
-    def get_solver_info(self):
+    def get_solver_info(self) -> dict:
         if self.solver_status:
             solver_info = {
                 "status": self.solver.StatusName(self.solver_status),
@@ -454,26 +454,37 @@ class Solver:
                 "number_of_branches": self.solver.NumBranches(),
                 "wall_time": round(self.solver.WallTime(), 2)
             }
-            """
-            solver = self.solver_status
-            if self.solver_status == cp_model.OPTIMAL:
-                print("Gesamtkosten:", solver.Value(total_cost))
-                print("Tardiness-Kosten:", solver.Value(scaled_tardiness_cost))
-                print("Earliness-Kosten:", solver.Value(scaled_earliness_cost))
-                print("First-Op-Kosten:", solver.Value(scaled_first_op_cost))
-                print("Deviation-Kosten:", solver.Value(scaled_deviation_cost))
-            """
-            return solver_info
-        return "Solver status is not available!"
+            if self.solver_status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
+                solver_info["tardiness_cost"] = self.tardiness_terms.total_cost(self.solver)
+                solver_info["earliness_cost"] = self.earliness_terms.total_cost(self.solver)
+                solver_info["deviation_cost"] = self.deviation_terms.total_cost(self.solver)
 
-    def get_experiment_log(self):
-        if self.model_completed:
-            experiment_log = {
-                "model_info": self.get_model_info(),
-                "solver_info": self.get_solver_info()
-            }
-            return experiment_log
-        return "Model is not complete!"
+            return solver_info
+        return {"access_fault": "Solver status is not available!"}
+
+
+    def print_model_info(self):
+        """
+        Pretty print solver info dictionary.
+        """
+        return self._print_info(self.get_model_info(), label_width= 31)
+
+    def print_solver_info(self):
+        """
+        Pretty print solver info dictionary.
+        """
+        return self._print_info(self.get_solver_info())
+
+    @staticmethod
+    def _print_info(info: dict, label_width: int = 20):
+        """
+        Pretty print a dictionary.
+        Replaces underscores with spaces and aligns keys.
+        """
+        for key, value in info.items():
+            label = key.replace("_", " ").capitalize()
+            print(f"{label:{label_width}}: {value}")
+
 
 
 
