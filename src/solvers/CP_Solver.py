@@ -5,6 +5,7 @@ from fractions import Fraction
 from typing import Optional
 from ortools.sat.python import cp_model
 
+from src.Logger import SingletonLogger
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation
 from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
@@ -14,6 +15,8 @@ from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapp
 class Solver:
 
     def __init__(self, jobs_collection: LiveJobCollection, schedule_start: int = 0):
+
+        self.logger = SingletonLogger()
 
         # JobsCollections and information
         self.jobs_collection = jobs_collection
@@ -132,7 +135,6 @@ class Solver:
                     left_transition_time = operation.job.sum_left_transition_time(operation.position_number)
                     duration = operation.job.sum_duration
                     reasonable_min_start = due_date - duration - left_transition_time
-                    #print(operation, f"{operation.job.earliest_start = } | {reasonable_min_start = } {due_date = } - {duration = }, - {left_transition_time = }")
                     min_start = max(min_start, reasonable_min_start)
 
                 if operation.job_id in self.job_delays:
@@ -207,12 +209,13 @@ class Solver:
             self, previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
             active_jobs_collection: Optional[LiveJobCollection] = None,
             w_t: int = 1, w_e: int = 1, w_dev: int = 1):
-
         # with_transition_times for first operation
 
         if self.model_completed:
-            return "Model is already completed"
+            self.logger.warning("Model already completed!")
+            return False
 
+        self.logger.info("Building model for absolute lateness and start deviation minimization")
         self.previous_schedule_jobs_collection = previous_schedule_jobs_collection
         self.active_jobs_collection = active_jobs_collection
 
@@ -241,7 +244,7 @@ class Solver:
         # IV. Weights
         if previous_schedule_jobs_collection is None or previous_schedule_jobs_collection.count_operations() == 0:
             w_dev = 0
-        print(f"{w_t = }, {w_e = }, {w_dev = }")
+        self.logger.info(f"Model weights: {w_t = }, {w_e = }, {w_dev = }")
 
         self.tardiness_terms.set_weight(weight=w_t)
         self.earliness_terms.set_weight(weight=w_e)
@@ -327,7 +330,8 @@ class Solver:
         # IV. Weights
         if previous_schedule_jobs_collection is None or previous_schedule_jobs_collection.count_operations() == 0:
             w_dev = 0
-        print(f"{w_t = }, {w_e = }, {w_first = }, {w_dev = }")
+
+        self.logger.info(f"Model weights: {w_t = }, {w_e = }, {w_first = }, {w_dev = }")
 
         self.tardiness_terms.set_weight(weight=w_t)
         self.earliness_terms.set_weight(weight=w_e)
@@ -382,7 +386,8 @@ class Solver:
         # IV. Weights
         if previous_schedule_jobs_collection is None or previous_schedule_jobs_collection.count_operations() == 0:
             w_dev = 0
-        print(f"{w_f = }, {w_dev = }")
+
+        self.logger.info(f"Model weights: {w_f = }, {w_dev = }")
 
         flowtime_terms.set_weight(weight=w_f)
         self.deviation_terms.set_weight(weight=w_dev)
@@ -411,7 +416,7 @@ class Solver:
             else:
                 self.solver_status = self.solver.Solve(self.model)
         else:
-            print("Model is not completed")
+            self.logger.warning("Model was not completed yet.")
 
 
     def get_schedule(self):
@@ -486,13 +491,11 @@ class Solver:
             print(f"{label:{label_width}}: {value}")
 
 
-
-
 @contextlib.contextmanager
 def _redirect_cpp_logs(logfile_path: str = "cp_output.log"):
     """
     Context manager to temporarily redirect stdout/stderr,
-    e.g. to capture output from OR-Tools CP-SAT solver or other C++ logs.
+    e.g. to capture output from OR-Tools CP-SAT solver or other C++ solver_logs.
     After the block, original output streams are restored.
     """
 

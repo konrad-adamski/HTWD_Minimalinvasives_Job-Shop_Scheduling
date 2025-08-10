@@ -9,9 +9,11 @@ from colorama import Fore, Style
 from sqlalchemy.exc import IntegrityError, SAWarning
 from typing import List, Optional, Dict
 
+from src.Logger import SingletonLogger
 from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
 from src.domain.orm_setup import SessionLocal
 
+logger = SingletonLogger()
 
 class DataSourceInitializer:
     def __new__(cls, *args, **kwargs):
@@ -46,7 +48,7 @@ class DataSourceInitializer:
                             RoutingOperation(
                                 routing_id=routing_id_str,
                                 position_number=step_nr,
-                                machine_name=f"M{machine_idx:02d}", # f"M{source.id:02d}-{machine_idx:02d}"
+                                machine_name=f"M{machine_idx:02d}",
                                 duration=duration
                             )
                         )
@@ -54,10 +56,9 @@ class DataSourceInitializer:
                 session.commit()
             except IntegrityError as e:
                 session.rollback()
-                print(Fore.RED + f"✗ Data source '{source_name}' Insert failed due to IntegrityError: {e}"
-                      + Style.RESET_ALL)
+                logger.error(f"Data source '{source_name}' Insert failed due to IntegrityError: {e}")
                 return False
-        print(Fore.GREEN + f"✓ Data source '{source_name}' inserted successfully." + Style.RESET_ALL)
+        logger.info(f"Data source '{source_name}' inserted successfully.")
         return True
 
 
@@ -263,17 +264,14 @@ class JobsInitializer:
 
                 except SAWarning as w:
                     session.rollback()
-                    print(Fore.RED + f"✗ Jobs Insert with {max_bottleneck_utilization = } "
-                                     f"was prevented: {w}" + Style.RESET_ALL)
+                    logger.warning(f"Jobs Insert with {max_bottleneck_utilization = } was prevented: {w}")
                     return False
                 except IntegrityError as e:
                     session.rollback()
-                    print(Fore.RED + f"✗ Jobs Insert with {max_bottleneck_utilization = } "
-                                     f"failed due to IntegrityError: {e}" + Style.RESET_ALL)
+                    logger.error(f"Jobs Insert with {max_bottleneck_utilization = } failed due to IntegrityError: {e}")
                     return False
 
-        print(Fore.GREEN + f"✓ Jobs Insert with {max_bottleneck_utilization = }, {job_number = } was successful."
-              + Style.RESET_ALL)
+        logger.info(f"Jobs Insert with {max_bottleneck_utilization = }, {job_number = } was successful.")
         return True
 
 
@@ -323,16 +321,15 @@ class MachineInitializer:
                     session.commit()
                 except SAWarning as w:
                     session.rollback()
-                    print(Fore.RED + f"✗ Machine Insert with {source_name = } {max_bottleneck_utilization = } "
-                                     f"was prevented: {w}" + Style.RESET_ALL)
+                    logger.warning(f"Machine Insert with {source_name = } {max_bottleneck_utilization = } "
+                                   + f"was prevented: {w}")
                     return False
                 except IntegrityError as e:
                     session.rollback()
-                    print(Fore.RED + f"✗ Machine Insert with {source_name = } {max_bottleneck_utilization = } "
-                                     f"failed due to IntegrityError: {e}" + Style.RESET_ALL)
+                    logger.error(f"Machine Insert with {source_name = } {max_bottleneck_utilization = } "
+                                 + f"failed due to IntegrityError: {e}")
                     return False
-        print(Fore.GREEN + f"✓ Machines Insert with {source_name = } {max_bottleneck_utilization = } was successful."
-              + Style.RESET_ALL)
+        logger.info(f"Machines Insert with {source_name = } {max_bottleneck_utilization = } was successful.")
         return True
 
 

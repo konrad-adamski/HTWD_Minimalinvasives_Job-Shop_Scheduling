@@ -1,7 +1,6 @@
 import json
 
-from colorama import Fore, Style
-from configs.path_manager import get_path
+from project_config import get_data_path
 from src.domain.Initializer import DataSourceInitializer
 from src.domain.orm_setup import reset_tables
 
@@ -9,8 +8,7 @@ if __name__ == "__main__":
     reset_tables()
 
     # Load file
-    basic_data_path = get_path("data", "basic")
-    file_path = basic_data_path / "jobshop_instances.json"
+    file_path = get_data_path("basic", "jobshop_instances.json")
 
     with open(file_path, "r", encoding="utf-8") as f:
         jobshop_instances = json.load(f)
