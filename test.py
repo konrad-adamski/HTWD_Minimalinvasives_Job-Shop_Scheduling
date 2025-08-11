@@ -33,6 +33,11 @@ w_dev = amount * dev_factor
 
 print(f"w_t = {w_t}, w_e = {w_e}, w_dev = {w_dev}")
 
+total_shift_number =25
+
+for shift_number in range(1, total_shift_number + 1):
+    print(f"shift_number = {shift_number}")
+
 
 
 
