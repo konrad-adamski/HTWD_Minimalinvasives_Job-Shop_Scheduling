@@ -407,24 +407,19 @@ class Experiment:
         "sa": Column(Integer, primary_key=True, autoincrement=True)
     })
 
-    # Relevant parameters
-    main_pct: float = field(default=0.5, metadata={
-        "sa": Column(Float, nullable=False)
+    source_id: int = field(init=False, metadata={
+        "sa": Column(Integer, ForeignKey("routing_source.id"), nullable=False)
+    })
+    routing_source: RoutingSource = field(init=True, repr=False, metadata={
+        "sa": relationship("RoutingSource")
     })
 
-    w_t: int = field(default=1, metadata={
-        "sa": Column(Integer, nullable=False)
-    })
+    # Cost function parameters
+    absolute_lateness_ratio: float = field(metadata={"sa": Column(Float, nullable=False)})
 
-    w_e: int = field(default=1, metadata={
-        "sa": Column(Integer, nullable=False)
-    })
+    inner_tardiness_ratio: float = field(metadata={"sa": Column(Float, nullable=False)})
 
-    w_first: Optional[int] = field(default=1, metadata={
-        "sa": Column(Integer, nullable=True)
-    })
-
-
+    # Other parameters
     max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
         "sa": Column(Numeric(5, 4), nullable=False)
     })
@@ -433,12 +428,12 @@ class Experiment:
         "sa": Column(Float, nullable=False)
     })
 
-    #  general
+    # General
     total_shift_number: int = field(init=True, default=None, metadata={
         "sa": Column(Integer, nullable=False)
     })
 
-    shift_length: Optional[int] = field(default=1440, metadata={
+    shift_length: int = field(init = False, default=1440, metadata={
         "sa": Column(Integer, nullable=False)
     })
 
@@ -480,8 +475,14 @@ class Experiment:
         if not (Decimal("0") <= self.max_bottleneck_utilization <= Decimal("1")):
             raise ValueError("max_bottleneck_utilization must be between 0 and 1 (inclusive).")
 
-        if not (0 <= self.main_pct <= 1):
-            raise ValueError("main_pct must be between 0 and 1.")
+        if not (0 <= self.absolute_lateness_ratio <= 1):
+            raise ValueError("absolute_lateness_ratio must be between 0 and 1.")
+
+        if not (0 <= self.inner_tardiness_ratio <= 1):
+            raise ValueError("inner_tardiness_ratio must be between 0 and 1.")
+
+        if self.source_id is None and self.routing_source:
+            self.source_id = self.routing_source.id
 
         if self.shift_length is None:
             self.shift_length = 1440
@@ -496,14 +497,13 @@ class Shift:
         "sa": Column(Integer, primary_key=True)
     })
 
-    experiment_id: int = field(metadata={
+    experiment_id: int = field(init=True, metadata={
         "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
     })
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
+    experiment: Experiment = field(init= False, repr=False, metadata={
         "sa": relationship(Experiment, back_populates="shifts", lazy="joined")
     })
-
 
     schedule_jobs: List[ScheduleJob] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(ScheduleJob, overlaps="experiment")

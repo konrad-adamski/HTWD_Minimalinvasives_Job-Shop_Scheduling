@@ -17,7 +17,7 @@ if __name__ == "__main__":
     data_source: dict = jobshop_instances["instance ft10"]
 
     print("\n" + "-"*30, "Original data source", "-"*30)
-    for key,value in data_source.items():
+    for key, value in data_source.items():
         print(f"{key}: {value}")
 
     print("-"*82)

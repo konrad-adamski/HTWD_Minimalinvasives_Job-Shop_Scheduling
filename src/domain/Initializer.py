@@ -4,13 +4,11 @@ import warnings
 
 from collections import defaultdict
 from decimal import Decimal
-
-from colorama import Fore, Style
 from sqlalchemy.exc import IntegrityError, SAWarning
 from typing import List, Optional, Dict
 
 from src.Logger import SingletonLogger
-from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
+from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine, Shift
 from src.domain.orm_setup import SessionLocal
 
 logger = SingletonLogger()
@@ -26,7 +24,6 @@ class DataSourceInitializer:
 
         :param routing_dict: e.g. {"0": [{"machine": 4, "duration": 88}, ...], ...}
         :param source_name: Name of the new RoutingSource.
-        :return: True if inserted successfully, False on IntegrityError.
         """
         with SessionLocal() as session:
             try:
@@ -54,12 +51,10 @@ class DataSourceInitializer:
                         )
                     session.add(new_routing)
                 session.commit()
-            except IntegrityError as e:
+                logger.info(f"Data source '{source_name}' Insert successful")
+            except Exception as e:
                 session.rollback()
-                logger.error(f"Data source '{source_name}' Insert failed due to IntegrityError: {e}")
-                return False
-        logger.info(f"Data source '{source_name}' inserted successfully.")
-        return True
+                logger.error(f"Data source '{source_name}' Insert failed: {e}")
 
 
 class JobsInitializer:
@@ -261,18 +256,13 @@ class JobsInitializer:
                 try:
                     session.add_all(jobs)
                     session.commit()
-
+                    logger.info(f"Jobs Insert with {max_bottleneck_utilization = }, {job_number = } successful")
                 except SAWarning as w:
                     session.rollback()
-                    logger.warning(f"Jobs Insert with {max_bottleneck_utilization = } was prevented: {w}")
-                    return False
+                    logger.warning(f"Jobs Insert with {max_bottleneck_utilization = } prevented: {w}")
                 except IntegrityError as e:
                     session.rollback()
-                    logger.error(f"Jobs Insert with {max_bottleneck_utilization = } failed due to IntegrityError: {e}")
-                    return False
-
-        logger.info(f"Jobs Insert with {max_bottleneck_utilization = }, {job_number = } was successful.")
-        return True
+                    logger.error(f"Jobs Insert with {max_bottleneck_utilization = } failed {e}")
 
 
 class MachineInitializer:
@@ -282,7 +272,7 @@ class MachineInitializer:
     @staticmethod
     def insert_from_dataframe(
             df: pd.DataFrame, source_name: str, max_bottleneck_utilization: Decimal, machine_column: str = "Machine",
-            average_transition_time_column: str = "Ø Transition Time") -> bool:
+            average_transition_time_column: str = "Ø Transition Time"):
         """
         Inserts Machine entries into the database from a pandas DataFrame.
 
@@ -295,7 +285,6 @@ class MachineInitializer:
         :param max_bottleneck_utilization: Maximum bottleneck utilization value to assign to each machine.
         :param machine_column: Name of the column in `df` that contains machine names.
         :param average_transition_time_column: Name of the column in `df` that contains average transition times.
-        :return: True if all entries were inserted successfully, False if an IntegrityError occurred.
         :raises ValueError: If the RoutingSource does not exist or such machines (with given max_bottleneck_utilization)
                             already exist.
         """
@@ -319,40 +308,75 @@ class MachineInitializer:
                         )
                         session.add(machine)
                     session.commit()
+                    logger.info(f"Machines Insert {source_name = } {max_bottleneck_utilization = } successful")
                 except SAWarning as w:
                     session.rollback()
-                    logger.warning(f"Machine Insert with {source_name = } {max_bottleneck_utilization = } "
-                                   + f"was prevented: {w}")
-                    return False
+                    logger.warning(f"Machine Insert {source_name = } {max_bottleneck_utilization = } prevented: {w}")
                 except IntegrityError as e:
                     session.rollback()
-                    logger.error(f"Machine Insert with {source_name = } {max_bottleneck_utilization = } "
-                                 + f"failed due to IntegrityError: {e}")
-                    return False
-        logger.info(f"Machines Insert with {source_name = } {max_bottleneck_utilization = } was successful.")
-        return True
+                    logger.error(f"Machine Insert {source_name = } {max_bottleneck_utilization = } failed: {e}")
 
 
-class ExperimentInitializerNew:                                                                                         # TODO
+
+class ExperimentInitializer:
     def __new__(cls, *args, **kwargs):
         raise TypeError("ExperimentInitializer is a static utility class and cannot be instantiated.")
 
     @staticmethod
-    def add_experiment(
-            total_shift_number: int = 30, solver_main_pct: float = 0.5, solver_w_t: int = 10, solver_w_e: int = 2,
-            solver_w_first: int = 1, max_bottleneck_utilization: float = 0.90, sim_sigma: float = 0.25) -> Experiment:
-        experiment = Experiment(
-            total_shift_number=total_shift_number,
-            main_pct=solver_main_pct,
-            w_t=solver_w_t,
-            w_e=solver_w_e,
-            w_first=solver_w_first,
-            max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization:.4f}"),
-            sim_sigma=sim_sigma
-        )
+    def insert_experiment(
+            source_name: str, absolute_lateness_ratio: float, inner_tardiness_ratio: float,
+            max_bottleneck_utilization: Decimal, sim_sigma: float, total_shift_number: int) -> Optional[int]:
+        """
+        Inserts a single Experiment entry into the database.
+
+        :param source_name: Name of the RoutingSource to associate with the experiment.
+        :param absolute_lateness_ratio: Ratio for absolute lateness weight.
+        :param inner_tardiness_ratio: Ratio for inner tardiness weight.
+        :param max_bottleneck_utilization: Maximum bottleneck utilization value.
+        :param sim_sigma: Sigma value for simulation variability.
+        :param total_shift_number: Total number of shifts in the experiment.
+        :return: experiment_id if the entry was inserted successfully
+        """
 
         with SessionLocal() as session:
-            session.add(experiment)
-            session.commit()
+            try:
+                routing_source = (
+                    session.query(RoutingSource)
+                    .filter(RoutingSource.name == source_name)
+                    .one_or_none()
+                )
+                experiment = Experiment(
+                    routing_source=routing_source,
+                    absolute_lateness_ratio=absolute_lateness_ratio,
+                    inner_tardiness_ratio=inner_tardiness_ratio,
+                    max_bottleneck_utilization=max_bottleneck_utilization,
+                    sim_sigma=sim_sigma,
+                    total_shift_number=total_shift_number,
+                )
+                session.add(experiment)
+                session.flush()
+                experiment_id = experiment.id
+                session.commit()
+                logger.info(f"Experiment insert successful for {source_name = }, {max_bottleneck_utilization = }.")
+                return experiment_id
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Experiment insert failed for {source_name = }, {max_bottleneck_utilization = }: {e}")
+                return None
 
-            return session.get(Experiment, experiment.id)
+    @staticmethod
+    def insert_shift(experiment_id: int, shift_number: int):
+        with SessionLocal() as session:
+            try:
+                shift = Shift(
+                    shift_number=shift_number,
+                    experiment_id=experiment_id
+                )
+                session.add(shift)
+                session.commit()
+                logger.info(f"Shift {shift_number} für Experiment {experiment_id} erfolgreich angelegt.")
+                return True
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Fehler beim Anlegen von Shift {shift_number} für Experiment {experiment_id}: {e}")
+                return False
