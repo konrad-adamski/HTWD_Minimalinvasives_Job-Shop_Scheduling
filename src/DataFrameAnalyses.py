@@ -5,13 +5,16 @@ Dataframe Analyses.py contains
 - DataFramePlotGenerator
 """
 
+from datetime import timedelta
+
+import matplotlib
 import matplotlib.patches as mpatches
 from matplotlib.axes import Axes
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 class DataFrameChecker:
     def __init__(self):
@@ -569,5 +572,244 @@ class DataFramePlotGenerator:
 
         plt.tight_layout()
         return fig
+
+    # Convergence of Solver ------------------------------------------------------------------------------------------
+    @staticmethod
+    def _format_hhmm(seconds: Union[float, int, np.signedinteger]) -> str:
+        """Format seconds as HH:MM (no seconds)."""
+        td = timedelta(seconds=int(seconds))
+        total_minutes = int(td.total_seconds() // 60)
+        h, m = divmod(total_minutes, 60)
+        return f"{h:02d}:{m:02d}"
+
+    @staticmethod
+    def _choose_granularity(
+            x_max_s: float, granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"]) -> str:
+        if granularity != "auto":
+            return granularity
+        if x_max_s <= 5 * 60:
+            return "seconds"
+        if x_max_s <= 30 * 60:
+            return "minutes"
+        if x_max_s <= 60 * 60:
+            return "quarter"
+        if x_max_s <= 5 * 3600:
+            return "half"
+        return "hours"
+
+    @staticmethod
+    def _step_for_granularity(x_max: float, gran: str) -> int:
+        if gran == "seconds":
+            # nice steps
+            candidates = [1, 5, 10, 30]
+            target = max(6, int(x_max // 8))
+            return min(candidates, key=lambda k: abs(k - target)) or 1
+        if gran == "minutes":
+            candidates = [60, 300, 600]  # (1, 5, 10 min)
+            target = max(60, int(x_max // 10))
+            return min(candidates, key=lambda k: abs(k - target))
+        if gran == "quarter":
+            return 15 * 60
+        if gran == "half":
+            return 30 * 60
+        if gran == "hours":
+            return 3600
+        return 60  # Fallback: 1 minute
+
+    @classmethod
+    def get_convergence_plot_figure(
+            cls, df: pd.DataFrame, time_col: str = "Time", bestsol_col: str = "BestSol", subtitle: str = "",
+            y_min: float = None, y_max: float = None, max_time: float = None,
+            granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"] = "auto", marker: str = "."):
+        """
+        Generate a convergence curve plot of the solver's best solution over time.
+
+        :param df: DataFrame containing solver log data.
+        :param time_col: Column name for elapsed time values.
+        :param bestsol_col: Column name for best solution values.
+        :param subtitle: Optional subtitle to append to the plot title.
+        :param y_min: Minimum y-axis value; if None, uses the minimum in `bestsol_col`.
+        :param y_max: Maximum y-axis value; if None, uses the maximum in `bestsol_col`.
+        :param max_time: Maximum time (in seconds) to display on the x-axis.
+        :param granularity: Tick label granularity for the x-axis; "auto", "seconds", "minutes", "quarter", "half", or "hours".
+        :param marker: Matplotlib marker style for data points.
+        :return: Matplotlib Figure object, or None if the filtered DataFrame is empty.
+        :rtype: matplotlib.figure.Figure | None
+        """
+        if y_min is not None and y_max is not None and y_max < y_min:
+            return None
+
+        d = df.copy()
+        if max_time is not None:
+            d = d[d[time_col] <= max_time]
+
+        if d.empty:
+            print("DataFrame hat keine Zeilen im angegebenen Zeitbereich.")
+            return None
+
+        # x-axis
+        x_max = float(max_time) if max_time is not None else float(d[time_col].max())
+        gran = cls._choose_granularity(x_max, granularity)
+        step = cls._step_for_granularity(x_max, gran)
+        ticks_s = np.arange(0, int(x_max) + step, step)
+
+        if gran == "seconds":
+            tick_labels = [f"{int(s)}" for s in ticks_s]
+            xlabel = "Time [sec]"
+        else:
+            tick_labels = [cls._format_hhmm(s) for s in ticks_s]
+            xlabel = "Time [hh:mm]"
+
+        # y axis
+        y_step = 60
+        ymin = y_min if y_min is not None else float(d[bestsol_col].min())
+        ymax = y_max if y_max is not None else float(d[bestsol_col].max())
+        raw = (ymax - ymin) / 8
+        pow10 = 10 ** int(np.floor(np.log10(raw))) if raw > 0 else 1
+        for m in (1, 2, 5, 10):
+            if raw <= m * pow10:
+                y_step = m * pow10
+                break
+
+        # Round ymin to multiples of y_step
+        ymin = np.floor(ymin / y_step) * y_step
+
+        # Matplot figure
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(d[time_col], d[bestsol_col], marker=marker)
+        ax.set_xlabel(xlabel)
+        ax.set_xticks(ticks_s)
+        ax.set_xticklabels(tick_labels)
+
+        ax.set_ylabel("Best Solution")
+        ax.set_ylim(ymin, ymax)
+        if y_step:
+            yticks = np.arange(ymin, ymax + y_step, y_step)
+            ax.set_yticks(yticks)
+
+        ax.grid(True)
+        title = "Convergence Curve of the OR-Tools CP-SAT Solver"
+        if subtitle:
+            title += f" – {subtitle}"
+        ax.set_title(title)
+
+        fig.tight_layout()
+        return fig
+
+    @classmethod
+    def get_convergence_plot_figure(
+            cls,
+            df: pd.DataFrame,
+            time_col: str = "Time",
+            bestsol_col: str = "BestSol",
+            subtitle: str = "",
+            y_min: float | None = None,
+            y_max: float | None = None,
+            max_time: float | None = None,
+            granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"] = "auto",
+            marker: str = ".",
+            relative_y: bool = True,
+    ):
+        """
+        Generate a convergence curve plot of the solver's best solution over time.
+
+        :param df: DataFrame containing solver log data.
+        :param time_col: Column name for elapsed time values.
+        :param bestsol_col: Column name for best solution values.
+        :param subtitle: Optional subtitle to append to the plot title.
+        :param y_min: Minimum y-axis value; ignored when relative_y=True unless explicitly set.
+        :param y_max: Maximum y-axis value; ignored when relative_y=True unless explicitly set.
+        :param max_time: Maximum time (in seconds) to display on the x-axis.
+        :param granularity: Tick label granularity for the x-axis; "auto", "seconds", "minutes", "quarter", "half", or "hours".
+        :param marker: Matplotlib marker style for data points.
+        :param relative_y: If True, normalize y so that first value = 0% and last value = 100%.
+        :return: Matplotlib Figure object, or None if the filtered DataFrame is empty.
+        :rtype: matplotlib.figure.Figure | None
+        """
+        # Validate y_min/y_max if both are provided
+        if y_min is not None and y_max is not None and y_max < y_min:
+            return None
+
+        d = df.copy()
+
+        # Filter by max_time if given
+        if max_time is not None:
+            d = d[d[time_col] <= max_time]
+
+        # Abort if DataFrame is empty after filtering
+        if d.empty:
+            print("DataFrame has no rows in the given time range.")
+            return None
+
+        # --- Optional: normalize y-values to percentage (first = 0%, last = 100%)
+        if relative_y:
+            first_val = float(d[bestsol_col].iloc[0])
+            last_val = float(d[bestsol_col].iloc[-1])
+            if first_val == last_val:
+                # No progress – set all to 100%
+                d[bestsol_col] = 100.0
+            else:
+                d[bestsol_col] = (d[bestsol_col] - first_val) / (last_val - first_val) * 100.0
+
+        # --- Prepare x-axis
+        x_max = float(max_time) if max_time is not None else float(d[time_col].max())
+        gran = cls._choose_granularity(x_max, granularity)
+        step = cls._step_for_granularity(x_max, gran)
+        ticks_s = np.arange(0, int(x_max) + step, step)
+
+        if gran == "seconds":
+            tick_labels = [f"{int(s)}" for s in ticks_s]
+            xlabel = "Time [sec]"
+        else:
+            tick_labels = [cls._format_hhmm(s) for s in ticks_s]
+            xlabel = "Time [hh:mm]"
+
+        # --- Prepare y-axis
+        if relative_y:
+            # Standard percent range
+            ymin = 0.0 if y_min is None else y_min
+            ymax = 100.0 if y_max is None else y_max
+            y_step = 10.0  # nice step for percentage axis
+        else:
+            # Auto step calculation for absolute values
+            y_step = 60.0
+            ymin = y_min if y_min is not None else float(d[bestsol_col].min())
+            ymax = y_max if y_max is not None else float(d[bestsol_col].max())
+            raw = (ymax - ymin) / 8 if ymax > ymin else 1.0
+            pow10 = 10 ** int(np.floor(np.log10(raw))) if raw > 0 else 1
+            for m in (1, 2, 5, 10):
+                if raw <= m * pow10:
+                    y_step = m * pow10
+                    break
+            # Round ymin down to a multiple of y_step
+            ymin = np.floor(ymin / y_step) * y_step
+
+        # --- Create plot
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(d[time_col], d[bestsol_col], marker=marker)
+
+        # X-axis setup
+        ax.set_xlabel(xlabel)
+        ax.set_xticks(ticks_s)
+        ax.set_xticklabels(tick_labels)
+
+        # Y-axis setup
+        ax.set_ylabel("Relative Best Solution [%]" if relative_y else "Best Solution")
+        ax.set_ylim(ymin, ymax)
+        if y_step:
+            yticks = np.arange(ymin, ymax + y_step, y_step)
+            ax.set_yticks(yticks)
+
+        # Title & grid
+        ax.grid(True)
+        title = "Convergence Curve of the OR-Tools CP-SAT Solver"
+        if subtitle:
+            title += f" – {subtitle}"
+        ax.set_title(title)
+
+        fig.tight_layout()
+        return fig
+
+
 
 
