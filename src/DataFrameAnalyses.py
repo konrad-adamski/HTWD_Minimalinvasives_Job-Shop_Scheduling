@@ -697,61 +697,48 @@ class DataFramePlotGenerator:
         return fig
 
     @classmethod
-    def get_convergence_plot_figure(
-            cls,
-            df: pd.DataFrame,
-            time_col: str = "Time",
-            bestsol_col: str = "BestSol",
-            subtitle: str = "",
-            y_min: float | None = None,
-            y_max: float | None = None,
-            max_time: float | None = None,
-            granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"] = "auto",
-            marker: str = ".",
-            relative_y: bool = True,
+    def get_relative_convergence_plot_figure(
+        cls,
+        df: pd.DataFrame,
+        time_col: str = "Time",
+        bestsol_col: str = "BestSol",
+        subtitle: str = "",
+        max_time: float | None = None,
+        granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"] = "auto",
+        marker: str = ".",
     ):
         """
-        Generate a convergence curve plot of the solver's best solution over time.
+        Generate a convergence curve with a relative y-axis (first value = 0%, last value = 100%).
 
         :param df: DataFrame containing solver log data.
         :param time_col: Column name for elapsed time values.
         :param bestsol_col: Column name for best solution values.
         :param subtitle: Optional subtitle to append to the plot title.
-        :param y_min: Minimum y-axis value; ignored when relative_y=True unless explicitly set.
-        :param y_max: Maximum y-axis value; ignored when relative_y=True unless explicitly set.
         :param max_time: Maximum time (in seconds) to display on the x-axis.
         :param granularity: Tick label granularity for the x-axis; "auto", "seconds", "minutes", "quarter", "half", or "hours".
         :param marker: Matplotlib marker style for data points.
-        :param relative_y: If True, normalize y so that first value = 0% and last value = 100%.
         :return: Matplotlib Figure object, or None if the filtered DataFrame is empty.
         :rtype: matplotlib.figure.Figure | None
         """
-        # Validate y_min/y_max if both are provided
-        if y_min is not None and y_max is not None and y_max < y_min:
-            return None
-
         d = df.copy()
 
-        # Filter by max_time if given
+        # Filter by max_time if provided
         if max_time is not None:
             d = d[d[time_col] <= max_time]
 
-        # Abort if DataFrame is empty after filtering
         if d.empty:
             print("DataFrame has no rows in the given time range.")
             return None
 
-        # --- Optional: normalize y-values to percentage (first = 0%, last = 100%)
-        if relative_y:
-            first_val = float(d[bestsol_col].iloc[0])
-            last_val = float(d[bestsol_col].iloc[-1])
-            if first_val == last_val:
-                # No progress – set all to 100%
-                d[bestsol_col] = 100.0
-            else:
-                d[bestsol_col] = (d[bestsol_col] - first_val) / (last_val - first_val) * 100.0
+        # Normalize Y: first -> 0%, last -> 100%
+        first_val = float(d[bestsol_col].iloc[0])
+        last_val  = float(d[bestsol_col].iloc[-1])
+        if first_val == last_val:
+            d[bestsol_col] = 100.0
+        else:
+            d[bestsol_col] = (d[bestsol_col] - first_val) / (last_val - first_val) * 100.0
 
-        # --- Prepare x-axis
+        # X-axis preparation
         x_max = float(max_time) if max_time is not None else float(d[time_col].max())
         gran = cls._choose_granularity(x_max, granularity)
         step = cls._step_for_granularity(x_max, gran)
@@ -764,43 +751,18 @@ class DataFramePlotGenerator:
             tick_labels = [cls._format_hhmm(s) for s in ticks_s]
             xlabel = "Time [hh:mm]"
 
-        # --- Prepare y-axis
-        if relative_y:
-            # Standard percent range
-            ymin = 0.0 if y_min is None else y_min
-            ymax = 100.0 if y_max is None else y_max
-            y_step = 10.0  # nice step for percentage axis
-        else:
-            # Auto step calculation for absolute values
-            y_step = 60.0
-            ymin = y_min if y_min is not None else float(d[bestsol_col].min())
-            ymax = y_max if y_max is not None else float(d[bestsol_col].max())
-            raw = (ymax - ymin) / 8 if ymax > ymin else 1.0
-            pow10 = 10 ** int(np.floor(np.log10(raw))) if raw > 0 else 1
-            for m in (1, 2, 5, 10):
-                if raw <= m * pow10:
-                    y_step = m * pow10
-                    break
-            # Round ymin down to a multiple of y_step
-            ymin = np.floor(ymin / y_step) * y_step
-
-        # --- Create plot
+        # Create plot
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(d[time_col], d[bestsol_col], marker=marker)
 
-        # X-axis setup
         ax.set_xlabel(xlabel)
         ax.set_xticks(ticks_s)
         ax.set_xticklabels(tick_labels)
 
-        # Y-axis setup
-        ax.set_ylabel("Relative Best Solution [%]" if relative_y else "Best Solution")
-        ax.set_ylim(ymin, ymax)
-        if y_step:
-            yticks = np.arange(ymin, ymax + y_step, y_step)
-            ax.set_yticks(yticks)
+        ax.set_ylabel("Relative Best Solution [%]")
+        ax.set_ylim(0, 100)
+        ax.set_yticks(np.arange(0, 101, 10))
 
-        # Title & grid
         ax.grid(True)
         title = "Convergence Curve of the OR-Tools CP-SAT Solver"
         if subtitle:
@@ -809,7 +771,4 @@ class DataFramePlotGenerator:
 
         fig.tight_layout()
         return fig
-
-
-
 
