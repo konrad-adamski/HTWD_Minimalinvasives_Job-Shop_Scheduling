@@ -8,12 +8,12 @@ from src.solvers.CP_Solver import Solver
 
 if __name__ == "__main__":
     source_name = "Fisher and Thompson 10x10"
-    sim_sigma = 0.4
+    sim_sigma = 0.2
     absolute_lateness_ratio = 0.5
     inner_tardiness_ratio = 0.75
-    max_bottleneck_utilization = 0.9
-    total_shift_number = 25
-    max_solver_time = 60 * 5 # 5 min
+    max_bottleneck_utilization = 0.8
+    total_shift_number = 10
+    max_solver_time = 60 * 15 # 15 min
 
     experiment_id = ExperimentInitializer.insert_experiment(
         source_name=source_name,
@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
 
     # --- Preparation  ---
-    simulation = ProductionSimulation(sigma=sim_sigma)
+    simulation = ProductionSimulation(sigma=sim_sigma, verbose=False)
 
     # Jobs Collection
     jobs = JobQuery.get_by_source_name_max_util_and_lt_arrival(
@@ -50,10 +50,10 @@ if __name__ == "__main__":
                     operation.transition_time = machine.transition_time
 
     # Collections (empty)
-    schedule_jobs_collection = LiveJobCollection(jobs)  # pseudo previous schedule
-    active_jobs_collection = LiveJobCollection(jobs)
+    schedule_jobs_collection = LiveJobCollection()  # pseudo previous schedule
+    active_job_ops_collection = LiveJobCollection()
 
-    waiting_job_ops_collection = LiveJobCollection(jobs)
+    waiting_job_ops_collection = LiveJobCollection()
 
 
     for shift_number in range(1, total_shift_number + 1):
@@ -73,11 +73,11 @@ if __name__ == "__main__":
 
         solver.build_model__absolute_lateness__start_deviation__minimization(
             previous_schedule_jobs_collection=schedule_jobs_collection,
-            active_jobs_collection=active_jobs_collection,
-            w_t=3, w_e=1, w_dev=12                                                                                      # TODO params based on ratio
+            active_jobs_collection=active_job_ops_collection,
+            w_t=3, w_e=1, w_dev=2                                                                                      # TODO params based on ratio
         )
         solver.print_model_info()
-        solver.solve_model(gap_limit=0.00, time_limit=max_solver_time)           # log_file=log_file_path,
+        solver.solve_model(gap_limit=0.05, time_limit=max_solver_time)                                                  # log_file=log_file_path mit {experiment_id}_{shift_number}_solver.log
         solver.print_solver_info()
 
         schedule_jobs_collection = solver.get_schedule()                                                                # TODO save in DB
