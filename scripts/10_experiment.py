@@ -1,10 +1,13 @@
 from decimal import Decimal
 
+from project_config import get_data_path
 from src.domain.Collection import LiveJobCollection
 from src.domain.Initializer import ExperimentInitializer
 from src.domain.Query import JobQuery, MachineQuery
 from src.simulation.ProductionSimulation import ProductionSimulation
 from src.solvers.CP_Solver import Solver
+
+logs_path = get_data_path("solver_logs")
 
 if __name__ == "__main__":
     source_name = "Fisher and Thompson 10x10"
@@ -12,8 +15,8 @@ if __name__ == "__main__":
     absolute_lateness_ratio = 0.5
     inner_tardiness_ratio = 0.75
     max_bottleneck_utilization = 0.8
-    total_shift_number = 10
-    max_solver_time = 60 * 15 # 15 min
+    total_shift_number = 4
+    max_solver_time = 60 * 60 # 60 min
 
     experiment_id = ExperimentInitializer.insert_experiment(
         source_name=source_name,
@@ -77,7 +80,11 @@ if __name__ == "__main__":
             w_t=3, w_e=1, w_dev=2                                                                                      # TODO params based on ratio
         )
         solver.print_model_info()
-        solver.solve_model(gap_limit=0.05, time_limit=max_solver_time)                                                  # log_file=log_file_path mit {experiment_id}_{shift_number}_solver.log
+        solver.solve_model(
+            gap_limit=0.02,
+            time_limit=max_solver_time,
+            log_file= f"{logs_path}/experiment{experiment_id:03d}_shift_{shift_number:02d}.log"
+        )
         solver.print_solver_info()
 
         schedule_jobs_collection = solver.get_schedule()                                                                # TODO save in DB
