@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError, SAWarning
 from typing import List, Optional, Dict
 
 from src.Logger import SingletonLogger
-from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine, Shift
+from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
 from src.domain.orm_setup import SessionLocal
 
 logger = SingletonLogger()
@@ -325,7 +325,7 @@ class ExperimentInitializer:
     @staticmethod
     def insert_experiment(
             source_name: str, absolute_lateness_ratio: float, inner_tardiness_ratio: float,
-            max_bottleneck_utilization: Decimal, sim_sigma: float, total_shift_number: int) -> Optional[int]:
+            max_bottleneck_utilization: Decimal, sim_sigma: float) -> Optional[int]:
         """
         Inserts a single Experiment entry into the database.
 
@@ -334,7 +334,6 @@ class ExperimentInitializer:
         :param inner_tardiness_ratio: Ratio for inner tardiness weight.
         :param max_bottleneck_utilization: Maximum bottleneck utilization value.
         :param sim_sigma: Sigma value for simulation variability.
-        :param total_shift_number: Total number of shifts in the experiment.
         :return: experiment_id if the entry was inserted successfully
         """
 
@@ -351,7 +350,6 @@ class ExperimentInitializer:
                     inner_tardiness_ratio=inner_tardiness_ratio,
                     max_bottleneck_utilization=max_bottleneck_utilization,
                     sim_sigma=sim_sigma,
-                    total_shift_number=total_shift_number,
                 )
                 session.add(experiment)
                 session.flush()
@@ -364,19 +362,3 @@ class ExperimentInitializer:
                 logger.error(f"Experiment insert failed for {source_name = }, {max_bottleneck_utilization = }: {e}")
                 return None
 
-    @staticmethod
-    def insert_shift(experiment_id: int, shift_number: int):
-        with SessionLocal() as session:
-            try:
-                shift = Shift(
-                    shift_number=shift_number,
-                    experiment_id=experiment_id
-                )
-                session.add(shift)
-                session.commit()
-                logger.info(f"Shift {shift_number} für Experiment {experiment_id} erfolgreich angelegt.")
-                return True
-            except Exception as e:
-                session.rollback()
-                logger.error(f"Fehler beim Anlegen von Shift {shift_number} für Experiment {experiment_id}: {e}")
-                return False

@@ -1,16 +1,16 @@
 from fractions import Fraction
 
 
-tardiness_ratio = 0.333
+inner_tardiness_ratio = 0.50
 lateness_ratio = 0.75
 
 
-tardiness_frac = Fraction(tardiness_ratio).limit_denominator(100)
+tardiness_frac = Fraction(inner_tardiness_ratio).limit_denominator(100)
 
 tardiness = tardiness_frac.numerator
 earliness = tardiness_frac.denominator - tardiness
 
-print(f"Tardiness ratio: {tardiness_ratio},  {tardiness_frac = }")
+print(f"Tardiness ratio: {inner_tardiness_ratio},  {tardiness_frac = }")
 print(f"w_t = {tardiness}, w_e = {earliness}")
 
 print("-"*60)
