@@ -6,7 +6,7 @@ import numpy as np
 from dataclasses import dataclass, field, replace
 from sqlalchemy import Column, Integer, String, ForeignKey, ForeignKeyConstraint, Float, Table, Numeric, \
     UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from typing import Optional, List, Union, Set, Iterable, Tuple
 
 from src.domain.orm_setup import mapper_registry
@@ -287,12 +287,22 @@ class SimulationJob:
         "sa": relationship("Experiment", lazy="joined")
     })
 
-    operations: List[SimulationOperation] = field(default_factory=list, metadata={
+    operations: List[SimulationOperation] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
             "SimulationOperation",
             back_populates="simulation_job",
+            lazy="selectin",
             cascade="all, delete-orphan",
-            lazy="joined"
+            order_by="SimulationOperation.position_number",
+            primaryjoin=(
+                "and_("
+                "SimulationJob.id == SimulationOperation.job_id, "
+                "SimulationJob.experiment_id == SimulationOperation.experiment_id"
+                ")"
+            ),
+            foreign_keys=(
+                "[SimulationOperation.job_id, SimulationOperation.experiment_id]"
+            ),
         )
     })
 
@@ -344,16 +354,32 @@ class ScheduleJob:
         "sa": relationship("Job", lazy="joined")
     })
 
-    experiment = relationship("Experiment",overlaps="shift")
+    experiment: Experiment = field(default=None, repr=False, metadata={
+        "sa": relationship("Experiment", back_populates="schedule_jobs")
+    })
 
-    operations: List[ScheduleOperation] = field(default_factory=list, metadata={
+    operations: List[ScheduleOperation] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
             "ScheduleOperation",
             back_populates="schedule_job",
+            lazy="selectin",
             cascade="all, delete-orphan",
-            lazy="joined"
+            order_by="ScheduleOperation.position_number",
+            primaryjoin=(
+                "and_("
+                "ScheduleJob.id == ScheduleOperation.job_id, "
+                "ScheduleJob.experiment_id == ScheduleOperation.experiment_id, "
+                "ScheduleJob.shift_number == ScheduleOperation.shift_number"
+                ")"
+            ),
+            foreign_keys=(
+                "[ScheduleOperation.job_id, "
+                "ScheduleOperation.experiment_id, "
+                "ScheduleOperation.shift_number]"
+            ),
         )
     })
+
 
     @property
     def routing(self) -> Routing:
@@ -380,12 +406,6 @@ class ScheduleJob:
         return self.job.max_bottleneck_utilization
 
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["experiment_id", "shift_number"],
-            ["shift.experiment_id", "shift.shift_number"]
-        ),
-    )
 
 
 
@@ -428,47 +448,27 @@ class Experiment:
         "sa": Column(Float, nullable=False)
     })
 
-    # General
-    total_shift_number: int = field(init=True, default=None, metadata={
-        "sa": Column(Integer, nullable=False)
-    })
-
     shift_length: int = field(init = False, default=1440, metadata={
         "sa": Column(Integer, nullable=False)
     })
 
-    shifts: List[Shift] = field(default_factory=list, repr=False, metadata={"sa": relationship(
-        "Shift", back_populates="experiment", cascade="all, delete-orphan", lazy="joined")
-    })
-
-    # Jobs
-    _jobs: Set[Job] = field(default_factory=set, init= False, repr=False, metadata={
+    schedule_jobs: list[ScheduleJob] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
-            "Job",
-            secondary=experiment_job,
-            collection_class=set,
-            lazy="joined"
+            "ScheduleJob",
+            back_populates="experiment",
+            cascade="all, delete-orphan",
+            lazy="selectin"
         )
     })
 
-    @property
-    def jobs(self) -> List[Job]:
-        return sorted(self._jobs, key=lambda job: job.arrival)
-
-    @property
-    def last_shift_start(self) -> int:
-        return self.total_shift_number * self.shift_length
-
-    def add_job(self, job: Job) -> None:
-        self._jobs.add(job)
-
-    def add_jobs(self, jobs: Iterable[Job]) -> None:
-        eligible_jobs = {
-            job for job in jobs
-            if job.earliest_start <= self.last_shift_start
-               and job.max_bottleneck_utilization == self.max_bottleneck_utilization
-        }
-        self._jobs.update(eligible_jobs)
+    simulation_jobs: list[SimulationJob] = field(default_factory=list, repr=False, metadata={
+        "sa": relationship(
+            "SimulationJob",
+            back_populates="experiment",
+            cascade="all, delete-orphan",
+            lazy="selectin"
+        )
+    })
 
 
     def __post_init__(self):
@@ -487,42 +487,6 @@ class Experiment:
         if self.shift_length is None:
             self.shift_length = 1440
 
-@mapper_registry.mapped
-@dataclass
-class Shift:
-    __tablename__ = "shift"
-    __sa_dataclass_metadata_key__ = "sa"
-
-    shift_number: int = field(metadata={
-        "sa": Column(Integer, primary_key=True)
-    })
-
-    experiment_id: int = field(init=True, metadata={
-        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
-    })
-
-    experiment: Experiment = field(init= False, repr=False, metadata={
-        "sa": relationship(Experiment, back_populates="shifts", lazy="joined")
-    })
-
-    schedule_jobs: List[ScheduleJob] = field(default_factory=list, repr=False, metadata={
-        "sa": relationship(ScheduleJob, overlaps="experiment")
-    })
-
-    @property
-    def shift_start(self) -> int:
-        if self.experiment.shift_length:
-            return self.shift_number * self.experiment.shift_length
-        else:
-            return self.shift_number * 1440
-
-    @property
-    def shift_end(self) -> int:
-        if self.experiment.shift_length:
-            return (self.shift_number + 1) * self.experiment.shift_length
-        else:
-            return (self.shift_number + 1) * 1440
-
 
 
 @mapper_registry.mapped
@@ -532,12 +496,21 @@ class ScheduleOperation:
     __sa_dataclass_metadata_key__ = "sa"
 
     job_id: str = field(metadata={
-        "sa": Column(String, ForeignKey("schedule_job.id"), primary_key=True)
+        "sa": Column(String, primary_key=True)
+    })
+
+    experiment_id: int = field(init=False, default=None, metadata={
+        "sa": Column(Integer, primary_key=True)
+    })
+
+    shift_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True)
     })
 
     position_number: int = field(metadata={
         "sa": Column(Integer, primary_key=True)
     })
+
 
     start: int = field(default=0, metadata={
         "sa": Column(Integer, nullable=False)
@@ -549,13 +522,23 @@ class ScheduleOperation:
 
     schedule_job: ScheduleJob = field(default=None, repr=False, metadata={
         "sa": relationship(
-            ScheduleJob,
+            "ScheduleJob",
             back_populates="operations",
-            lazy="joined"
+            lazy="joined",
+            primaryjoin=(
+                "and_("
+                "ScheduleOperation.job_id == ScheduleJob.id, "
+                "ScheduleOperation.experiment_id == ScheduleJob.experiment_id, "
+                "ScheduleOperation.shift_number == ScheduleJob.shift_number"
+                ")"
+            ),
+            foreign_keys=(
+                "[ScheduleOperation.job_id, "
+                "ScheduleOperation.experiment_id, "
+                "ScheduleOperation.shift_number]"
+            ),
         )
     })
-
-
     @property
     def _routing_operation(self) -> RoutingOperation:
         return self.schedule_job.job.routing.get_operation_by_position(self.position_number)
@@ -568,6 +551,13 @@ class ScheduleOperation:
     def duration(self) -> int:
         return self._routing_operation.duration
 
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["job_id", "experiment_id", "shift_number"],
+            ["schedule_job.id", "schedule_job.experiment_id", "schedule_job.shift_number"]
+        ),
+    )
+
 
 @mapper_registry.mapped
 @dataclass
@@ -575,12 +565,17 @@ class SimulationOperation:
     __tablename__ = "simulation_operation"
     __sa_dataclass_metadata_key__ = "sa"
 
-
     job_id: str = field(metadata={
-        "sa": Column(String, ForeignKey("simulation_job.id"), primary_key=True)
+        "sa": Column(String, primary_key=True)
     })
 
-    position_number: int = field(metadata={"sa": Column(Integer, primary_key=True)})
+    experiment_id: int = field(init=False, default=None, metadata={
+        "sa": Column(Integer, primary_key=True)
+    })
+
+    position_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True)
+    })
 
     start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
@@ -588,8 +583,21 @@ class SimulationOperation:
 
     end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
-    simulation_job: SimulationJob = field(default=None, repr=False, metadata={"sa": relationship(
-        SimulationJob, back_populates="operations", lazy="joined")
+    simulation_job: SimulationJob = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "SimulationJob",
+            back_populates="operations",
+            lazy="joined",
+            primaryjoin=(
+                "and_("
+                "SimulationOperation.job_id == SimulationJob.id, "
+                "SimulationOperation.experiment_id == SimulationJob.experiment_id"
+                ")"
+            ),
+            foreign_keys=(
+                "[SimulationOperation.job_id, SimulationOperation.experiment_id]"
+            ),
+        )
     })
 
     @property
