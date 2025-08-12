@@ -11,12 +11,12 @@ logs_path = get_data_path("solver_logs")
 
 if __name__ == "__main__":
     source_name = "Fisher and Thompson 10x10"
-    sim_sigma = 0.2
+    sim_sigma = 0.25
     absolute_lateness_ratio = 0.5
-    inner_tardiness_ratio = 0.75
-    max_bottleneck_utilization = 0.8
-    total_shift_number = 4
-    max_solver_time = 60 * 60 # 60 min
+    inner_tardiness_ratio = 0.5
+    max_bottleneck_utilization = 0.85
+    total_shift_number = 5
+    max_solver_time = 60 * 60 * 2 # 2h
 
     experiment_id = ExperimentInitializer.insert_experiment(
         source_name=source_name,
