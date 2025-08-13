@@ -276,6 +276,72 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 })
         return pd.DataFrame(records)
 
+    def to_waiting_time_dataframe(
+            self,
+            job_column: str = "Job",
+            position_column: str = "Operation",
+            machine_column: str = "Machine",
+            request_time_column: str = "Request Time",
+            granted_time_column: str = "Granted Time",
+            waiting_time_column: str = "Waiting Time"
+    ) -> pd.DataFrame:
+        """
+        Gibt einen DataFrame mit Request-/Granted-/Waiting-Zeiten je Operation zurück.
+        Nutzt direkt die Felder aus JobOperation.
+        """
+        records = []
+
+        for job in self.values():
+            for op in job.operations:
+                records.append({
+                    job_column: job.id,
+                    position_column: op.position_number,
+                    machine_column: op.machine_name,
+                    request_time_column: op.request_time_on_machine,
+                    granted_time_column: op.granted_time_on_machine,
+                    waiting_time_column: op.waiting_time_on_machine
+                })
+
+        return pd.DataFrame(records)
+
+
+    def to_transition_time_dataframe(
+            self, job_column: str = "Job", position_column: str = "Operation", machine_column: str = "Machine",
+            granted_time_column: str = "Granted Time", end_column: str = "End",
+            prev_end_column: str = "Prev End", transition_time_column: str = "Transition Time"):
+        """
+        Erstellt einen DataFrame mit Transition Times je Maschine (Backward-Variante).
+
+        Transition Time = Granted Time der aktuellen OP minus Endzeit der nachfolgenden OP
+        (in der Rückwärtsperspektive der "vorherige" Auftrag).
+        """
+
+        records = []
+        for job in self.values():
+            for op in job.operations:
+                records.append({
+                    job_column: job.id,
+                    position_column: op.position_number,
+                    machine_column: op.machine_name,
+                    granted_time_column: op.granted_time_on_machine,
+                    end_column: op.end,
+                })
+        df = pd.DataFrame(records)
+
+        if df.empty:
+            return None
+
+        # Absteigend sortieren: nächster Auftrag in der Zukunft kommt zuerst
+        df = df.sort_values([machine_column, granted_time_column], ascending=[True, False], kind="stable")
+
+        # Ende der zeitlich vorherigen Operation auf derselben Maschine
+        df[prev_end_column] = df.groupby(machine_column)[end_column].shift(-1)
+
+        # Transition Time = granted_i - end_{i+1}
+        df[transition_time_column] = df[granted_time_column] - df[prev_end_column]
+
+        return df
+
     def to_jobs_dataframe(
             self, job_column: str = "Job", routing_column: str = "Routing_ID",
             arrival_column: str = "Arrival", earliest_start_column: str = "Ready Time",

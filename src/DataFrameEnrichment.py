@@ -94,30 +94,35 @@ class DataFrameEnrichment:
         df[new_transition_column] = df[start_column] - df['End_Previous_Operation']
         return df
 
+
+
     @staticmethod
-    def _compute_avg_transition_times_per_machine(
-            df_jobs_transition_times: pd.DataFrame, machine_column: str = "Machine",
-            transition_column: str = "Transition Time",
-            new_avg_transition_column: str = "Ø Transition_Time") -> pd.DataFrame:
+    def aggregate_mean_per_group(
+            df: pd.DataFrame,
+            group_column: str,
+            value_column: str,
+            new_column_name: str
+    ) -> pd.DataFrame:
         """
-        Compute average transition time per machine.
+        Aggregiert den Mittelwert einer Spalte pro Gruppe.
 
-        :param df_jobs_transition_times: DataFrame with machine and transition time columns.
-        :param machine_column: Name of the machine column.
-        :param transition_column: Name of the transition time column.
-        :param new_avg_transition_column: Name for the resulting average transition time column.
-        :return: DataFrame with columns ``machine_column`` and ``new_avg_transition_column``.
-        :raises ValueError: If required columns are missing.
+        :param df: Eingabe-DataFrame.
+        :param group_column: Name der Gruppierungsspalte.
+        :param value_column: Name der Spalte, deren Werte gemittelt werden.
+        :param new_column_name: Name der Spalte mit dem Mittelwert.
+        :return: DataFrame mit Gruppenspalte und Mittelwertspalte.
+        :raises ValueError: Falls notwendige Spalten fehlen.
         """
-        if not {machine_column, transition_column}.issubset(df_jobs_transition_times.columns):
-            raise ValueError(f"DataFrame must contain '{machine_column}' and '{transition_column}' columns.")
+        if not {group_column, value_column}.issubset(df.columns):
+            raise ValueError(f"DataFrame muss '{group_column}' und '{value_column}' enthalten.")
 
-        return (df_jobs_transition_times.groupby(machine_column)[transition_column]
+        return (
+            df.groupby(group_column)[value_column]
             .mean()
             .round(0)
             .astype(int)
             .reset_index()
-            .rename(columns={transition_column: new_avg_transition_column})
+            .rename(columns={value_column: new_column_name})
         )
 
     @classmethod
@@ -146,9 +151,10 @@ class DataFrameEnrichment:
             start_column=start_column,
             end_column=end_column,
         )
-        return cls._compute_avg_transition_times_per_machine(
-            df_jobs_transition_times = df_jobs_transition_times,
-            machine_column= machine_column,
-            new_avg_transition_column= new_avg_transition_column
+        return cls.aggregate_mean_per_group(
+            df = df_jobs_transition_times,
+            group_column = machine_column,
+            value_column = "Transition Time",
+            new_column_name=new_avg_transition_column
         )
 

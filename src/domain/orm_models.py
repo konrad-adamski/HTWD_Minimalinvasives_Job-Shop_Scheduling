@@ -768,6 +768,10 @@ class JobOperation:
     start: Optional[int] = None
     end: Optional[int] = None
 
+    # --- echte Simulationszeiten an der Maschine ---
+    request_time_on_machine: Optional[int] = field(default=None, repr=False)
+    granted_time_on_machine: Optional[int] = field(default=None, repr=False)
+
 
     def __repr__(self) -> str:
         attrs = {
@@ -802,6 +806,12 @@ class JobOperation:
     @property
     def _unique_operation(self) -> Tuple[str, int]:
         return self.job_id, self.position_number
+
+    @property
+    def waiting_time_on_machine(self) -> Optional[int]:
+        if self.request_time_on_machine is None or self.granted_time_on_machine is None:
+            return None
+        return self.granted_time_on_machine - self.request_time_on_machine
 
 
     def __eq__(self, other):
