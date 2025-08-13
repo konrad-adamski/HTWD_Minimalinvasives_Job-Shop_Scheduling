@@ -42,9 +42,9 @@ class ProductionSimulation:
             if machine_name not in self.machines:
                 self.machines[machine_name] = SimulationMachine(name = machine_name, env = self.env)
 
-    def _job_process(self, job_id: str, job: LiveJob):
+    def _job_process(self, job: LiveJob):
 
-        if self.with_earliest_start:                            # for FCFS
+        if self.with_earliest_start:      # for FiFo
             delay = max(job.earliest_start - self.env.now, 0)
             yield self.env.timeout(delay)
 
@@ -54,19 +54,22 @@ class ProductionSimulation:
             delay = max(planned_start - self.env.now, 0)
             yield self.env.timeout(delay)
 
+            op.request_time_on_machine = self.env.now
             with machine.request() as req:
                 yield req
-                sim_start = self.env.now
-                self._log_job_started_on_machine(sim_start, job_op = op)
 
-                sim_duration = duration_log_normal(op.duration, sigma=self.sigma)
-                self._register_active_operation(job_op=op, sim_start=sim_start, sim_duration=sim_duration)
+                granted_time = self.env.now
+                op.granted_time_on_machine = granted_time
+                self._log_job_started_on_machine(granted_time, job_op = op)
 
-                yield self.env.timeout(sim_duration)
+                simulated_duration = duration_log_normal(op.duration, sigma=self.sigma)
+                self._register_active_operation(job_op=op, sim_start=granted_time, sim_duration=simulated_duration)
+
+                yield self.env.timeout(simulated_duration)
                 sim_end = self.env.now
-                self._log_job_finished_on_machine(sim_end, job_op = op, sim_duration=sim_duration)
+                self._log_job_finished_on_machine(sim_end, job_op = op, sim_duration=simulated_duration)
 
-            self._add_finished_operation(job_op=op, sim_start=sim_start, sim_end=sim_end)
+            self._add_finished_operation(job_op=op, sim_start=granted_time, sim_end=sim_end)
 
     def _resume_operation_process(self, job_op: JobOperation):
         remaining_time = max(0, int(job_op.end) - self.start_time)
@@ -100,8 +103,8 @@ class ProductionSimulation:
             machines = schedule_collection.get_unique_machine_names()
             self.machines.add_machines_with_env(self.env, machines)         # self._add_new_machines(machines)
 
-            for job_id, job in schedule_collection.items():
-                self.env.process(self._job_process(job_id, job))
+            for job in schedule_collection.values():
+                self.env.process(self._job_process(job))
 
         if self.pause_time is not None:
             self.env.run(until=self.pause_time)
