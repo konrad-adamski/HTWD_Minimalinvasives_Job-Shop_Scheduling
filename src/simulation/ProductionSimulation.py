@@ -5,6 +5,7 @@ import pandas as pd
 from dataclasses import replace
 from typing import Optional, Dict, Tuple
 
+from project_config import get_data_path
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation, LiveJob
 from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
@@ -192,9 +193,8 @@ class ProductionSimulation:
 
 if __name__ == "__main__":
 
-    from project_config import get_path
 
-    basic_data_path = get_path("data", "examples")
+    basic_data_path = get_data_path("examples")
     df_schedule = pd.read_csv(basic_data_path / "lateness_schedule_day_01.csv")
 
     print("\n", "---" * 20, "Schedule", "---" * 20)
