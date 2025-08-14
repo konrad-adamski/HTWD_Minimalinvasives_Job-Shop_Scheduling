@@ -251,13 +251,9 @@ class ExperimentQuery:
             return exp
 
     @staticmethod
-    def build_schedule_jobs_offline(
-            experiment_id: int,
-            shift_number: int,
-            live_jobs: Iterable[LiveJob]
-    ) -> Tuple[list[ScheduleJob], list[ScheduleOperation]]:
+    def save_schedule_jobs(experiment_id: int, shift_number: int, live_jobs: Iterable[LiveJob]):
         """
-        Build ScheduleJob and ScheduleOperation ORM objects entirely in memory.
+        Build ScheduleJob and ScheduleOperation ORM objects.
 
         This keeps the relationship to ScheduleJob view-only, so ScheduleOperation
         must be created and tracked separately. No Session is used here — objects
@@ -292,15 +288,15 @@ class ExperimentQuery:
                 )
                 schedule_operations.append(so)
 
-        return schedule_jobs, schedule_operations
+        with SessionLocal() as session:
+            session.add_all(schedule_jobs + schedule_operations)
+            session.commit()
+
 
     @staticmethod
-    def build_simulation_jobs_offline(
-            experiment_id: int,
-            live_jobs: Iterable[LiveJob],
-    ) -> Tuple[List[SimulationJob], List[SimulationOperation]]:
+    def save_simulation_jobs(experiment_id: int, live_jobs: Iterable[LiveJob]):
         """
-        Build SimulationJob and SimulationOperation ORM objects entirely in memory.
+        Build SimulationJob and SimulationOperation ORM objects.
 
         Relationships are view-only, so SimulationOperation must be collected separately.
         No Session is used here — returned objects are detached and can be added later.
@@ -332,4 +328,7 @@ class ExperimentQuery:
                 )
                 sim_ops.append(so)
 
-        return sim_jobs, sim_ops
+        with SessionLocal() as session:
+            session.add_all(sim_jobs + sim_ops)
+            session.commit()
+

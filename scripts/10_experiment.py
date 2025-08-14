@@ -15,9 +15,9 @@ if __name__ == "__main__":
     source_name = "Fisher and Thompson 10x10"
     sim_sigma = 0.25
     absolute_lateness_ratio = 0.5
-    inner_tardiness_ratio = 0.5
+    inner_tardiness_ratio = 0.75
     max_bottleneck_utilization = 0.85
-    total_shift_number = 1
+    total_shift_number = 2
     max_solver_time = 60 * 30 # 30min
 
     experiment_id = ExperimentInitializer.insert_experiment(
@@ -29,12 +29,11 @@ if __name__ == "__main__":
     )
 
 
-
     experiment = ExperimentQuery.get_experiment_only(experiment_id)
     w_t, w_e, w_dev = experiment.get_solver_weights()
 
 
-    # --- Preparation  ---
+    # Preparation  ---------------------------------------------------------------------------------------------------
     simulation = ProductionSimulation(sigma=sim_sigma, verbose=False)
 
     # Jobs Collection
@@ -75,7 +74,7 @@ if __name__ == "__main__":
         current_jobs_collection = new_jobs_collection + waiting_job_ops_collection
 
 
-        # --- Scheduling ---
+        # Scheduling -----------------------------------------------------------------------------------------------
         solver = Solver(
             jobs_collection=current_jobs_collection,
             schedule_start=shift_start
@@ -97,30 +96,30 @@ if __name__ == "__main__":
         print("Expriment:", experiment_id)
         schedule_jobs_collection = solver.get_schedule()
 
-        jobs, ops  = ExperimentQuery.build_schedule_jobs_offline(
+        ExperimentQuery.save_schedule_jobs(
             experiment_id=experiment_id,
             shift_number=shift_number,
             live_jobs=schedule_jobs_collection.values(),
         )
 
-        with SessionLocal() as session:
-            session.add_all(jobs + ops)
-            session.commit()
-
-
-
-
-        # --- Simulation ---
+        # Simulation ------------------------------------------------------------------------------------------------
         simulation.run(
             schedule_collection=schedule_jobs_collection,
             start_time=shift_start,
             end_time=shift_end
         )
 
-        simulation_jobs = simulation.get_finished_operation_collection()                                                # TODO save in DB
+        simulation_jobs = simulation.get_finished_operation_collection()
 
         active_job_ops_collection = simulation.get_active_operation_collection()
         waiting_job_ops_collection = simulation.get_waiting_operation_collection()
 
+
+    # Save entire Simulation
+    entire_simulation_jobs = simulation.get_entire_finished_operation_collection()
+    ExperimentQuery.save_simulation_jobs(
+        experiment_id=experiment_id,
+        live_jobs=entire_simulation_jobs.values(),
+    )
 
 
