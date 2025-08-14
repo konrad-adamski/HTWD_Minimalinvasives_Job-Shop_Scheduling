@@ -2,11 +2,11 @@ from __future__ import annotations
 import pandas as pd
 
 from decimal import Decimal
-from typing import List, Union, Iterable
+from typing import List, Union, Iterable, Tuple
 from sqlalchemy.orm import joinedload
 
 from src.domain.orm_models import Routing, RoutingSource, Job, Machine, Experiment, ScheduleOperation, ScheduleJob, \
-    LiveJob
+    LiveJob, SimulationJob, SimulationOperation
 from src.domain.orm_setup import SessionLocal
 
 
@@ -255,7 +255,7 @@ class ExperimentQuery:
             experiment_id: int,
             shift_number: int,
             live_jobs: Iterable[LiveJob]
-    ) -> tuple[list[ScheduleJob], list[ScheduleOperation]]:
+    ) -> Tuple[list[ScheduleJob], list[ScheduleOperation]]:
         """
         Build ScheduleJob and ScheduleOperation ORM objects entirely in memory.
 
@@ -293,3 +293,43 @@ class ExperimentQuery:
                 schedule_operations.append(so)
 
         return schedule_jobs, schedule_operations
+
+    @staticmethod
+    def build_simulation_jobs_offline(
+            experiment_id: int,
+            live_jobs: Iterable[LiveJob],
+    ) -> Tuple[List[SimulationJob], List[SimulationOperation]]:
+        """
+        Build SimulationJob and SimulationOperation ORM objects entirely in memory.
+
+        Relationships are view-only, so SimulationOperation must be collected separately.
+        No Session is used here — returned objects are detached and can be added later.
+
+        :param experiment_id: ID of the experiment the simulation belongs to.
+        :param live_jobs: Iterable of LiveJob dataclasses (source data).
+        :return: (List[SimulationJob], List[SimulationOperation]), both not yet persisted.
+        """
+        sim_jobs: List[SimulationJob] = []
+        sim_ops: List[SimulationOperation] = []
+
+        for lj in live_jobs:
+            # Parent row
+            sj = SimulationJob(
+                id=lj.id,  # PK matching job.id
+                experiment_id=experiment_id,
+            )
+            sim_jobs.append(sj)
+
+            # Child rows (no shift_number here; include duration)
+            for op in lj.operations:
+                so = SimulationOperation(
+                    job_id=lj.id,
+                    experiment_id=experiment_id,
+                    position_number=op.position_number,
+                    start=op.start,
+                    duration=op.duration,  # <-- wichtig für SimulationOperation
+                    end=op.end,
+                )
+                sim_ops.append(so)
+
+        return sim_jobs, sim_ops

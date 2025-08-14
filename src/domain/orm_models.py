@@ -273,22 +273,34 @@ class SimulationJob:
     __sa_dataclass_metadata_key__ = "sa"
 
     id: str = field(metadata={
-        "sa": Column(String, ForeignKey("job.id"), primary_key=True)
+        "sa": Column(String, ForeignKey("job.id"), primary_key=True, nullable=False)
     })
 
-    experiment_id: int = field(init=False, default=None, metadata={
-        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True)
+    experiment_id: int = field(metadata={
+        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True, nullable=False)
     })
 
-    job: Job = field(default=None, repr=False, metadata={
-        "sa": relationship("Job", lazy="joined")
+    # View-only Beziehungen, damit PKs niemals „geblankt“ werden
+    job: "Job" = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "Job",
+            uselist=False,
+            lazy="joined",
+            viewonly=True,
+            primaryjoin="foreign(SimulationJob.id) == Job.id",
+        )
     })
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship("Experiment", lazy="joined")
+    experiment: "Experiment" = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "Experiment",
+            lazy="joined",
+            viewonly=True,
+            primaryjoin="foreign(SimulationJob.experiment_id) == Experiment.id",
+        )
     })
 
-    operations: List[SimulationOperation] = field(default_factory=list, repr=False, metadata={
+    operations: list["SimulationOperation"] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
             "SimulationOperation",
             back_populates="simulation_job",
@@ -297,18 +309,16 @@ class SimulationJob:
             order_by="SimulationOperation.position_number",
             primaryjoin=(
                 "and_("
-                "SimulationJob.id == SimulationOperation.job_id, "
-                "SimulationJob.experiment_id == SimulationOperation.experiment_id"
+                "foreign(SimulationJob.id) == SimulationOperation.job_id, "
+                "foreign(SimulationJob.experiment_id) == SimulationOperation.experiment_id"
                 ")"
-            ),
-            foreign_keys=(
-                "[SimulationOperation.job_id, SimulationOperation.experiment_id]"
             ),
         )
     })
 
+    # Convenience (read via Job)
     @property
-    def routing(self) -> Routing:
+    def routing(self) -> "Routing":
         return self.job.routing
 
     @property
@@ -594,42 +604,44 @@ class SimulationOperation:
     __sa_dataclass_metadata_key__ = "sa"
 
     job_id: str = field(metadata={
-        "sa": Column(String, primary_key=True)
+        "sa": Column(String, primary_key=True, nullable=False)
     })
-
-    experiment_id: int = field(init=False, default=None, metadata={
-        "sa": Column(Integer, primary_key=True)
+    experiment_id: int = field(metadata={
+        "sa": Column(Integer, primary_key=True, nullable=False)
     })
-
     position_number: int = field(metadata={
-        "sa": Column(Integer, primary_key=True)
+        "sa": Column(Integer, primary_key=True, nullable=False)
     })
 
     start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
-
     duration: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
-
     end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
-    simulation_job: SimulationJob = field(default=None, repr=False, metadata={
+    simulation_job: "SimulationJob" = field(default=None, repr=False, metadata={
         "sa": relationship(
             "SimulationJob",
             back_populates="operations",
             lazy="joined",
+            viewonly=True,  # nur lesen; keine PK-Synchronisation zurück zum Parent
             primaryjoin=(
                 "and_("
-                "SimulationOperation.job_id == SimulationJob.id, "
-                "SimulationOperation.experiment_id == SimulationJob.experiment_id"
+                "foreign(SimulationOperation.job_id) == SimulationJob.id, "
+                "foreign(SimulationOperation.experiment_id) == SimulationJob.experiment_id"
                 ")"
-            ),
-            foreign_keys=(
-                "[SimulationOperation.job_id, SimulationOperation.experiment_id]"
             ),
         )
     })
 
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["job_id", "experiment_id"],
+            ["simulation_job.id", "simulation_job.experiment_id"]
+        ),
+    )
+
+    # Convenience via Routing
     @property
-    def _routing_operation(self) -> RoutingOperation:
+    def _routing_operation(self) -> "RoutingOperation":
         return self.simulation_job.job.routing.get_operation_by_position(self.position_number)
 
     @property
@@ -639,7 +651,6 @@ class SimulationOperation:
     @property
     def route_duration(self) -> int:
         return self._routing_operation.duration
-
 
 
 # ---------------------------------------------------------------------------------------------------------------------
