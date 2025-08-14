@@ -1,10 +1,10 @@
 from fractions import Fraction
 
-
+#gegeben
 inner_tardiness_ratio = 0.50
 lateness_ratio = 0.75
 
-
+# process
 tardiness_frac = Fraction(inner_tardiness_ratio).limit_denominator(100)
 
 tardiness = tardiness_frac.numerator
@@ -26,10 +26,12 @@ print("-"*60)
 
 amount = tardiness + earliness
 
+# output
 w_t = tardiness * lateness_factor
 w_e = earliness * lateness_factor
 
 w_dev = amount * dev_factor
+
 
 print(f"w_t = {w_t}, w_e = {w_e}, w_dev = {w_dev}")
 
