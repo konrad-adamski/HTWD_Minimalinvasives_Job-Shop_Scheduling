@@ -182,6 +182,9 @@ class ProductionSimulation:
     def get_finished_operation_collection(self) -> LiveJobCollection:
         return self.finished_operations_collection
 
+    def get_entire_finished_operation_collection(self) -> LiveJobCollection:
+        return self.entire_finished_operations_collection
+
     def get_waiting_operation_collection(self):
         return ((self.current_schedule / self.get_finished_operation_collection())
                 / self.get_active_operation_collection())

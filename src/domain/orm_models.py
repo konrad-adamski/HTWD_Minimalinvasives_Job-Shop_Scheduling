@@ -275,12 +275,11 @@ class SimulationJob:
     id: str = field(metadata={
         "sa": Column(String, ForeignKey("job.id"), primary_key=True, nullable=False)
     })
-
     experiment_id: int = field(metadata={
         "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True, nullable=False)
     })
 
-    # View-only Beziehungen, damit PKs niemals „geblankt“ werden
+    # Nur lesen, keine PK-Synchronisation:
     job: "Job" = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Job",
@@ -290,7 +289,6 @@ class SimulationJob:
             primaryjoin="foreign(SimulationJob.id) == Job.id",
         )
     })
-
     experiment: "Experiment" = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Experiment",
@@ -306,37 +304,33 @@ class SimulationJob:
             back_populates="simulation_job",
             lazy="selectin",
             cascade="all, delete-orphan",
+            single_parent=True,   # <-- wichtig für delete-orphan
             order_by="SimulationOperation.position_number",
             primaryjoin=(
                 "and_("
-                "foreign(SimulationJob.id) == SimulationOperation.job_id, "
-                "foreign(SimulationJob.experiment_id) == SimulationOperation.experiment_id"
+                "SimulationJob.id == foreign(SimulationOperation.job_id), "
+                "SimulationJob.experiment_id == foreign(SimulationOperation.experiment_id)"
                 ")"
             ),
         )
     })
 
-    # Convenience (read via Job)
+    # Convenience
     @property
     def routing(self) -> "Routing":
         return self.job.routing
-
     @property
     def routing_id(self) -> str:
         return self.job.routing_id
-
     @property
     def arrival(self) -> int:
         return self.job.arrival
-
     @property
     def earliest_start(self) -> int:
         return self.job.earliest_start
-
     @property
     def due_date(self) -> int:
         return self.job.due_date
-
     @property
     def max_bottleneck_utilization(self) -> Decimal:
         return self.job.max_bottleneck_utilization
@@ -617,12 +611,13 @@ class SimulationOperation:
     duration: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
     end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
+    # Child -> Parent, nur lesen (wir sammeln Ops separat, keine PK-Propagation nötig)
     simulation_job: "SimulationJob" = field(default=None, repr=False, metadata={
         "sa": relationship(
             "SimulationJob",
             back_populates="operations",
             lazy="joined",
-            viewonly=True,  # nur lesen; keine PK-Synchronisation zurück zum Parent
+            viewonly=True,
             primaryjoin=(
                 "and_("
                 "foreign(SimulationOperation.job_id) == SimulationJob.id, "
@@ -639,19 +634,15 @@ class SimulationOperation:
         ),
     )
 
-    # Convenience via Routing
     @property
     def _routing_operation(self) -> "RoutingOperation":
         return self.simulation_job.job.routing.get_operation_by_position(self.position_number)
-
     @property
     def machine_name(self) -> str:
         return self._routing_operation.machine_name
-
     @property
     def route_duration(self) -> int:
         return self._routing_operation.duration
-
 
 # ---------------------------------------------------------------------------------------------------------------------
 # View/Helper domain (not ORM models): wrap ORM objects for easy access.
