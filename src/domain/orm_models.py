@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from fractions import Fraction
 
 import numpy as np
 from dataclasses import dataclass, field, replace
@@ -331,34 +332,35 @@ class SimulationJob:
         return self.job.max_bottleneck_utilization
 
 
-
 @mapper_registry.mapped
 @dataclass
 class ScheduleJob:
     __tablename__ = "schedule_job"
     __sa_dataclass_metadata_key__ = "sa"
 
+    # --- Primärschlüssel ---
     id: str = field(metadata={
-        "sa": Column(String, ForeignKey("job.id"), primary_key=True)
-    })
-
-    shift_number: int = field(metadata={
-        "sa": Column(Integer, primary_key=True)
+        "sa": Column(String, ForeignKey("job.id"), primary_key=True, nullable=False)
     })
 
     experiment_id: int = field(metadata={
-        "sa": Column(Integer, ForeignKey("experiment.id"), nullable=False)
+        "sa": Column(Integer, ForeignKey("experiment.id"), primary_key=True, nullable=False)
     })
 
-    job: Job = field(default=None, repr=False, metadata={
-        "sa": relationship("Job", lazy="joined")
+    shift_number: int = field(metadata={
+        "sa": Column(Integer, primary_key=True, nullable=False)
     })
 
-    experiment: Experiment = field(default=None, repr=False, metadata={
-        "sa": relationship("Experiment", back_populates="schedule_jobs")
+    # --- Beziehungen ---
+    experiment: "Experiment" = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "Experiment",
+            viewonly=True,  # wichtig: verhindert PK-Nullung
+            primaryjoin="foreign(ScheduleJob.experiment_id) == Experiment.id"
+        )
     })
 
-    operations: List[ScheduleOperation] = field(default_factory=list, repr=False, metadata={
+    operations: List["ScheduleOperation"] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
             "ScheduleOperation",
             back_populates="schedule_job",
@@ -367,9 +369,9 @@ class ScheduleJob:
             order_by="ScheduleOperation.position_number",
             primaryjoin=(
                 "and_("
-                "ScheduleJob.id == ScheduleOperation.job_id, "
-                "ScheduleJob.experiment_id == ScheduleOperation.experiment_id, "
-                "ScheduleJob.shift_number == ScheduleOperation.shift_number"
+                "ScheduleJob.id == foreign(ScheduleOperation.job_id), "
+                "ScheduleJob.experiment_id == foreign(ScheduleOperation.experiment_id), "
+                "ScheduleJob.shift_number == foreign(ScheduleOperation.shift_number)"
                 ")"
             ),
             foreign_keys=(
@@ -380,9 +382,19 @@ class ScheduleJob:
         )
     })
 
+    job: "Job" = field(default=None, repr=False, metadata={
+        "sa": relationship(
+            "Job",
+            uselist=False,
+            lazy="joined",
+            viewonly=True,  # auch hier: nur lesen, kein PK schreiben
+            primaryjoin="ScheduleJob.id == foreign(Job.id)",
+        )
+    })
 
+    # --- Convenience Properties ---
     @property
-    def routing(self) -> Routing:
+    def routing(self) -> "Routing":
         return self.job.routing
 
     @property
@@ -407,14 +419,12 @@ class ScheduleJob:
 
 
 
-
-
 # Junction Table Experiment-Job (M:N)
-experiment_job = Table(
-    "experiment_job", mapper_registry.metadata,
-    Column("experiment_id", ForeignKey("experiment.id"), primary_key=True),
-    Column("job_id", ForeignKey("job.id"), primary_key=True)
-)
+#experiment_job = Table(
+#    "experiment_job", mapper_registry.metadata,
+#    Column("experiment_id", ForeignKey("experiment.id"), primary_key=True),
+#    Column("job_id", ForeignKey("job.id"), primary_key=True)
+#)
 
 
 @mapper_registry.mapped
@@ -470,6 +480,32 @@ class Experiment:
         )
     })
 
+    def get_solver_weights(self):
+        """
+        Calculate integer solver weights for tardiness, earliness, and deviation.
+
+        :returns: Tuple ``(w_t, w_e, w_dev)`` with weights for tardiness, earliness and deviation.
+        """
+        # 1) Split tardiness/earliness ratio into integer weights
+        tardiness_frac = Fraction(self.inner_tardiness_ratio).limit_denominator(100)
+        tardiness = tardiness_frac.numerator
+        earliness = tardiness_frac.denominator - tardiness
+
+        # 2) Split lateness/deviation ratio into integer factors
+        lateness_frac = Fraction(self.absolute_lateness_ratio).limit_denominator(100)
+        lateness_factor = lateness_frac.numerator
+        dev_factor = lateness_frac.denominator - lateness_factor
+
+        # 3) Calculate the total amount of tardiness + earliness
+        amount = tardiness + earliness
+
+        # 4) Final weights for tardiness, earliness, and deviation
+        w_t = tardiness * lateness_factor
+        w_e = earliness * lateness_factor
+        w_dev = amount * dev_factor
+
+        return w_t, w_e, w_dev
+
 
     def __post_init__(self):
         if not (Decimal("0") <= self.max_bottleneck_utilization <= Decimal("1")):
@@ -496,51 +532,50 @@ class ScheduleOperation:
     __sa_dataclass_metadata_key__ = "sa"
 
     job_id: str = field(metadata={
-        "sa": Column(String, primary_key=True)
+        "sa": Column(String, primary_key=True, nullable=False)
     })
-
-    experiment_id: int = field(init=False, default=None, metadata={
-        "sa": Column(Integer, primary_key=True)
+    experiment_id: int = field(init= True, metadata={
+        "sa": Column(Integer, primary_key=True, nullable=False)
     })
-
     shift_number: int = field(metadata={
-        "sa": Column(Integer, primary_key=True)
+        "sa": Column(Integer, primary_key=True, nullable=False)
     })
-
     position_number: int = field(metadata={
-        "sa": Column(Integer, primary_key=True)
+        "sa": Column(Integer, primary_key=True, nullable=False)
     })
 
+    start: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
+    end: int   = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
-    start: int = field(default=0, metadata={
-        "sa": Column(Integer, nullable=False)
-    })
-
-    end: int = field(default=0, metadata={
-        "sa": Column(Integer, nullable=False)
-    })
-
+    # WICHTIG: viewonly, korrekter primaryjoin und echte foreign_keys-Liste
     schedule_job: ScheduleJob = field(default=None, repr=False, metadata={
         "sa": relationship(
             "ScheduleJob",
             back_populates="operations",
+            viewonly=True,
             lazy="joined",
             primaryjoin=(
                 "and_("
-                "ScheduleOperation.job_id == ScheduleJob.id, "
-                "ScheduleOperation.experiment_id == ScheduleJob.experiment_id, "
-                "ScheduleOperation.shift_number == ScheduleJob.shift_number"
+                "foreign(ScheduleOperation.job_id) == ScheduleJob.id, "
+                "foreign(ScheduleOperation.experiment_id) == ScheduleJob.experiment_id, "
+                "foreign(ScheduleOperation.shift_number) == ScheduleJob.shift_number"
                 ")"
-            ),
-            foreign_keys=(
-                "[ScheduleOperation.job_id, "
-                "ScheduleOperation.experiment_id, "
-                "ScheduleOperation.shift_number]"
             ),
         )
     })
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["job_id", "experiment_id", "shift_number"],
+            ["schedule_job.id", "schedule_job.experiment_id", "schedule_job.shift_number"],
+            ondelete=None,
+
+        ),
+    )
+
+    # (Deine Properties bleiben so)
     @property
-    def _routing_operation(self) -> RoutingOperation:
+    def _routing_operation(self) -> "RoutingOperation":
         return self.schedule_job.job.routing.get_operation_by_position(self.position_number)
 
     @property
@@ -550,13 +585,6 @@ class ScheduleOperation:
     @property
     def duration(self) -> int:
         return self._routing_operation.duration
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["job_id", "experiment_id", "shift_number"],
-            ["schedule_job.id", "schedule_job.experiment_id", "schedule_job.shift_number"]
-        ),
-    )
 
 
 @mapper_registry.mapped

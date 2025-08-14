@@ -4,7 +4,8 @@ from decimal import Decimal
 from project_config import get_data_path
 from src.domain.Collection import LiveJobCollection
 from src.domain.Initializer import ExperimentInitializer
-from src.domain.Query import JobQuery, MachineQuery
+from src.domain.Query import JobQuery, MachineQuery, ExperimentQuery
+from src.domain.orm_setup import SessionLocal
 from src.simulation.ProductionSimulation import ProductionSimulation
 from src.solvers.CP_Solver import Solver
 
@@ -16,7 +17,7 @@ if __name__ == "__main__":
     absolute_lateness_ratio = 0.5
     inner_tardiness_ratio = 0.5
     max_bottleneck_utilization = 0.85
-    total_shift_number = 5
+    total_shift_number = 1
     max_solver_time = 60 * 30 # 30min
 
     experiment_id = ExperimentInitializer.insert_experiment(
@@ -27,11 +28,10 @@ if __name__ == "__main__":
         sim_sigma=sim_sigma,
     )
 
-    # TODO Get w_t w_e w_dev from experiment
 
-    w_t = 3
-    w_e = 1
-    w_dev = 4
+
+    experiment = ExperimentQuery.get_experiment_only(experiment_id)
+    w_t, w_e, w_dev = experiment.get_solver_weights()
 
 
     # --- Preparation  ---
@@ -75,7 +75,6 @@ if __name__ == "__main__":
         current_jobs_collection = new_jobs_collection + waiting_job_ops_collection
 
 
-
         # --- Scheduling ---
         solver = Solver(
             jobs_collection=current_jobs_collection,
@@ -85,7 +84,7 @@ if __name__ == "__main__":
         solver.build_model__absolute_lateness__start_deviation__minimization(
             previous_schedule_jobs_collection=schedule_jobs_collection,
             active_jobs_collection=active_job_ops_collection,
-            w_t=w_t, w_e=w_e, w_dev=w_dev                                                                                     # TODO params based on ratio
+            w_t=w_t, w_e=w_e, w_dev=w_dev
         )
         solver.print_model_info()
         solver.solve_model(
@@ -95,7 +94,20 @@ if __name__ == "__main__":
         )
         solver.print_solver_info()
 
-        schedule_jobs_collection = solver.get_schedule()                                                                # TODO save in DB
+        print("Expriment:", experiment_id)
+        schedule_jobs_collection = solver.get_schedule()
+
+        jobs, ops  = ExperimentQuery.build_schedule_jobs_offline(
+            experiment_id=experiment_id,
+            shift_number=shift_number,
+            live_jobs=schedule_jobs_collection.values(),
+        )
+
+        with SessionLocal() as session:
+            session.add_all(jobs + ops)
+            session.commit()
+
+
 
 
         # --- Simulation ---

@@ -2,10 +2,11 @@ from __future__ import annotations
 import pandas as pd
 
 from decimal import Decimal
-from typing import List, Union
+from typing import List, Union, Iterable
 from sqlalchemy.orm import joinedload
 
-from src.domain.orm_models import Routing, RoutingSource, Job, Machine
+from src.domain.orm_models import Routing, RoutingSource, Job, Machine, Experiment, ScheduleOperation, ScheduleJob, \
+    LiveJob
 from src.domain.orm_setup import SessionLocal
 
 
@@ -41,30 +42,6 @@ class RoutingQuery:
 class JobQuery:
     def __init__(self):
         raise NotImplementedError("This class cannot be instantiated.")
-
-    """
-    @classmethod
-    def _get_by_field(cls, field_name: str, field_value: Union[str, int, Decimal]) -> List[Job]:
-        if field_name not in Job.__mapper__.columns.keys():  # type: ignore[attr-defined]
-            raise ValueError(f"Field '{field_name}' is not a valid column in Job.")
-
-        with SessionLocal() as session:
-            query = session.query(Job).options(
-                joinedload(getattr(Job, "routing")).joinedload(getattr(Routing, "operations")),
-            )
-            jobs = query.filter(getattr(Job, field_name) == field_value).all()
-            session.expunge_all()
-            return list(jobs)
-
-    @classmethod
-    def get_by__routing_id(cls, routing_id: str) -> List[Job]:
-        return cls._get_by_field("routing_id", routing_id)
-
-    @classmethod
-    def get_by_max_bottleneck_utilization(cls, max_bottleneck_utilization: Decimal) -> List[Job]:
-        return cls._get_by_field("max_bottleneck_utilization", max_bottleneck_utilization)
-
-    """
 
     @classmethod
     def _get_by_source_name_and_field(
@@ -247,3 +224,72 @@ class MachineQuery:
             return list(machines)
 
 
+# ExperimentQuery ---------------------------------------------------------------------------------
+class ExperimentQuery:
+    def __init__(self):
+        raise NotImplementedError("This class cannot be instantiated.")
+
+    @staticmethod
+    def get_experiment_only(experiment_id: int) -> Experiment:
+        """
+        Retrieve a single :class:`Experiment` by its primary key.
+
+        :param experiment_id: Primary key of the experiment to fetch.
+        :returns: The matching :class:`Experiment` instance.
+        """
+        with SessionLocal() as session:
+            exp = (
+                session.query(Experiment)
+                .filter(Experiment.id == experiment_id)
+                .one_or_none()
+            )
+
+            if exp is None:
+                raise ValueError(f"Experiment with id={experiment_id} not found.")
+
+            session.expunge(exp)
+            return exp
+
+    @staticmethod
+    def build_schedule_jobs_offline(
+            experiment_id: int,
+            shift_number: int,
+            live_jobs: Iterable[LiveJob]
+    ) -> tuple[list[ScheduleJob], list[ScheduleOperation]]:
+        """
+        Build ScheduleJob and ScheduleOperation ORM objects entirely in memory.
+
+        This keeps the relationship to ScheduleJob view-only, so ScheduleOperation
+        must be created and tracked separately. No Session is used here — objects
+        are returned detached and can be added later.
+
+        :param experiment_id: ID of the experiment the jobs belong to.
+        :param shift_number: Shift number for all schedule jobs.
+        :param live_jobs: Iterable of LiveJob dataclasses (source data).
+        :return: (List of ScheduleJob, List of ScheduleOperation), both not yet persisted.
+        """
+        schedule_jobs: list[ScheduleJob] = []
+        schedule_operations: list[ScheduleOperation] = []
+
+        for lj in live_jobs:
+            # Create ScheduleJob purely in memory
+            sj = ScheduleJob(
+                id=lj.id,  # PK matching the job.id
+                experiment_id=experiment_id,
+                shift_number=shift_number
+            )
+            schedule_jobs.append(sj)
+
+            # Create ScheduleOperation objects separately (since relationship is viewonly)
+            for op in lj.operations:
+                so = ScheduleOperation(
+                    job_id=lj.id,
+                    experiment_id=experiment_id,  # must be set manually
+                    shift_number=shift_number,  # must be set manually
+                    position_number=op.position_number,
+                    start=op.start,
+                    end=op.end,
+                )
+                schedule_operations.append(so)
+
+        return schedule_jobs, schedule_operations
