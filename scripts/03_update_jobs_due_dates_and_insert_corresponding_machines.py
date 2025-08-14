@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from src.DataFrameEnrichment import DataFrameEnrichment as DataEnrichment
+from src.DataFrameEnrichment import DataFrameEnrichment as DataEnrichment, DataFrameEnrichment
 from src.domain.Collection import LiveJobCollection
 from src.domain.Initializer import MachineInitializer
 from src.domain.Query import JobQuery
@@ -42,13 +42,22 @@ if __name__ == "__main__":
             due_date_column="Due Date"
         )
 
-        # Transition Times --------------------------------------------------------------------------------------------
-        df_avg_transition_times = DataEnrichment.compute_avg_transition_times_per_machine_backward(df_fifo_schedule)
+        # Transition Times - ohne Transportzeiten & Liegezeit (Warten auf Halbfabrikate)--------------------------------
+
+        waiting_df = finished_operations.to_waiting_time_dataframe()
+        df_avg_waiting = DataFrameEnrichment.aggregate_mean_per_group(
+            waiting_df,
+            group_column="Machine",
+            value_column="Waiting Time",
+            new_column_name="Ø Waiting Time",
+        )
+        print()
 
         MachineInitializer.insert_from_dataframe(
-            df=df_avg_transition_times,
+            df=df_avg_waiting,
             source_name=source_name,
-            max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}")
+            max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}"),
+            average_transition_time_column= "Ø Waiting Time"
         )
 
 

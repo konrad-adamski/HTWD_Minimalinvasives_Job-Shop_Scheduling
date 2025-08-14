@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from project_config import get_data_path
@@ -16,7 +17,7 @@ if __name__ == "__main__":
     inner_tardiness_ratio = 0.5
     max_bottleneck_utilization = 0.85
     total_shift_number = 5
-    max_solver_time = 60 * 60 * 2 # 2h
+    max_solver_time = 60 * 30 # 30min
 
     experiment_id = ExperimentInitializer.insert_experiment(
         source_name=source_name,
@@ -24,8 +25,13 @@ if __name__ == "__main__":
         inner_tardiness_ratio=inner_tardiness_ratio,
         max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}"),
         sim_sigma=sim_sigma,
-        total_shift_number=total_shift_number
     )
+
+    # TODO Get w_t w_e w_dev from experiment
+
+    w_t = 3
+    w_e = 1
+    w_dev = 4
 
 
     # --- Preparation  ---
@@ -60,13 +66,15 @@ if __name__ == "__main__":
 
 
     for shift_number in range(1, total_shift_number + 1):
-        # shift ..
+        time_stamp = datetime.now().strftime("%Y-%m-%d_%H_%M")
         shift_start = shift_number* 1440
         shift_end = (shift_number+1) * 1440
         print(f"Shift number = {shift_number}: [{shift_start}, {shift_end}]")
 
         new_jobs_collection = jobs_collection.get_subset_by_earliest_start(earliest_start=shift_start)
         current_jobs_collection = new_jobs_collection + waiting_job_ops_collection
+
+
 
         # --- Scheduling ---
         solver = Solver(
@@ -77,13 +85,13 @@ if __name__ == "__main__":
         solver.build_model__absolute_lateness__start_deviation__minimization(
             previous_schedule_jobs_collection=schedule_jobs_collection,
             active_jobs_collection=active_job_ops_collection,
-            w_t=3, w_e=1, w_dev=2                                                                                      # TODO params based on ratio
+            w_t=w_t, w_e=w_e, w_dev=w_dev                                                                                     # TODO params based on ratio
         )
         solver.print_model_info()
         solver.solve_model(
             gap_limit=0.02,
             time_limit=max_solver_time,
-            log_file= f"{logs_path}/experiment{experiment_id:03d}_shift_{shift_number:02d}.log"
+            log_file= f"{logs_path}/{time_stamp}_e{experiment_id}t{w_t}e{w_e}dev{w_dev}_sh{shift_number:02d}.log"
         )
         solver.print_solver_info()
 
