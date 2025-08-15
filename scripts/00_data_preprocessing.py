@@ -1,7 +1,7 @@
 import json
 
 from src.DataPreprocessing import DataPreprocessor
-from project_config import get_data_path
+from config.project_config import get_data_path
 
 if __name__ == "__main__":
     basic_data_path = get_data_path("basic")

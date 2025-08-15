@@ -1,23 +1,29 @@
 from datetime import datetime
 from decimal import Decimal
 
-from project_config import get_data_path
+from config.project_config import get_data_path
+from src.Logger import SingletonLogger
 from src.domain.Collection import LiveJobCollection
 from src.domain.Initializer import ExperimentInitializer
 from src.domain.Query import JobQuery, MachineQuery, ExperimentQuery
-from src.domain.orm_setup import SessionLocal
 from src.simulation.ProductionSimulation import ProductionSimulation
 from src.solvers.CP_Solver import Solver
 
+from src.EmailNotifier import EmailNotifier
+
 logs_path = get_data_path("solver_logs")
 
+email_notifier = EmailNotifier()
+logger = SingletonLogger()
+
 if __name__ == "__main__":
+
     source_name = "Fisher and Thompson 10x10"
     sim_sigma = 0.25
     absolute_lateness_ratio = 0.5
     inner_tardiness_ratio = 0.75
     max_bottleneck_utilization = 0.85
-    total_shift_number = 2
+    total_shift_number = 4
     max_solver_time = 60 * 30 # 30min
 
     experiment_id = ExperimentInitializer.insert_experiment(
@@ -27,7 +33,6 @@ if __name__ == "__main__":
         max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}"),
         sim_sigma=sim_sigma,
     )
-
 
     experiment = ExperimentQuery.get_experiment_only(experiment_id)
     w_t, w_e, w_dev = experiment.get_solver_weights()
@@ -65,7 +70,9 @@ if __name__ == "__main__":
 
 
     for shift_number in range(1, total_shift_number + 1):
-        time_stamp = datetime.now().strftime("%Y-%m-%d_%H_%M")
+        time_stamp = datetime.now().strftime("%Y-%m-%d")
+        logger
+
         shift_start = shift_number* 1440
         shift_end = (shift_number+1) * 1440
         print(f"Shift number = {shift_number}: [{shift_start}, {shift_end}]")
@@ -113,6 +120,15 @@ if __name__ == "__main__":
 
         active_job_ops_collection = simulation.get_active_operation_collection()
         waiting_job_ops_collection = simulation.get_waiting_operation_collection()
+
+        if shift_number % 3 == 0:
+            email_notifier.send_log_tail(
+                subject=f"Experiment {experiment_id} Shift {shift_number} - "
+                        f"Abs. Lateness ratio: {experiment.absolute_lateness_ratio}, "
+                        f"Inner Tardiness ratio: {experiment.inner_tardiness_ratio}, "
+                        f"Max bottleneck utilization: {experiment.max_bottleneck_utilization}, "
+                        f"Simulation sigma: {experiment.sim_sigma}"
+            )
 
 
     # Save entire Simulation

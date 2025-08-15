@@ -1,6 +1,6 @@
 import json
 
-from project_config import get_data_path
+from config.project_config import get_data_path
 from src.domain.Initializer import DataSourceInitializer
 from src.domain.orm_setup import reset_tables
 
