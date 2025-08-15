@@ -2,8 +2,10 @@ from pathlib import Path
 from typing import Optional, Union
 
 # Basis variables (environment)
-PROJECT_ROOT = Path(__file__).resolve().parents[0]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = PROJECT_ROOT / "data"
+
+CONFIG_PATH = PROJECT_ROOT / "config"
 
 
 def get_data_path(
@@ -28,6 +30,13 @@ def get_data_path(
     target = dir_path / file_name if file_name else dir_path
 
     return str(target) if as_string else target
+
+
+def get_config_path(file_name: Optional[str] = None,as_string: bool = False):
+    dir_path = CONFIG_PATH
+    target = dir_path / file_name if file_name else dir_path
+    return str(target) if as_string else target
+
 
 # Beispiel
 if __name__ == "__main__":

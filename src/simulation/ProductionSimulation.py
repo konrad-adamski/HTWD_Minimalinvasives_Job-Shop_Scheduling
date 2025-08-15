@@ -5,7 +5,7 @@ import pandas as pd
 from dataclasses import replace
 from typing import Optional, Dict, Tuple
 
-from project_config import get_data_path
+from config.project_config import get_data_path
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation, LiveJob
 from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
