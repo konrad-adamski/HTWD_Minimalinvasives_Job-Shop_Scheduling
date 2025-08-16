@@ -14,10 +14,10 @@ from typing import Optional
 
 import yagmail
 from dotenv import load_dotenv
-from config.project_config import get_data_path
+from config.project_config import get_data_path, get_config_path
 
-# .env automatisch laden (falls vorhanden)
-load_dotenv()
+# .env automatisch laden
+load_dotenv(dotenv_path=get_config_path('.env', as_string=True))
 
 
 class EmailNotifier:

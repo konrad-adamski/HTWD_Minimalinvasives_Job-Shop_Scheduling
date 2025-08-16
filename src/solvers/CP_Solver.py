@@ -5,7 +5,7 @@ from fractions import Fraction
 from typing import Optional
 from ortools.sat.python import cp_model
 
-from src.Logger import SingletonLogger
+from src.Logger import Logger
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation
 from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
@@ -14,9 +14,9 @@ from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapp
 
 class Solver:
 
-    def __init__(self, jobs_collection: LiveJobCollection, schedule_start: int = 0):
+    def __init__(self, jobs_collection: LiveJobCollection, logger: Logger, schedule_start: int = 0):
 
-        self.logger = SingletonLogger()
+        self.logger = logger
 
         # JobsCollections and information
         self.jobs_collection = jobs_collection
@@ -468,27 +468,22 @@ class Solver:
         return {"access_fault": "Solver status is not available!"}
 
 
-    def print_model_info(self):
-        """
-        Pretty print solver info dictionary.
-        """
-        return self._print_info(self.get_model_info(), label_width= 31)
+    def log_model_info(self):
+        self.logger.info("Model info "+ "-"*15)
+        self._log_info(self.get_model_info(), label_width= 31)
 
-    def print_solver_info(self):
-        """
-        Pretty print solver info dictionary.
-        """
-        return self._print_info(self.get_solver_info())
+    def log_solver_info(self):
+        self.logger.info("Solver info "+ "-"*14)
+        self._log_info(self.get_solver_info())
 
-    @staticmethod
-    def _print_info(info: dict, label_width: int = 20):
+    def _log_info(self, info: dict, label_width: int = 20):
         """
-        Pretty print a dictionary.
+        Pretty log a dictionary.
         Replaces underscores with spaces and aligns keys.
         """
         for key, value in info.items():
             label = key.replace("_", " ").capitalize()
-            print(f"{label:{label_width}}: {value}")
+            self.logger.info(f"{label:{label_width}}: {value}")
 
 
 @contextlib.contextmanager
