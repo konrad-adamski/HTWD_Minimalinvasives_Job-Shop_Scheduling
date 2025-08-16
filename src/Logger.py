@@ -26,11 +26,12 @@ class Logger(logging.Logger):
 
         self.setLevel(logging.INFO)
         self.propagate = False
+        self.log_file_path = None
 
         if not self.handlers:
-            log_path = get_data_path(file_name=log_file, as_string=True)
+            self.log_file_path = get_data_path(file_name=log_file, as_string=True)
 
-            file_handler = RotatingFileHandler(log_path, maxBytes=100_000_000, backupCount=5)
+            file_handler = RotatingFileHandler(self.log_file_path, maxBytes=100_000_000, backupCount=5)
             file_handler.setLevel(logging.INFO)
 
             console_handler = logging.StreamHandler()
@@ -55,3 +56,7 @@ class Logger(logging.Logger):
             print("⚠️ Zusatzaktion bei Fehler:", record.getMessage())
             # Hier könntest du z.B. auch in eine extra Fehlerdatei schreiben oder Notification senden
         super().handle(record)  # Standardverarbeitung beibehalten
+
+
+    def get_log_file_path(self):
+        return self.log_file_path

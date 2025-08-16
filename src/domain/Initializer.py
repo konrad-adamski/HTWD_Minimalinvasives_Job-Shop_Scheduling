@@ -7,11 +7,11 @@ from decimal import Decimal
 from sqlalchemy.exc import IntegrityError, SAWarning
 from typing import List, Optional, Dict
 
-from src.Logger import SingletonLogger
+from src.Logger import Logger
 from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
 from src.domain.orm_setup import SessionLocal
 
-logger = SingletonLogger()
+logger = Logger()
 
 class DataSourceInitializer:
     def __new__(cls, *args, **kwargs):

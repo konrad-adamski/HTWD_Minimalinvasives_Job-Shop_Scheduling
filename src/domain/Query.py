@@ -230,16 +230,17 @@ class ExperimentQuery:
         raise NotImplementedError("This class cannot be instantiated.")
 
     @staticmethod
-    def get_experiment_only(experiment_id: int) -> Experiment:
+    def get_experiment(experiment_id: int) -> Experiment:
         """
-        Retrieve a single :class:`Experiment` by its primary key.
-
-        :param experiment_id: Primary key of the experiment to fetch.
-        :returns: The matching :class:`Experiment` instance.
+        Retrieve a single Experiment by its primary key, with required relations eagerly loaded
+        so it can be safely accessed after the session is closed.
         """
         with SessionLocal() as session:
             exp = (
                 session.query(Experiment)
+                .options(
+                    joinedload(getattr(Experiment, "routing_source"))
+                )
                 .filter(Experiment.id == experiment_id)
                 .one_or_none()
             )
@@ -247,6 +248,7 @@ class ExperimentQuery:
             if exp is None:
                 raise ValueError(f"Experiment with id={experiment_id} not found.")
 
+            # Detach the fully loaded object so it can be used outside the session
             session.expunge(exp)
             return exp
 

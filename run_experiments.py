@@ -8,8 +8,7 @@ import tomllib  # Python 3.11+
 from config.project_config import get_config_path
 from src.Logger import Logger
 from src.domain.Initializer import ExperimentInitializer
-from src.domain.Query import ExperimentQuery
-from src.runner import run_shifts
+from src.runner import run_experiment
 
 
 def main() -> None:
@@ -38,7 +37,7 @@ def main() -> None:
     shift_length: int = int(run_cfg["shift_length"])
     total_shift_number: int = int(run_cfg["total_shift_number"])
 
-    all_utils: list[float] = grid["max_bottleneck_utilization_list"]
+    all_utils: list[float] = grid["max_bottleneck_utilization"]
 
     # Validate --util
     if args.util.lower() == "all":
@@ -72,7 +71,7 @@ def main() -> None:
         )
         logger_name = f"experiments_{util:.2f}"
         logger = Logger(name=logger_name, log_file=f"{logger_name}.log")
-        run_shifts(
+        run_experiment(
             experiment_id = experiment_id,
             shift_length = shift_length,
             total_shift_number = total_shift_number,
@@ -81,5 +80,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    """
+    Example usage:
+    python run_experiments.py --util 0.75
+    python run_experiments.py --util 1.0
+    python run_experiments.py --util all
+    """
     main()
 
