@@ -81,12 +81,12 @@ def run_experiment(experiment_id: int,  shift_length: int, total_shift_number: i
         )
 
         solver.solve_model(
-            gap_limit=0.01,
+            gap_limit=0.005,
             time_limit=60*60,
             log_file=file_path,
             bound_relative_change= 0.01,
-            bound_no_improvement_time= 10,
-            bound_warmup_time=2,
+            bound_no_improvement_time= 60*10,
+            bound_warmup_time=60*2,
         )
 
         solver.log_solver_info()
@@ -130,10 +130,10 @@ def notify(experiment:Experiment, logger: Logger, shift_number: Optional[int] = 
                             + f"Inner Tardiness ratio: {experiment.inner_tardiness_ratio}, "
                             + f"Max bottleneck utilization: {experiment.max_bottleneck_utilization}, "
                             + f"Simulation sigma: {experiment.sim_sigma}")
-        last_lines = 100
+        last_lines = 70
     else:
         experiment_info += "finished"
-        last_lines = 5
+        last_lines = 3
 
     email_notifier.send_log_tail(
         subject=f"{experiment_info}",

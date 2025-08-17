@@ -57,20 +57,13 @@ class Logger(logging.Logger):
         """
 
         record = self.makeRecord(
-            self.name,
-            logging.INFO,
-            fn="callback",  # kein __file__, damit es stabil bleibt
-            lno=0,
-            msg=msg,
-            args=(),
-            exc_info=None,
+            self.name, logging.INFO, fn="callback", lno=0,
+            msg=msg, args=(), exc_info=None
         )
         for h in self.handlers:
             if isinstance(h, logging.FileHandler):
-                if h.filter(record):  # Handler-Filter respektieren
-                    h.handle(record)  # <-- statt emit()
-
-
+                if h.filter(record):
+                    h.handle(record)  # <-- instead of emit()
 
     def get_log_file_path(self):
         return self.log_file_path
