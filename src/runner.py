@@ -84,8 +84,9 @@ def run_experiment(experiment_id: int,  shift_length: int, total_shift_number: i
             gap_limit=0.05,
             time_limit=60*60,
             log_file=file_path,
-            bound_stagnation_warmup_time= 60*5,
-            bound_no_improvement_time= 60*15
+            bound_relative_change= 0.01,
+            bound_no_improvement_time= 60*1,
+            bound_warmup_time=2,
         )
 
         solver.log_solver_info()
@@ -107,7 +108,7 @@ def run_experiment(experiment_id: int,  shift_length: int, total_shift_number: i
         active_job_ops_collection = simulation.get_active_operation_collection()
         waiting_job_ops_collection = simulation.get_waiting_operation_collection()
 
-        if shift_number % 4 == 0:
+        if shift_number % 3 == 0:
             notify(experiment, logger, shift_number)
 
     # Save entire Simulation -------------------------------------------------------
@@ -132,7 +133,7 @@ def notify(experiment:Experiment, logger: Logger, shift_number: Optional[int] = 
         last_lines = 80
     else:
         experiment_info += "finished"
-        last_lines = 3
+        last_lines = 5
 
     email_notifier.send_log_tail(
         subject=f"{experiment_info}",
