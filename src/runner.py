@@ -75,15 +75,17 @@ def run_experiment(experiment_id: int,  shift_length: int, total_shift_number: i
         solver.log_model_info()
 
         file_path = get_solver_logs_path(
-            sub_directory=f"Experiment{experiment_id:03d}",
-            file_name=f"Shift{shift_number:02d}.log",
+            sub_directory=f"Experiment_{experiment_id:03d}",
+            file_name=f"Shift_{shift_number:02d}.log",
             as_string=True
         )
 
         solver.solve_model(
             gap_limit=0.05,
             time_limit=60*60,
-            log_file=file_path
+            log_file=file_path,
+            bound_stagnation_warmup_time= 60*5,
+            bound_no_improvement_time= 60*15
         )
 
         solver.log_solver_info()

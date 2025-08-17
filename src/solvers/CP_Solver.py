@@ -8,6 +8,7 @@ from ortools.sat.python import cp_model
 from src.Logger import Logger
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation
+from src.solvers.CP_BoundStagnationGuard import BoundStagnationGuard
 from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
     StartTimes, EndTimes, Intervals, OriginalOperationStarts, CostVarCollection
 
@@ -399,7 +400,9 @@ class Solver:
 
     def solve_model(
             self, print_log_search_progress: bool = False, time_limit: Optional[int] = None,
-            gap_limit: float = 0.0, log_file: Optional[str] = None):
+            gap_limit: float = 0.0, log_file: Optional[str] = None,
+            bound_no_improvement_time: Optional[int] = 900,bound_relative_change: float = 0.01,
+            bound_stagnation_warmup_time: int = 120):
 
         if self.model_completed:
 
@@ -408,6 +411,16 @@ class Solver:
 
             if time_limit is not None:
                 self.solver.parameters.max_time_in_seconds = time_limit
+
+            if bound_no_improvement_time and bound_no_improvement_time > 0:
+                self.solver.parameters.log_search_progress = True
+                self.solver.log_callback = BoundStagnationGuard(
+                    solver=self.solver,
+                    logger=self.logger,
+                    no_improvement_seconds=bound_no_improvement_time,
+                    warmup_seconds=bound_stagnation_warmup_time,
+                    relative_change = bound_relative_change
+                )
 
             if log_file is not None:
                 self.solver.parameters.log_search_progress = True
@@ -490,7 +503,7 @@ class Solver:
 def _redirect_cpp_logs(logfile_path: str = "cp_output.log"):
     """
     Context manager to temporarily redirect stdout/stderr,
-    e.g. to capture output from OR-Tools CP-SAT solver or other C++ solver_logs.
+    e.g. to capture output from OR-Tools CP-SAT solver or other C++ logs.
     After the block, original output streams are restored.
     """
 

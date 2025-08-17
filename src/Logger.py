@@ -20,7 +20,7 @@ class _ColorFormatter(logging.Formatter):
 
 
 class Logger(logging.Logger):
-    def __init__(self, name=__name__, log_file="master.log"):
+    def __init__(self, name=__name__, log_file="main.log"):
         super().__init__(name)
         colorama_init(autoreset=True)
 
