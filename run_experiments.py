@@ -23,6 +23,25 @@ def main() -> None:
             '"max_bottleneck_utilization_list" in the config file.'
         ),
     )
+    parser.add_argument(
+        "--time_limit",
+        type=int,
+        required=True,
+        help="Solver time limit in seconds.",
+    )
+    parser.add_argument(
+        "--bound_no_improvement_time",
+        type=int,
+        required=True,
+        help="Time in seconds with no bound improvement before stopping.",
+    )
+    parser.add_argument(
+        "--bound_warmup_time",
+        type=int,
+        required=True,
+        help="Warmup time in seconds before bound improvement checks start.",
+    )
+
     args = parser.parse_args()
 
     # Load config
@@ -72,19 +91,20 @@ def main() -> None:
         logger_name = f"experiments_{util:.2f}"
         logger = Logger(name=logger_name, log_file=f"{logger_name}.log")
         run_experiment(
-            experiment_id = experiment_id,
-            shift_length = shift_length,
-            total_shift_number = total_shift_number,
-            logger = logger,
+            experiment_id=experiment_id,
+            shift_length=shift_length,
+            total_shift_number=total_shift_number,
+            logger=logger,
+            time_limit=args.time_limit,
+            bound_no_improvement_time=args.bound_no_improvement_time,
+            bound_warmup_time=args.bound_warmup_time,
         )
 
 
 if __name__ == "__main__":
     """
     Example usage:
-    python run_experiments.py --util 0.75
-    python run_experiments.py --util 1.0
-    python run_experiments.py --util all
+    python run_experiments.py --util 0.75 --time_limit 300 --bound_no_improvement_time 60 --bound_warmup_time 10
+    python run_experiments.py --util all --time_limit 900 --bound_no_improvement_time 300 --bound_warmup_time 30
     """
     main()
-
