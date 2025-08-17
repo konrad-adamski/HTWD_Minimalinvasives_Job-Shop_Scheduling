@@ -22,7 +22,6 @@ class BoundGuard:
 
     def __call__(self, cur: float):
         now = time.monotonic()
-
         # Warmup phase
         if now - self._start < self.warmup_s:
             return
@@ -46,7 +45,8 @@ class BoundGuard:
             return
 
         if self._last_improve_time and (now - self._last_improve_time) >= self.no_improve_s:
-            self.logger.info(
+
+            self.logger.callback_info(
                 f"Stopping search: best_bound no ≥{self.relative_change:.4g} "
                 f"relative change for ≥{self.no_improve_s}s (bound={cur})."
             )
