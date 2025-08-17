@@ -600,10 +600,12 @@ class DataFramePlotGenerator:
     @staticmethod
     def _step_for_granularity(x_max: float, gran: str) -> int:
         if gran == "seconds":
-            # nice steps
-            candidates = [1, 5, 10, 30]
-            target = max(6, int(x_max // 8))
-            return min(candidates, key=lambda k: abs(k - target)) or 1
+            if x_max <= 10:
+                return 1
+            elif x_max <= 50:
+                return 5
+            else:
+                return 10
         if gran == "minutes":
             candidates = [60, 300, 600]  # (1, 5, 10 min)
             target = max(60, int(x_max // 10))
@@ -619,7 +621,7 @@ class DataFramePlotGenerator:
     @classmethod
     def get_convergence_plot_figure(
             cls, df: pd.DataFrame, time_col: str = "Time", bestsol_col: str = "BestSol", subtitle: str = "",
-            y_min: float = None, y_max: float = None, max_time: float = None,
+            y_min: float = None, y_max: float = None, x_max_minimum: float = 1.0, df_max_time: float = None,
             granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"] = "auto", marker: str = "."):
         """
         Generate a convergence curve plot of the solver's best solution over time.
@@ -630,7 +632,7 @@ class DataFramePlotGenerator:
         :param subtitle: Optional subtitle to append to the plot title.
         :param y_min: Minimum y-axis value; if None, uses the minimum in `bestsol_col`.
         :param y_max: Maximum y-axis value; if None, uses the maximum in `bestsol_col`.
-        :param max_time: Maximum time (in seconds) to display on the x-axis.
+        :param df_max_time: Maximum time (in seconds) to display on the x-axis.
         :param granularity: Tick label granularity for the x-axis; "auto", "seconds", "minutes", "quarter", "half", or "hours".
         :param marker: Matplotlib marker style for data points.
         :return: Matplotlib Figure object, or None if the filtered DataFrame is empty.
@@ -640,15 +642,16 @@ class DataFramePlotGenerator:
             return None
 
         d = df.copy()
-        if max_time is not None:
-            d = d[d[time_col] <= max_time]
+        if df_max_time is not None:
+            d = d[d[time_col] <= df_max_time]
 
         if d.empty:
             print("DataFrame hat keine Zeilen im angegebenen Zeitbereich.")
             return None
 
         # x-axis
-        x_max = float(max_time) if max_time is not None else float(d[time_col].max())
+        x_max = float(d[time_col].max())
+        x_max = max(x_max, x_max_minimum)
         gran = cls._choose_granularity(x_max, granularity)
         step = cls._step_for_granularity(x_max, gran)
         ticks_s = np.arange(0, int(x_max) + step, step)

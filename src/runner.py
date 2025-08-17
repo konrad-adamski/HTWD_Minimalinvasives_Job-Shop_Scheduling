@@ -82,11 +82,11 @@ def run_experiment(experiment_id: int,  shift_length: int, total_shift_number: i
 
         solver.solve_model(
             gap_limit=0.005,
-            time_limit=60*60,
+            time_limit=60*30,
             log_file=file_path,
             bound_relative_change= 0.01,
-            bound_no_improvement_time= 60*10,
-            bound_warmup_time=60*2,
+            bound_no_improvement_time= 60*4,
+            bound_warmup_time=60*1,
         )
 
         solver.log_solver_info()
