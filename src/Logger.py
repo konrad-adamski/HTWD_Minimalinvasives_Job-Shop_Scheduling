@@ -51,20 +51,26 @@ class Logger(logging.Logger):
             self.addHandler(file_handler)
             self.addHandler(console_handler)
 
-    def handle(self, record):
-        try:
-            super().handle(record)
-        except Exception as e:
-            import sys
-            sys.stderr.write(f"[Logger] Console logging failed: {e}\n")
+    def callback_info(self, msg: str):
+        """
+        Write INFO log only to file handlers, without printing to console.
+        """
 
-            # Fallback: make sure record still goes to file
-            for h in self.handlers:
-                if isinstance(h, logging.FileHandler):
-                    try:
-                        h.emit(record)
-                    except Exception as inner_e:
-                        sys.stderr.write(f"[Logger] Fallback file write failed: {inner_e}\n")
+        record = self.makeRecord(
+            self.name,
+            logging.INFO,
+            fn="callback",  # kein __file__, damit es stabil bleibt
+            lno=0,
+            msg=msg,
+            args=(),
+            exc_info=None,
+        )
+        for h in self.handlers:
+            if isinstance(h, logging.FileHandler):
+                if h.filter(record):  # Handler-Filter respektieren
+                    h.handle(record)  # <-- statt emit()
+
+
 
     def get_log_file_path(self):
         return self.log_file_path
