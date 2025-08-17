@@ -8,7 +8,7 @@ from ortools.sat.python import cp_model
 from src.Logger import Logger
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation
-from src.solvers.CP_BoundStagnationGuard import BoundStagnationGuard
+from src.solvers.CP_BoundStagnationGuard import BoundGuard
 from src.solvers.CP_Collections import MachineFixIntervalMap, OperationIndexMapper, JobDelayMap, MachineFixInterval, \
     StartTimes, EndTimes, Intervals, OriginalOperationStarts, CostVarCollection
 
@@ -397,13 +397,16 @@ class Solver:
         self.model.Minimize(flowtime_terms.objective_expr() + self.deviation_terms.objective_expr())
         self.model_completed = True
 
-
     def solve_model(
-            self, print_log_search_progress: bool = False, time_limit: Optional[int] = None,
-            gap_limit: float = 0.0, log_file: Optional[str] = None,
-            bound_no_improvement_time: Optional[int] = 900,bound_relative_change: float = 0.01,
-            bound_stagnation_warmup_time: int = 120):
-
+            self,
+            print_log_search_progress: bool = False,
+            time_limit: Optional[int] = None,
+            gap_limit: float = 0.0,
+            log_file: Optional[str] = None,
+            bound_no_improvement_time: Optional[int] = 600,
+            bound_relative_change: float = 0.01,
+            bound_warmup_time: int = 30,
+    ):
         if self.model_completed:
 
             self.solver.parameters.log_search_progress = print_log_search_progress
@@ -412,25 +415,26 @@ class Solver:
             if time_limit is not None:
                 self.solver.parameters.max_time_in_seconds = time_limit
 
-            if bound_no_improvement_time and bound_no_improvement_time > 0:
-                self.solver.parameters.log_search_progress = True
-                self.solver.log_callback = BoundStagnationGuard(
+            # Bound-Callback vorbereiten
+            if bound_no_improvement_time is not None and bound_no_improvement_time > 0:
+                self.solver.best_bound_callback = BoundGuard(
                     solver=self.solver,
                     logger=self.logger,
                     no_improvement_seconds=bound_no_improvement_time,
-                    warmup_seconds=bound_stagnation_warmup_time,
-                    relative_change = bound_relative_change
+                    warmup_seconds=bound_warmup_time,
+                    relative_change=bound_relative_change,
                 )
 
             if log_file is not None:
+                # Für Log-Ausgabe ins File aktivieren
                 self.solver.parameters.log_search_progress = True
                 with _redirect_cpp_logs(log_file):
                     self.solver_status = self.solver.Solve(self.model)
             else:
                 self.solver_status = self.solver.Solve(self.model)
+
         else:
             self.logger.warning("Model was not completed yet.")
-
 
     def get_schedule(self):
 

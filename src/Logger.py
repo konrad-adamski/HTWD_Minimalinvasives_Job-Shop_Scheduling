@@ -1,4 +1,5 @@
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from colorama import Fore, Style, init as colorama_init
 from config.project_config import get_data_path
@@ -51,12 +52,19 @@ class Logger(logging.Logger):
             self.addHandler(console_handler)
 
     def handle(self, record):
-        # Zusätzliche Aktion bei ERROR oder höher
-        if record.levelno >= logging.ERROR:
-            print("⚠️ Zusatzaktion bei Fehler:", record.getMessage())
-            # Hier könntest du z.B. auch in eine extra Fehlerdatei schreiben oder Notification senden
-        super().handle(record)  # Standardverarbeitung beibehalten
+        try:
+            super().handle(record)
+        except Exception as e:
+            import sys
+            sys.stderr.write(f"[Logger] Console logging failed: {e}\n")
 
+            # Fallback: make sure record still goes to file
+            for h in self.handlers:
+                if isinstance(h, logging.FileHandler):
+                    try:
+                        h.emit(record)
+                    except Exception as inner_e:
+                        sys.stderr.write(f"[Logger] Fallback file write failed: {inner_e}\n")
 
     def get_log_file_path(self):
         return self.log_file_path
