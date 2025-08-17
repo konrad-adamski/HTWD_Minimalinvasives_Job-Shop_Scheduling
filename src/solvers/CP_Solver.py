@@ -425,6 +425,8 @@ class Solver:
                     relative_change=bound_relative_change,
                 )
 
+            self.solver.parameters.num_search_workers = int(os.environ.get("MAX_CPU_NUMB", "8"))
+
             if log_file is not None:
                 # Für Log-Ausgabe ins File aktivieren
                 self.solver.parameters.log_search_progress = True
