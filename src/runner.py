@@ -12,7 +12,9 @@ from src.solvers.CP_Solver import Solver
 
 email_notifier = EmailNotifier()
 
-def run_experiment(experiment_id: int,  shift_length: int, total_shift_number: int, logger: Logger):
+def run_experiment(
+        experiment_id: int,  shift_length: int, total_shift_number: int, logger: Logger,
+        time_limit: int = 60*20, bound_warmup_time: int = 30, bound_no_improvement_time: int = 60):
     experiment = ExperimentQuery.get_experiment(experiment_id)
 
     source_name = experiment.routing_source.name
@@ -82,11 +84,11 @@ def run_experiment(experiment_id: int,  shift_length: int, total_shift_number: i
 
         solver.solve_model(
             gap_limit=0.005,
-            time_limit=60*30,
+            time_limit=time_limit,
             log_file=file_path,
             bound_relative_change= 0.01,
-            bound_no_improvement_time= 60*4,
-            bound_warmup_time=60*1,
+            bound_no_improvement_time= bound_no_improvement_time,
+            bound_warmup_time=bound_warmup_time,
         )
 
         solver.log_solver_info()
