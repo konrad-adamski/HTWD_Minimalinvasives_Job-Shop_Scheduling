@@ -3,10 +3,12 @@ from typing import Optional, Union
 
 # Basis variables (environment)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = PROJECT_ROOT / "data"
-SOLVER_LOGS_PATH = PROJECT_ROOT / "data/solver_logs"
-
 CONFIG_PATH = PROJECT_ROOT / "config"
+
+DATA_PATH = PROJECT_ROOT / "data"
+LOGS_PATH = PROJECT_ROOT / "data/logs"
+EXAMPLES_PATH = PROJECT_ROOT / "data/examples"
+
 
 
 def get_data_path(
@@ -38,15 +40,34 @@ def get_config_path(file_name: Optional[str] = None,as_string: bool = False):
     target = dir_path / file_name if file_name else dir_path
     return str(target) if as_string else target
 
-def get_solver_logs_path(
-        sub_directory: Optional[str] = None,
-        file_name: Optional[str] = None,
-        as_string: bool = False
-) -> Union[Path, str]:
-    """
-    Return an absolute path inside the /solver_logs directory.
 
-    :param sub_directory: Optional subdirectory name inside /solver_logs.
+def get_solver_logs_path(
+        sub_directory: Optional[str] = None, file_name: Optional[str] = None,
+        as_string: bool = False) -> Union[Path, str]:
+    return _get_subdir_path(
+        main_directory=LOGS_PATH,
+        sub_directory=sub_directory,
+        file_name=file_name,
+        as_string=as_string
+    )
+
+def get_examples_path(
+        sub_directory: Optional[str] = None, file_name: Optional[str] = None,
+        as_string: bool = False) -> Union[Path, str]:
+    return _get_subdir_path(
+        main_directory=EXAMPLES_PATH,
+        sub_directory=sub_directory,
+        file_name=file_name,
+        as_string=as_string
+    )
+
+def _get_subdir_path(
+        main_directory: Path, sub_directory: Optional[str] = None,
+        file_name: Optional[str] = None, as_string: bool = False) -> Union[Path, str]:
+    """
+    Return an absolute path inside the main directory.
+    :param main_directory: main directory
+    :param sub_directory: Optional subdirectory name inside /logs.
                           If it does not exist, it will be created.
     :param file_name: Optional file name to append to the path.
                       No existence check performed.
@@ -54,10 +75,10 @@ def get_solver_logs_path(
     :return: Absolute path as a Path or string.
     """
     if sub_directory:
-        dir_path = SOLVER_LOGS_PATH / sub_directory.lstrip("/\\")
+        dir_path = main_directory / sub_directory.lstrip("/\\")
         dir_path.mkdir(parents=True, exist_ok=True)  # erstellen falls fehlt
     else:
-        dir_path = SOLVER_LOGS_PATH
+        dir_path = main_directory
 
     target = dir_path / file_name if file_name else dir_path
     return str(target) if as_string else target
