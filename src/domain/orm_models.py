@@ -729,11 +729,11 @@ class LiveJob:
         return sum(op.duration for op in self.operations if op.position_number >= position)
 
 
-    def sum_left_transition_time(self, position: int) -> int:
+    def sum_transition_time(self, position: int) -> int:
         """
-        Total transition time of all operations after the given position for this job (exclusive)
+        Total transition time of all operations from the given position for this job (inclusive)
         """
-        return sum(op.transition_time for op in self.operations if op.position_number > position)
+        return sum(op.transition_time for op in self.operations if op.position_number >= position)
 
 
     @classmethod

@@ -110,8 +110,10 @@ def run_experiment(
         active_job_ops_collection = simulation.get_active_operation_collection()
         waiting_job_ops_collection = simulation.get_waiting_operation_collection()
 
-        if shift_number % 3 == 0:
-            notify(experiment, logger, shift_number)
+        if shift_number == 1:
+            notify(experiment, logger, shift_number, last_lines=30)
+        elif shift_number % 10 == 0:
+            notify(experiment, logger, shift_number, last_lines=100)
 
     # Save entire Simulation -------------------------------------------------------
     entire_simulation_jobs = simulation.get_entire_finished_operation_collection()
@@ -120,11 +122,11 @@ def run_experiment(
         live_jobs=entire_simulation_jobs.values(),
     )
     logger.info(f"Experiment {experiment_id} finished")
-    notify(experiment, logger)
+    notify(experiment, logger, last_lines= 2)
 
 
 
-def notify(experiment:Experiment, logger: Logger, shift_number: Optional[int] = None):
+def notify(experiment:Experiment, logger: Logger, shift_number: Optional[int] = None, last_lines: int = 10):
     experiment_info = f"Experiment {experiment.id} "
     if shift_number:
         experiment_info += (f"Shift {shift_number} - "
@@ -132,10 +134,8 @@ def notify(experiment:Experiment, logger: Logger, shift_number: Optional[int] = 
                             + f"Inner Tardiness ratio: {experiment.inner_tardiness_ratio}, "
                             + f"Max bottleneck utilization: {experiment.max_bottleneck_utilization}, "
                             + f"Simulation sigma: {experiment.sim_sigma}")
-        last_lines = 70
     else:
         experiment_info += "finished"
-        last_lines = 3
 
     email_notifier.send_log_tail(
         subject=f"{experiment_info}",
