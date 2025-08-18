@@ -133,9 +133,9 @@ class Solver:
 
                 if operation.position_number ==  0:                                            #  oder Datenbankabfrage!
                     due_date = operation.job_due_date
-                    left_transition_time = operation.job.sum_left_transition_time(operation.position_number)
-                    duration = operation.job.sum_duration
-                    reasonable_min_start = due_date - duration - left_transition_time
+                    sum_transition_time = operation.job.sum_transition_time(operation.position_number)
+                    sum_duration = operation.job.sum_duration
+                    reasonable_min_start = due_date - sum_duration - sum_transition_time
                     min_start = max(min_start, reasonable_min_start)
 
                 if operation.job_id in self.job_delays:
