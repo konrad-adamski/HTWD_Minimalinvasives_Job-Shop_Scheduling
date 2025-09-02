@@ -1,8 +1,12 @@
 from __future__ import annotations
+
+import numpy as np
 import pandas as pd
 
 from decimal import Decimal
-from typing import List, Union, Iterable, Tuple
+from typing import List, Union, Iterable, Tuple, Optional
+
+from sqlalchemy import text
 from sqlalchemy.orm import joinedload
 
 from src.domain.orm_models import Routing, RoutingSource, Job, Machine, Experiment, ScheduleOperation, ScheduleJob, \
@@ -334,3 +338,186 @@ class ExperimentQuery:
             session.add_all(sim_jobs + sim_ops)
             session.commit()
 
+
+class ExperimentAnalysisQuery:
+    def __init__(self):
+        raise NotImplementedError("This class cannot be instantiated.")
+
+    @staticmethod
+    def get_experiments(
+            experiment_id: Optional[int] = None,
+            max_bottleneck_utilization: Optional[float] = None,
+    ) -> List[Experiment]:
+        """
+        Liefert eine Liste von Experiment-Objekten.
+        - experiment_id=None → alle Experimente
+        - max_bottleneck_utilization: optionaler Filter auf Experiment.max_bottleneck_utilization
+        """
+        with SessionLocal() as session:
+            query = session.query(Experiment)
+
+            if experiment_id is not None:
+                query = query.filter(Experiment.id == experiment_id)
+
+            if max_bottleneck_utilization is not None:
+                query = query.filter(
+                    Experiment.max_bottleneck_utilization == max_bottleneck_utilization
+                )
+
+            experiments = query.order_by(Experiment.id).all()
+            session.expunge_all()
+            return experiments
+
+    @staticmethod
+    def get_schedule_jobs(
+        experiment_id: Optional[int] = None,
+        max_bottleneck_utilization: Optional[float] = None,
+    ) -> List[ScheduleJob]:
+        """
+        Liefert alle ScheduleJobs (inkl. Operations, Job->Routing, Experiment).
+        - experiment_id=None → alle Experimente
+        - max_bottleneck_utilization: optionaler Filter auf Experiment.max_bottleneck_utilization (exakte Übereinstimmung)
+        """
+        with SessionLocal() as session:
+            query = (
+                session.query(ScheduleJob)
+                .options(
+                    joinedload(getattr(ScheduleJob, "operations")),
+                    joinedload(getattr(ScheduleJob, "job"))
+                    .joinedload(getattr(Job, "routing"))
+                    .joinedload(getattr(Routing, "operations")),
+                    joinedload(getattr(ScheduleJob, "experiment")),
+                )
+            )
+
+            if experiment_id is not None:
+                query = query.filter(ScheduleJob.experiment_id == experiment_id)
+
+            if max_bottleneck_utilization is not None:
+                # Join nur dann, wenn wir wirklich danach filtern
+                query = query.join(getattr(ScheduleJob, "experiment")).filter(
+                    Experiment.max_bottleneck_utilization == max_bottleneck_utilization
+                )
+
+            jobs = query.order_by(ScheduleJob.shift_number, ScheduleJob.id).all()
+            session.expunge_all()
+            return jobs
+
+    @classmethod
+    def get_experiments_dataframe(
+            cls,
+            experiment_id: Optional[int] = None,
+            max_bottleneck_utilization: Optional[float] = None,
+            id_column: str = "Experiment_ID",
+            lateness_ratio_column: str = "Abs Lateness Ratio",
+            tardiness_ratio_column: str = "Inner Tardiness Ratio",
+            bottleneck_column: str = "Max Bottleneck Utilization",
+            sim_sigma_column: str = "Sim Sigma",
+            shift_length_column: str = "Shift Length",
+            w_t_column: str = "w_t",
+            w_e_column: str = "w_e",
+            w_dev_column: str = "w_dev",
+    ) -> pd.DataFrame:
+        """
+        Baut ein DataFrame aus Experimenten:
+        - Basisparameter (id, source_id, ratios, bottleneck, sim_sigma, shift_length)
+        - Berechnete Gewichte (w_t, w_e, w_dev) aus get_solver_weights()
+        Spaltennamen sind frei parametrisierbar.
+        """
+        exps = cls.get_experiments(
+            experiment_id=experiment_id,
+            max_bottleneck_utilization=max_bottleneck_utilization,
+        )
+
+        records = []
+        for e in exps:
+            w_t, w_e, w_dev = e.get_solver_weights()
+            records.append({
+                id_column: e.id,
+                lateness_ratio_column: float(e.absolute_lateness_ratio),
+                tardiness_ratio_column: float(e.inner_tardiness_ratio),
+                bottleneck_column: float(e.max_bottleneck_utilization),
+                sim_sigma_column: float(e.sim_sigma),
+                shift_length_column: int(e.shift_length),
+                w_t_column: int(w_t),
+                w_e_column: int(w_e),
+                w_dev_column: int(w_dev),
+            })
+
+        ordered_cols = [
+            id_column,
+            lateness_ratio_column,
+            tardiness_ratio_column,
+            bottleneck_column,
+            sim_sigma_column,
+            shift_length_column,
+            w_t_column,
+            w_e_column,
+            w_dev_column,
+        ]
+        df = pd.DataFrame.from_records(records, columns=ordered_cols)
+        return df.sort_values([id_column], ignore_index=True)
+    
+    @classmethod
+    def get_schedule_jobs_operations_dataframe(
+        cls,
+        experiment_id: Optional[int] = None,
+        max_bottleneck_utilization: Optional[float] = None,
+        job_column: str = "Job",
+        routing_column: str = "Routing_ID",
+        experiment_column: str = "Experiment_ID",
+        shift_column: str = "Shift",
+        position_column: str = "Operation",
+        machine_column: str = "Machine",
+        og_duration_column: str = "Original Duration",
+        start_column: str = "Start",
+        end_column: str = "End",
+        arrival_column: str = "Arrival",
+        earliest_start_column = "Ready Time",
+        due_date_column: str = "Due Date",
+    ) -> pd.DataFrame:
+        """
+        Baut ein DataFrame aus ScheduleJobs.
+        experiment_id=None → keine Filterung, es werden alle zurückgegeben.
+        """
+        jobs = cls.get_schedule_jobs(experiment_id, max_bottleneck_utilization)
+
+        records = []
+        for sj in jobs:
+            for op in sj.operations:
+                route_op = sj.job.routing.get_operation_by_position(op.position_number)
+                records.append({
+                    job_column: sj.id,
+                    routing_column: sj.job.routing_id,
+                    experiment_column: sj.experiment_id,
+                    shift_column: sj.shift_number,
+                    position_column: op.position_number,
+                    machine_column: route_op.machine_name,
+                    arrival_column: sj.job.arrival,
+                    earliest_start_column: sj.job.earliest_start,
+                    due_date_column: sj.job.due_date,
+                    og_duration_column: route_op.duration,
+                    start_column: op.start,
+                    end_column: op.end,
+                })
+
+        ordered_cols = [
+            job_column,
+            routing_column,
+            experiment_column,
+            arrival_column,
+            earliest_start_column,
+            due_date_column,
+            shift_column,
+            position_column,
+            machine_column,
+            og_duration_column,
+            start_column,
+            end_column,
+        ]
+
+        df = (
+            pd.DataFrame.from_records(records, columns=ordered_cols)
+            .sort_values([shift_column, job_column, position_column], ignore_index=True)
+        )
+        return df

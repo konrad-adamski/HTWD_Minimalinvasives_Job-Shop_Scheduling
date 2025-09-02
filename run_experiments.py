@@ -8,7 +8,7 @@ import tomllib  # Python 3.11+
 from config.project_config import get_config_path
 from src.Logger import Logger
 from src.domain.Initializer import ExperimentInitializer
-from src.runner import run_experiment
+from src.Experiment_Runner import run_experiment
 
 
 def main() -> None:

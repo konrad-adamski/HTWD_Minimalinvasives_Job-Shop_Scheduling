@@ -3,12 +3,13 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, registry
 
-from config.project_config import PROJECT_ROOT
+from config.project_config import PROJECT_ROOT, get_data_path
 
 # 🔧 Build path relative to this file
-#BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-#DB_PATH = os.path.join(BASE_DIR, "experiments.db")
+
 DB_PATH = os.path.join(PROJECT_ROOT, "experiments.db")
+#DB_PATH = get_data_path(sub_directory="2025_09_01", file_name="experiments.db")
+
 
 # SQLite-Datenbank
 my_engine = create_engine(f"sqlite:///{DB_PATH}")

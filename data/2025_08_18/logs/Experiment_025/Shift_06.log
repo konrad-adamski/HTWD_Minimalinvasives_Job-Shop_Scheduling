@@ -1,0 +1,663 @@
+
+Starting CP-SAT solver v9.14.6206
+Parameters: max_time_in_seconds: 300 log_search_progress: true num_search_workers: 104 relative_gap_limit: 0.005
+
+Initial optimization model '': (model_fingerprint: 0xa14a180e3dc8c551)
+#Variables: 394 (#ints: 82 in objective) (312 primary variables)
+  - 82 in [0,18837]
+  - 72 in [7200,18837]
+  - 240 in [8640,18837]
+#kInterval: 160 (#fixed: 4)
+#kLinMax: 82 (#expressions: 164)
+#kLinear1: 23
+#kLinear2: 133
+#kNoOverlap: 10 (#intervals: 160, #fixed_intervals: 4)
+
+Starting presolve at 0.00s
+  7.06e-05s  0.00e+00d  [DetectDominanceRelations] 
+  1.51e-03s  0.00e+00d  [PresolveToFixPoint] #num_loops=10 #num_dual_strengthening=1 
+  2.47e-06s  0.00e+00d  [ExtractEncodingFromLinear] 
+  1.31e-05s  0.00e+00d  [DetectDuplicateColumns] 
+  6.43e-05s  0.00e+00d  [DetectDuplicateConstraints] 
+[Symmetry] Graph for symmetry has 959 nodes and 926 arcs.
+[Symmetry] Symmetry computation done. time: 7.4809e-05 dtime: 9.069e-05
+  5.87e-05s  0.00e+00d  [DetectDuplicateConstraintsWithDifferentEnforcements] 
+  5.15e-04s  6.49e-06d  [Probe] #new_bounds=31 
+  2.83e-06s  0.00e+00d  [MaxClique] 
+  5.95e-05s  0.00e+00d  [DetectDominanceRelations] 
+  4.87e-04s  0.00e+00d  [PresolveToFixPoint] #num_loops=3 #num_dual_strengthening=2 
+  2.35e-05s  0.00e+00d  [ProcessAtMostOneAndLinear] 
+  5.77e-05s  0.00e+00d  [DetectDuplicateConstraints] 
+  4.93e-05s  0.00e+00d  [DetectDuplicateConstraintsWithDifferentEnforcements] 
+  2.38e-05s  1.06e-06d  [DetectDominatedLinearConstraints] #relevant_constraints=177 
+  2.42e-05s  0.00e+00d  [DetectDifferentVariables] 
+  2.07e-06s  0.00e+00d  [ProcessSetPPC] 
+  2.37e-06s  0.00e+00d  [FindAlmostIdenticalLinearConstraints] 
+  9.02e-06s  0.00e+00d  [FindBigAtMostOneAndLinearOverlap] 
+  1.48e-05s  6.64e-06d  [FindBigVerticalLinearOverlap] 
+  1.83e-06s  0.00e+00d  [FindBigHorizontalLinearOverlap] 
+  1.79e-06s  0.00e+00d  [MergeClauses] 
+  5.49e-05s  0.00e+00d  [DetectDominanceRelations] 
+  2.94e-04s  0.00e+00d  [PresolveToFixPoint] #num_loops=1 #num_dual_strengthening=1 
+  5.14e-05s  0.00e+00d  [DetectDominanceRelations] 
+  2.90e-04s  0.00e+00d  [PresolveToFixPoint] #num_loops=1 #num_dual_strengthening=1 
+  1.00e-05s  0.00e+00d  [DetectDuplicateColumns] 
+  5.00e-05s  0.00e+00d  [DetectDuplicateConstraints] 
+[Symmetry] Graph for symmetry has 943 nodes and 902 arcs.
+[Symmetry] Symmetry computation done. time: 6.2195e-05 dtime: 8.887e-05
+  5.47e-05s  0.00e+00d  [DetectDuplicateConstraintsWithDifferentEnforcements] 
+  3.75e-04s  2.09e-06d  [Probe] 
+  1.81e-06s  0.00e+00d  [MaxClique] 
+  5.67e-05s  0.00e+00d  [DetectDominanceRelations] 
+  3.28e-04s  0.00e+00d  [PresolveToFixPoint] #num_loops=1 #num_dual_strengthening=1 
+  2.27e-05s  0.00e+00d  [ProcessAtMostOneAndLinear] 
+  5.23e-05s  0.00e+00d  [DetectDuplicateConstraints] 
+  4.80e-05s  0.00e+00d  [DetectDuplicateConstraintsWithDifferentEnforcements] 
+  2.11e-05s  1.06e-06d  [DetectDominatedLinearConstraints] #relevant_constraints=177 
+  2.29e-05s  0.00e+00d  [DetectDifferentVariables] 
+  1.95e-06s  0.00e+00d  [ProcessSetPPC] 
+  2.71e-06s  0.00e+00d  [FindAlmostIdenticalLinearConstraints] 
+  8.80e-06s  0.00e+00d  [FindBigAtMostOneAndLinearOverlap] 
+  1.67e-05s  6.64e-06d  [FindBigVerticalLinearOverlap] 
+  1.71e-06s  0.00e+00d  [FindBigHorizontalLinearOverlap] 
+  1.32e-06s  0.00e+00d  [MergeClauses] 
+  5.38e-05s  0.00e+00d  [DetectDominanceRelations] 
+  2.92e-04s  0.00e+00d  [PresolveToFixPoint] #num_loops=1 #num_dual_strengthening=1 
+  1.69e-05s  0.00e+00d  [ExpandObjective] 
+
+Presolve summary:
+  - 178 affine relations were detected.
+  - rule 'TODO dual: only one blocking constraint?' was applied 543 times.
+  - rule 'TODO dual: only one unspecified blocking constraint?' was applied 310 times.
+  - rule 'affine: new relation' was applied 178 times.
+  - rule 'dual: fix variable' was applied 1 time.
+  - rule 'dual: reduced domain' was applied 7 times.
+  - rule 'intervals: removed unused interval' was applied 4 times.
+  - rule 'lin_max: converted abs to equality' was applied 21 times.
+  - rule 'lin_max: propagate domain from x to abs(x)' was applied 42 times.
+  - rule 'lin_max: rewrite with precedences' was applied 46 times.
+  - rule 'lin_max: target domain reduced' was applied 46 times.
+  - rule 'linear1: x in domain' was applied 20 times.
+  - rule 'linear: always true' was applied 50 times.
+  - rule 'linear: reduced variable domains' was applied 757 times.
+  - rule 'linear: remapped using affine relations' was applied 383 times.
+  - rule 'linear: tightened into equality' was applied 1 time.
+  - rule 'no_overlap: split into disjoint components' was applied 4 times.
+  - rule 'objective: variable not used elsewhere' was applied 1 time.
+  - rule 'presolve: 1 unused variables removed.' was applied 1 time.
+  - rule 'presolve: iteration' was applied 2 times.
+
+Presolved optimization model '': (model_fingerprint: 0x9d4b98ea1fc5e51d)
+#Variables: 215 (#ints: 80 in objective) (156 primary variables)
+  - 192 different domains in [0,18816] with a largest complexity of 1.
+#kInterval: 156
+#kLinMax: 15 (#expressions: 30)
+#kLinear2: 177
+#kNoOverlap: 10 (#intervals: 156)
+[Symmetry] Graph for symmetry has 764 nodes and 902 arcs.
+[Symmetry] Symmetry computation done. time: 4.99e-05 dtime: 7.813e-05
+
+Preloading model.
+#Bound   0.01s best:inf   next:[7572,1675868] initial_domain
+#Model   0.01s var:215/215 constraints:358/358
+
+Starting search at 0.01s with 104 workers.
+18 full problem subsolvers: [core, default_lp, fixed, lb_tree_search, max_lp, no_lp, objective_lb_search, objective_lb_search_max_lp, objective_lb_search_no_lp, objective_shaving_max_lp, objective_shaving_no_lp, probing, probing_max_lp, probing_no_lp, pseudo_costs, quick_restart, quick_restart_no_lp, reduced_costs]
+86 first solution subsolvers: [fj(25), fj_lin(12), fs_random(12), fs_random_no_lp(13), fs_random_quick_restart(12), fs_random_quick_restart_no_lp(12)]
+45 interleaved subsolvers: [feasibility_pump, graph_arc_lns, graph_cst_lns, graph_dec_lns, graph_var_lns, lb_relax_lns, ls(19), ls_lin(10), rins/rens, rnd_cst_lns, rnd_var_lns, scheduling_intervals_lns, scheduling_precedences_lns, scheduling_resource_windows_lns, scheduling_time_window_lns, variables_shaving, variables_shaving_max_lp, variables_shaving_no_lp]
+3 helper subsolvers: [neighborhood_helper, synchronization_agent, update_gap_integral]
+
+#1       0.01s best:48414 next:[7572,48413] no_lp
+#2       0.01s best:16313 next:[7572,16312] core
+#Bound   0.02s best:16313 next:[7576,16312] objective_lb_search_no_lp
+#Bound   0.02s best:16313 next:[7578,16312] objective_lb_search_no_lp
+#Bound   0.02s best:16313 next:[7744,16312] max_lp
+#Bound   0.02s best:16313 next:[7848,16312] pseudo_costs
+#Bound   0.02s best:16313 next:[8715,16312] max_lp
+#3       0.02s best:15823 next:[8715,15822] rnd_var_lns (d=5.00e-01 s=21 t=0.10 p=0.00 stall=0 h=base)
+#4       0.02s best:15704 next:[8715,15703] ls_restart_perturb(batch:1 lin{mvs:14 evals:279} gen{mvs:74 evals:1'342} #w_updates:92 #perturb:0)
+#5       0.02s best:15237 next:[8715,15236] graph_cst_lns (d=5.00e-01 s=25 t=0.10 p=0.00 stall=0 h=base)
+#6       0.02s best:14747 next:[8715,14746] graph_cst_lns (d=5.00e-01 s=25 t=0.10 p=0.00 stall=0 h=base) [combined with: rnd_var_lns (d=5.00e...]
+#7       0.02s best:14627 next:[8715,14626] ls_restart_decay_perturb(batch:1 lin{mvs:12 evals:199} gen{mvs:45 evals:583} #w_updates:7 #perturb:0) [combined with: graph_cst_lns (d=5.0...]
+#8       0.02s best:14530 next:[8715,14529] ls_lin_restart_compound(batch:1 lin{mvs:0 evals:23} gen{mvs:17 evals:209} comp{mvs:7 btracks:5} #w_updates:0 #perturb:0)
+#9       0.02s best:14410 next:[8715,14409] ls_lin_restart_compound(batch:1 lin{mvs:0 evals:23} gen{mvs:17 evals:209} comp{mvs:7 btracks:5} #w_updates:0 #perturb:0) [combined with: ls_restart_decay_per...]
+#10      0.02s best:14358 next:[8715,14357] ls_restart_compound_perturb(batch:1 lin{mvs:0 evals:5} gen{mvs:3 evals:48} comp{mvs:3 btracks:0} #w_updates:0 #perturb:0)
+#11      0.03s best:14353 next:[8715,14352] ls_restart_compound(batch:1 lin{mvs:0 evals:13} gen{mvs:8 evals:71} comp{mvs:8 btracks:0} #w_updates:0 #perturb:0)
+#Bound   0.03s best:14353 next:[8819,14352] max_lp
+#12      0.03s best:14352 next:[8819,14351] ls_lin_restart_decay_compound(batch:1 lin{mvs:0 evals:13} gen{mvs:5 evals:67} comp{mvs:5 btracks:0} #w_updates:0 #perturb:0)
+#13      0.03s best:14350 next:[8819,14349] ls_restart_decay_perturb(batch:1 lin{mvs:11 evals:184} gen{mvs:21 evals:276} #w_updates:1 #perturb:0)
+#14      0.03s best:14012 next:[8819,14011] ls_lin_restart(batch:1 lin{mvs:12 evals:200} gen{mvs:25 evals:322} #w_updates:4 #perturb:0)
+#15      0.03s best:14009 next:[8819,14008] ls_lin_restart_compound_perturb(batch:1 lin{mvs:0 evals:167} gen{mvs:118 evals:906} comp{mvs:16 btracks:51} #w_updates:0 #perturb:0)
+#16      0.03s best:13933 next:[8819,13932] ls_lin_restart(batch:1 lin{mvs:11 evals:309} gen{mvs:97 evals:1'402} #w_updates:92 #perturb:0)
+#17      0.03s best:13589 next:[8819,13588] ls_lin_restart(batch:1 lin{mvs:11 evals:309} gen{mvs:97 evals:1'402} #w_updates:92 #perturb:0) [combined with: ls_lin_restart_compo...]
+#18      0.03s best:13565 next:[8819,13564] ls_lin_restart_decay(batch:1 lin{mvs:10 evals:130} gen{mvs:13 evals:185} #w_updates:0 #perturb:0)
+#19      0.04s best:13204 next:[8819,13203] ls_lin_restart_decay_perturb(batch:1 lin{mvs:10 evals:233} gen{mvs:47 evals:680} #w_updates:7 #perturb:0)
+#20      0.04s best:12982 next:[8819,12981] ls_restart_compound_perturb(batch:1 lin{mvs:0 evals:83} gen{mvs:46 evals:366} comp{mvs:10 btracks:18} #w_updates:0 #perturb:0)
+#21      0.04s best:12577 next:[8819,12576] ls_lin_restart_decay_compound(batch:1 lin{mvs:0 evals:26} gen{mvs:7 evals:111} comp{mvs:7 btracks:0} #w_updates:0 #perturb:0)
+#22      0.04s best:12329 next:[8819,12328] ls_restart_perturb(batch:1 lin{mvs:12 evals:246} gen{mvs:32 evals:448} #w_updates:14 #perturb:0)
+#23      0.04s best:11273 next:[8819,11272] rins_pump_lns (d=5.00e-01 s=107 t=0.10 p=0.00 stall=0 h=base)
+#24      0.05s best:11271 next:[8819,11270] ls_restart_decay_compound(batch:1 lin{mvs:0 evals:91} gen{mvs:57 evals:460} comp{mvs:15 btracks:21} #w_updates:0 #perturb:0)
+#25      0.05s best:11268 next:[8819,11267] ls_lin_restart_decay_compound_perturb(batch:1 lin{mvs:0 evals:15} gen{mvs:9 evals:103} comp{mvs:3 btracks:3} #w_updates:0 #perturb:0)
+#26      0.05s best:11252 next:[8819,11251] ls_lin_restart_decay_perturb(batch:1 lin{mvs:12 evals:420} gen{mvs:151 evals:1'802} #w_updates:76 #perturb:0)
+#27      0.06s best:11248 next:[8819,11247] ls_lin_restart_perturb(batch:1 lin{mvs:9 evals:213} gen{mvs:52 evals:699} #w_updates:14 #perturb:0)
+#28      0.06s best:11244 next:[8819,11243] ls_lin_restart(batch:1 lin{mvs:11 evals:218} gen{mvs:52 evals:600} #w_updates:20 #perturb:0)
+#29      0.07s best:11223 next:[8819,11222] quick_restart_no_lp
+#30      0.08s best:11119 next:[8819,11118] ls_restart_compound_perturb(batch:1 lin{mvs:0 evals:47} gen{mvs:36 evals:444} comp{mvs:16 btracks:10} #w_updates:0 #perturb:0)
+#Bound   0.10s best:11119 next:[8952,11118] objective_lb_search_max_lp
+#31      0.13s best:11118 next:[8952,11117] quick_restart_no_lp
+#32      0.14s best:11007 next:[8952,11006] ls_lin_restart_compound_perturb(batch:1 lin{mvs:0 evals:122} gen{mvs:22 evals:177} comp{mvs:22 btracks:0} #w_updates:0 #perturb:0)
+#33      0.14s best:11002 next:[8952,11001] ls_lin_restart_compound(batch:1 lin{mvs:0 evals:76} gen{mvs:10 evals:182} comp{mvs:8 btracks:1} #w_updates:0 #perturb:0)
+#34      0.14s best:10999 next:[8952,10998] ls_lin_restart_compound(batch:1 lin{mvs:0 evals:11} gen{mvs:2 evals:26} comp{mvs:2 btracks:0} #w_updates:0 #perturb:0)
+#35      0.14s best:10994 next:[8952,10993] ls_lin_restart_compound(batch:1 lin{mvs:0 evals:59} gen{mvs:8 evals:148} comp{mvs:8 btracks:0} #w_updates:0 #perturb:0)
+#36      0.14s best:10991 next:[8952,10990] ls_restart_compound(batch:1 lin{mvs:0 evals:25} gen{mvs:4 evals:75} comp{mvs:4 btracks:0} #w_updates:0 #perturb:0)
+#37      0.14s best:10990 next:[8952,10989] ls_restart_decay_compound_perturb(batch:1 lin{mvs:0 evals:10} gen{mvs:2 evals:29} comp{mvs:2 btracks:0} #w_updates:0 #perturb:0)
+#38      0.14s best:10987 next:[8952,10986] ls_restart_decay_compound_perturb(batch:1 lin{mvs:0 evals:10} gen{mvs:2 evals:29} comp{mvs:2 btracks:0} #w_updates:0 #perturb:0) [combined with: ls_restart_compound(...]
+#39      0.14s best:10984 next:[8952,10983] ls_restart_decay_compound_perturb(batch:1 lin{mvs:0 evals:9} gen{mvs:2 evals:26} comp{mvs:2 btracks:0} #w_updates:0 #perturb:0) [combined with: ls_restart_decay_com...]
+#40      0.15s best:10975 next:[8952,10974] ls_restart_decay_compound(batch:1 lin{mvs:0 evals:353} gen{mvs:88 evals:1'154} comp{mvs:14 btracks:37} #w_updates:0 #perturb:0)
+#41      0.15s best:10972 next:[8952,10971] ls_restart_compound(batch:1 lin{mvs:0 evals:211} gen{mvs:60 evals:672} comp{mvs:8 btracks:26} #w_updates:0 #perturb:0) [combined with: ls_restart_decay_com...]
+#42      0.15s best:10969 next:[8952,10968] ls_restart_decay_compound(batch:1 lin{mvs:0 evals:62} gen{mvs:30 evals:341} comp{mvs:4 btracks:13} #w_updates:0 #perturb:0)
+#43      0.15s best:10967 next:[8952,10966] ls_restart(batch:1 lin{mvs:16 evals:414} gen{mvs:57 evals:740} #w_updates:6 #perturb:0)
+#44      0.15s best:10964 next:[8952,10963] ls_restart(batch:1 lin{mvs:16 evals:414} gen{mvs:57 evals:740} #w_updates:6 #perturb:0) [combined with: ls_restart_decay_com...]
+#45      0.15s best:10960 next:[8952,10959] ls_restart_compound_perturb(batch:1 lin{mvs:0 evals:82} gen{mvs:34 evals:402} comp{mvs:6 btracks:14} #w_updates:0 #perturb:0) [combined with: ls_restart(batch:1 l...]
+#46      0.16s best:10957 next:[8952,10956] ls_restart_decay_compound(batch:1 lin{mvs:0 evals:205} gen{mvs:92 evals:1'085} comp{mvs:4 btracks:44} #w_updates:0 #perturb:0)
+#47      0.16s best:10952 next:[8952,10951] rnd_cst_lns (d=8.14e-01 s=200 t=0.10 p=1.00 stall=2 h=base) [combined with: ls_restart_decay_com...]
+#48      0.17s best:10948 next:[8952,10947] quick_restart_no_lp
+#49      0.18s best:10928 next:[8952,10927] ls_restart_decay_perturb(batch:1 lin{mvs:16 evals:1'238} gen{mvs:534 evals:6'966} #w_updates:76 #perturb:0)
+#50      0.19s best:10919 next:[8952,10918] ls_restart(batch:1 lin{mvs:16 evals:569} gen{mvs:131 evals:1'999} #w_updates:49 #perturb:0)
+#51      0.19s best:10914 next:[8952,10913] ls_restart_decay_perturb(batch:1 lin{mvs:16 evals:334} gen{mvs:50 evals:720} #w_updates:7 #perturb:0)
+#52      0.20s best:10907 next:[8952,10906] ls_restart_compound_perturb(batch:1 lin{mvs:0 evals:28} gen{mvs:22 evals:213} comp{mvs:6 btracks:8} #w_updates:0 #perturb:0)
+#Bound   0.24s best:10907 next:[8956,10906] bool_core (num_cores=13 [cover] a=68 d=3 fixed=332/1534 clauses=11'227)
+#Bound   0.24s best:10907 next:[8960,10906] bool_core (num_cores=13 [cover] a=68 d=3 fixed=333/1539 clauses=11'319)
+#53      0.24s best:10899 next:[8960,10898] quick_restart
+#Bound   0.25s best:10899 next:[8964,10898] bool_core (num_cores=14 [size:2 mw:4 d:1] a=67 d=3 fixed=334/1544 clauses=11'413)
+#Bound   0.25s best:10899 next:[8968,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=334/1547 clauses=11'414)
+#Bound   0.25s best:10899 next:[8972,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=335/1550 clauses=11'416)
+#Bound   0.25s best:10899 next:[8976,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=336/1553 clauses=11'419)
+#Bound   0.25s best:10899 next:[8980,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=337/1556 clauses=11'423)
+#Bound   0.25s best:10899 next:[8984,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=338/1559 clauses=11'428)
+#Bound   0.25s best:10899 next:[8988,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=339/1562 clauses=11'434)
+#Bound   0.25s best:10899 next:[8992,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=340/1565 clauses=11'441)
+#Bound   0.25s best:10899 next:[8996,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=341/1568 clauses=11'449)
+#Bound   0.25s best:10899 next:[9000,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=342/1571 clauses=11'458)
+#Bound   0.25s best:10899 next:[9004,10898] bool_core (num_cores=14 [cover] a=67 d=3 fixed=343/1574 clauses=11'468)
+#Bound   0.66s best:10899 next:[10259,10898] objective_lb_search_max_lp [skipped_logs=190]
+#Bound   2.00s best:10899 next:[10424,10898] bool_core (num_cores=27 [cover] a=54 d=8 fixed=826/6851 clauses=188'425) [skipped_logs=36]
+#Bound   2.99s best:10899 next:[10592,10898] bool_core (num_cores=27 [cover] a=54 d=8 fixed=869/8876 clauses=325'266) [skipped_logs=41]
+#Bound   3.55s best:10899 next:[10695,10898] objective_lb_search_max_lp [skipped_logs=10]
+#Bound   5.00s best:10899 next:[10713,10898] bool_core (num_cores=28 [cover] a=54 d=9 fixed=1059/10609 clauses=475'918) [skipped_logs=6]
+#Bound   5.93s best:10899 next:[10749,10898] bool_core (num_cores=28 [cover] a=54 d=9 fixed=1142/11137 clauses=529'981) [skipped_logs=11]
+#Bound   6.93s best:10899 next:[10758,10898] objective_lb_search_max_lp [skipped_logs=3]
+Relative gap limit of 0.005 reached.
+#Bound   7.77s best:10899 next:[10845,10898] bool_core (num_cores=34 [cover] a=52 d=10 fixed=2389/11640 clauses=494'164) [skipped_logs=71]
+
+Task timing                                  n [     min,      max]      avg      dev     time         n [     min,      max]      avg      dev    dtime
+                             'core':         1 [   7.78s,    7.78s]    7.78s   0.00ns    7.78s         1 [  12.76s,   12.76s]   12.76s   0.00ns   12.76s
+                       'default_lp':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [   1.22s,    1.22s]    1.22s   0.00ns    1.22s
+                 'feasibility_pump':       210 [ 77.20us,   1.88ms] 159.91us 147.99us  33.58ms       209 [ 31.73us, 492.71us]  33.93us  31.81us   7.09ms
+                            'fixed':         1 [   7.77s,    7.77s]    7.77s   0.00ns    7.77s         1 [   1.59s,    1.59s]    1.59s   0.00ns    1.59s
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                               'fj':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                           'fj_lin':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                        'fs_random':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                  'fs_random_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+          'fs_random_quick_restart':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+    'fs_random_quick_restart_no_lp':         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+                    'graph_arc_lns':        74 [ 14.34ms,    1.42s] 470.39ms 277.22ms   34.81s        74 [  1.04ms, 100.15ms]  77.32ms  36.10ms    5.72s
+                    'graph_cst_lns':       102 [  3.31ms,    1.06s] 421.12ms 323.94ms   42.95s       102 [ 14.65us, 102.13ms]  62.15ms  43.60ms    6.34s
+                    'graph_dec_lns':        73 [  1.81ms,    1.43s] 308.74ms 329.48ms   22.54s        73 [  3.50us, 100.17ms]  45.33ms  45.78ms    3.31s
+                    'graph_var_lns':        56 [  9.40ms,    1.06s] 492.42ms 264.59ms   27.58s        56 [252.47us, 100.12ms]  82.16ms  35.95ms    4.60s
+                     'lb_relax_lns':        11 [ 20.50ms,    2.82s] 956.56ms 828.39ms   10.52s        11 [  2.75ms, 500.64ms] 220.51ms 192.53ms    2.43s
+                   'lb_tree_search':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [861.25ms, 861.25ms] 861.25ms   0.00ns 861.25ms
+                               'ls':        87 [ 33.27ms, 109.04ms]  89.00ms  11.32ms    7.74s        87 [ 34.58ms, 100.19ms]  99.29ms   6.98ms    8.64s
+                               'ls':        89 [ 42.61ms, 104.54ms]  87.03ms   8.62ms    7.75s        89 [ 67.52ms, 100.12ms]  99.67ms   3.43ms    8.87s
+                               'ls':        93 [ 93.32us, 108.93ms]  76.16ms  24.04ms    7.08s        92 [150.50us, 100.61ms]  95.57ms  19.76ms    8.79s
+                               'ls':        94 [ 49.45ms,  95.41ms]  82.39ms   7.67ms    7.74s        94 [ 65.29ms, 100.24ms]  99.68ms   3.57ms    9.37s
+                               'ls':        94 [ 61.85ms,  94.52ms]  82.41ms   7.48ms    7.75s        94 [ 86.49ms, 100.15ms]  99.91ms   1.39ms    9.39s
+                               'ls':        95 [814.56us,  99.00ms]  79.15ms  22.04ms    7.52s        95 [  1.70ms, 100.11ms]  97.56ms  14.55ms    9.27s
+                               'ls':        97 [  4.88ms, 107.09ms]  79.81ms  17.84ms    7.74s        97 [  6.65ms, 100.17ms]  97.54ms  14.28ms    9.46s
+                               'ls':        99 [375.75us, 101.93ms]  68.21ms  27.07ms    6.75s        99 [312.36us, 100.17ms]  95.23ms  20.88ms    9.43s
+                               'ls':       101 [891.63us, 106.31ms]  69.13ms  26.98ms    6.98s       101 [642.13us, 100.25ms]  93.86ms  23.00ms    9.48s
+                               'ls':       102 [  2.98ms,  97.07ms]  74.83ms  23.74ms    7.63s       102 [  3.59ms, 100.25ms]  96.13ms  17.80ms    9.81s
+                               'ls':       103 [  1.08ms, 100.92ms]  74.79ms  24.65ms    7.70s       103 [  1.46ms, 100.16ms]  93.92ms  22.78ms    9.67s
+                               'ls':       103 [ 36.68ms, 108.59ms]  71.01ms  23.02ms    7.31s       103 [ 34.11ms, 100.18ms]  99.41ms   6.47ms   10.24s
+                               'ls':       105 [114.70us, 103.85ms]  66.69ms  26.74ms    7.00s       104 [  2.75ms, 100.16ms]  96.68ms  16.14ms   10.05s
+                               'ls':       106 [415.76us,  96.48ms]  70.15ms  28.38ms    7.44s       106 [175.66us, 100.15ms]  94.25ms  22.08ms    9.99s
+                               'ls':       107 [  1.25ms, 103.68ms]  70.83ms  26.20ms    7.58s       107 [  1.00ms, 100.14ms]  95.69ms  18.98ms   10.24s
+                               'ls':       108 [  1.17ms,  97.59ms]  63.53ms  26.86ms    6.86s       108 [  3.17ms, 100.17ms]  99.15ms   9.28ms   10.71s
+                               'ls':       108 [505.22us, 101.68ms]  63.43ms  30.09ms    6.85s       108 [984.90us, 100.16ms]  92.58ms  24.40ms   10.00s
+                               'ls':       117 [ 64.15us, 106.89ms]  65.94ms  27.54ms    7.72s       116 [  1.31ms, 100.23ms]  95.69ms  19.49ms   11.10s
+                               'ls':       118 [ 21.27ms,  94.12ms]  58.79ms  21.91ms    6.94s       118 [ 79.82ms, 100.53ms]  99.88ms   1.86ms   11.79s
+                           'ls_lin':        88 [  6.48ms, 106.03ms]  87.95ms  13.35ms    7.74s        88 [  9.40ms, 100.12ms]  98.35ms  11.34ms    8.66s
+                           'ls_lin':        89 [  3.81ms, 107.35ms]  87.07ms  14.72ms    7.75s        89 [  5.45ms, 100.17ms]  97.39ms  14.82ms    8.67s
+                           'ls_lin':        89 [664.00us, 110.57ms]  86.85ms  22.31ms    7.73s        89 [904.67us, 100.16ms]  94.45ms  22.08ms    8.41s
+                           'ls_lin':        95 [451.23us, 119.55ms]  79.48ms  19.51ms    7.55s        95 [606.23us, 100.18ms]  97.58ms  13.95ms    9.27s
+                           'ls_lin':        97 [ 93.60us, 103.91ms]  65.03ms  32.04ms    6.31s        95 [153.58us, 100.20ms]  88.21ms  31.27ms    8.38s
+                           'ls_lin':       105 [ 28.46ms,  96.37ms]  73.73ms  19.91ms    7.74s       105 [ 65.33ms, 100.16ms]  99.70ms   3.38ms   10.47s
+                           'ls_lin':       106 [ 17.31ms,  97.89ms]  73.06ms  23.79ms    7.74s       106 [  8.19ms, 100.17ms]  98.98ms   9.10ms   10.49s
+                           'ls_lin':       108 [543.83us, 105.87ms]  64.99ms  28.62ms    7.02s       108 [599.87us, 100.15ms]  95.28ms  20.40ms   10.29s
+                           'ls_lin':       119 [405.51us,  97.62ms]  59.06ms  27.45ms    7.03s       118 [454.61us, 100.17ms]  97.08ms  16.01ms   11.46s
+                           'ls_lin':       120 [  1.30ms,  95.53ms]  51.25ms  23.30ms    6.15s       120 [  2.61ms, 100.19ms]  97.94ms  13.29ms   11.75s
+                           'max_lp':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [   3.77s,    3.77s]    3.77s   0.00ns    3.77s
+                            'no_lp':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         0 [  0.00ns,   0.00ns]   0.00ns   0.00ns   0.00ns
+              'objective_lb_search':         1 [   7.77s,    7.77s]    7.77s   0.00ns    7.77s         1 [   1.28s,    1.28s]    1.28s   0.00ns    1.28s
+       'objective_lb_search_max_lp':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [   1.14s,    1.14s]    1.14s   0.00ns    1.14s
+        'objective_lb_search_no_lp':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [   2.98s,    2.98s]    2.98s   0.00ns    2.98s
+         'objective_shaving_max_lp':       210 [484.74us,  21.75ms]  11.40ms   6.07ms    2.39s       168 [ 41.65us, 136.49us]  91.26us  24.61us  15.33ms
+          'objective_shaving_no_lp':       210 [534.93us,  19.47ms]  11.08ms   5.47ms    2.33s       167 [  2.61us,  94.35us]  79.67us  20.94us  13.30ms
+                          'probing':         1 [   7.78s,    7.78s]    7.78s   0.00ns    7.78s         1 [566.36ms, 566.36ms] 566.36ms   0.00ns 566.36ms
+                   'probing_max_lp':         1 [   7.77s,    7.77s]    7.77s   0.00ns    7.77s         1 [123.49ms, 123.49ms] 123.49ms   0.00ns 123.49ms
+                    'probing_no_lp':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [973.88ms, 973.88ms] 973.88ms   0.00ns 973.88ms
+                     'pseudo_costs':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [   2.26s,    2.26s]    2.26s   0.00ns    2.26s
+                    'quick_restart':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [   1.91s,    1.91s]    1.91s   0.00ns    1.91s
+              'quick_restart_no_lp':         1 [   7.76s,    7.76s]    7.76s   0.00ns    7.76s         1 [   2.10s,    2.10s]    2.10s   0.00ns    2.10s
+                    'reduced_costs':         1 [   7.77s,    7.77s]    7.77s   0.00ns    7.77s         1 [   1.06s,    1.06s]    1.06s   0.00ns    1.06s
+                        'rins/rens':        64 [ 42.98us,    1.52s] 329.30ms 403.58ms   21.08s        53 [  5.73us, 100.23ms]  54.49ms  48.56ms    2.89s
+                      'rnd_cst_lns':        68 [  4.01ms, 960.97ms] 454.16ms 251.30ms   30.88s        68 [ 41.68us, 100.17ms]  79.93ms  35.64ms    5.44s
+                      'rnd_var_lns':        84 [  4.81ms,    1.16s] 491.41ms 299.30ms   41.28s        84 [294.18us, 100.30ms]  76.23ms  36.67ms    6.40s
+         'scheduling_intervals_lns':        82 [ 34.98ms,    1.43s] 767.21ms 353.46ms    1.05m        82 [  1.12ms, 100.26ms]  86.88ms  29.86ms    7.12s
+       'scheduling_precedences_lns':        92 [ 16.81ms,    1.17s] 435.79ms 315.15ms   40.09s        92 [297.50us, 100.15ms]  52.97ms  38.12ms    4.87s
+  'scheduling_resource_windows_lns':        74 [332.29ms,    1.05s] 786.69ms 241.67ms   58.22s        74 [100.00ms, 100.11ms] 100.02ms  25.47us    7.40s
+       'scheduling_time_window_lns':        61 [ 13.36ms,    1.66s] 552.47ms 356.15ms   33.70s        61 [288.06us, 100.39ms]  79.45ms  39.70ms    4.85s
+                'variables_shaving':       210 [  5.47ms, 195.39ms]  25.97ms  24.55ms    5.45s       210 [  5.57us,  10.42ms] 998.55us   1.32ms 209.70ms
+         'variables_shaving_max_lp':       156 [ 22.76ms, 855.14ms] 152.32ms 146.58ms   23.76s       156 [  4.94ms,  98.67ms]  17.74ms  17.34ms    2.77s
+          'variables_shaving_no_lp':       210 [  4.31ms, 218.57ms]  37.97ms  35.81ms    7.97s       210 [  5.57us,  10.99ms]   1.63ms   1.81ms 342.22ms
+
+Search stats                         Bools  Conflicts  Branches  Restarts  BoolPropag  IntegerPropag
+                           'core':  11'649      3'573    59'785    11'665  18'114'819      1'981'269
+                     'default_lp':   1'296      9'624    30'504     3'139   2'076'423      7'964'916
+                          'fixed':   1'247     16'791    41'659       646   2'195'394     11'186'489
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                      'fs_random':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+                'fs_random_no_lp':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+        'fs_random_quick_restart':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+  'fs_random_quick_restart_no_lp':       0          0         0         0           0              0
+                 'lb_tree_search':   1'470      1'141    70'232     7'230     351'038      1'840'694
+                         'max_lp':   1'472     22'807    70'829     5'928   6'079'596     19'778'334
+                          'no_lp':   1'254     13'630    45'347     4'617   2'725'820      9'094'340
+            'objective_lb_search':     989      9'374    41'300     3'290   2'029'417      9'040'679
+     'objective_lb_search_max_lp':   1'398      6'359    55'596    19'789     851'433      4'393'161
+      'objective_lb_search_no_lp':   1'184     25'759    83'542     7'435   5'368'675     20'681'007
+                        'probing':   2'072      2'777    19'597     8'312     560'264      2'780'570
+                 'probing_max_lp':   1'414        136     2'690     2'690      37'047         75'375
+                  'probing_no_lp':   2'259      5'056    35'601    13'091     916'909      4'530'018
+                   'pseudo_costs':   1'224     16'462    44'696     3'975   3'300'773     12'282'686
+                  'quick_restart':   3'266     10'228    91'638     5'481   9'679'373      8'807'658
+            'quick_restart_no_lp':   3'886     12'309    80'482     6'258  10'283'585      9'970'608
+                  'reduced_costs':   1'975      4'345    30'566     9'750   2'097'265      4'155'561
+
+SAT stats                           ClassicMinim  LitRemoved  LitLearned  LitForgotten  Subsumed  MClauses  MDecisions  MLitTrue  MSubsumed  MLitRemoved  MReused
+                           'core':         2'417      18'069      13'467             0         4    11'617      19'370         0      1'952        5'860    2'124
+                     'default_lp':         8'813      42'321      96'795             0        58     2'040       9'098         0      1'333       12'391      862
+                          'fixed':        15'361      39'298     223'491        60'541        34         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                      'fs_random':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                'fs_random_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+        'fs_random_quick_restart':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+  'fs_random_quick_restart_no_lp':             0           0           0             0         0         0           0         0          0            0        0
+                 'lb_tree_search':           582       1'133      21'504             0        21       312         746         0          3           13       30
+                         'max_lp':        19'402      81'170     215'506        21'205       118     5'645      26'192         0      2'891       26'838    1'567
+                          'no_lp':        13'186      81'357     134'732             0        55     1'511       5'355         0        387        2'589      894
+            'objective_lb_search':         8'473      30'356      71'404             0        99     2'690       7'797         0      1'123        6'174    1'598
+     'objective_lb_search_max_lp':         5'384      19'872      55'558             0       123       964       2'287         2         70          429      186
+      'objective_lb_search_no_lp':        24'383     120'701     211'281         6'433        85     5'409      14'072         0      1'986       12'331    3'871
+                        'probing':         1'746       5'905      15'861             0       141       403       1'161         4        134          670      118
+                 'probing_max_lp':             0           0         136             0         0         0           0         0          0            0        0
+                  'probing_no_lp':         3'156      10'192      34'744             0       219       608       1'867        28        225        1'394       79
+                   'pseudo_costs':        15'471      60'261     157'951        39'196        76     3'617      11'505         0        881        6'031    1'230
+                  'quick_restart':         4'507       5'805      25'922             0        26     2'149       2'434         0        514        1'808    2'246
+            'quick_restart_no_lp':         4'501      12'751      51'340             0       240     4'016       8'908         5      1'248        5'910    3'095
+                  'reduced_costs':         3'705      18'003      34'161             0        37     3'807      11'495        29      2'817       21'572      599
+
+Lp stats                         Component  Iterations  AddedCuts  OPTIMAL  DUAL_F.  DUAL_U.
+                  'default_lp':         23         877          0   28'381        0        0
+                       'fixed':         23       1'127          0   58'380        0        0
+              'lb_tree_search':          1      34'436        753   22'734      876        0
+                      'max_lp':          1      17'995        568   45'664      130        0
+         'objective_lb_search':         23       1'824          0   42'190        0        0
+  'objective_lb_search_max_lp':          1      16'801        485   16'761      156        0
+                     'probing':         23       5'771          0  323'278        0        0
+              'probing_max_lp':          1       2'033        398    1'446       11        0
+                'pseudo_costs':          1      12'671        422   31'694       35        0
+               'quick_restart':         23       1'897          0   30'553        0        0
+               'reduced_costs':          1      10'532        502    6'939      202        0
+
+Lp dimension                     Final dimension of first component
+                  'default_lp':        1 rows, 9 columns, 2 entries
+                       'fixed':        1 rows, 9 columns, 2 entries
+              'lb_tree_search':  140 rows, 215 columns, 318 entries
+                      'max_lp':  149 rows, 215 columns, 376 entries
+         'objective_lb_search':        1 rows, 9 columns, 2 entries
+  'objective_lb_search_max_lp':  162 rows, 215 columns, 393 entries
+                     'probing':        1 rows, 9 columns, 2 entries
+              'probing_max_lp':  132 rows, 215 columns, 301 entries
+                'pseudo_costs':  143 rows, 215 columns, 361 entries
+               'quick_restart':        1 rows, 9 columns, 2 entries
+               'reduced_costs':  134 rows, 215 columns, 318 entries
+
+Lp debug                         CutPropag  CutEqPropag  Adjust  Overflow      Bad  BadScaling
+                  'default_lp':          0            0       0         0        0           0
+                       'fixed':          0            0       0         0        0           0
+              'lb_tree_search':          0            0  16'286         0   19'851           0
+                      'max_lp':          0           16   6'269         0   38'776           0
+         'objective_lb_search':          0            0       0         0        0           0
+  'objective_lb_search_max_lp':          0            9   8'761         0   49'091           0
+                     'probing':          0            0       0         0        0           0
+              'probing_max_lp':          0            0   1'196         0  650'880           0
+                'pseudo_costs':          0            0   3'106         0   26'211           0
+               'quick_restart':          0            0       0         0        0           0
+               'reduced_costs':          0            1     463         0   12'517           0
+
+Lp pool                          Constraints  Updates  Simplif  Merged  Shortened  Split  Strenghtened    Cuts/Call
+                  'default_lp':          222        0        8       0          0      0             0          0/0
+                       'fixed':          222        0        1       0          0      0             0          0/0
+              'lb_tree_search':          830      854      138     145          0      0             1  753/267'212
+                      'max_lp':          612    1'516    1'414     178          0      0             2  568/337'443
+         'objective_lb_search':          222        0      107       0          0      0             0          0/0
+  'objective_lb_search_max_lp':          628    1'212    1'031      79          0      0             2  485/137'233
+                     'probing':          222        0      535       0          0      0             0          0/0
+              'probing_max_lp':          579      715      146      41          0      0             1   398/19'339
+                'pseudo_costs':          558    1'219      836      86          0      0             3  422/255'007
+               'quick_restart':          222        0      722       0          0      0             0          0/0
+               'reduced_costs':          578      793       79     146          0      0             3   502/70'409
+
+Lp Cut                                                pseudo_costs  max_lp  lb_tree_search  objective_lb_search_max_lp  reduced_costs  probing_max_lp
+                                              CG_FF:             1       3               1                           4              5               2
+                                               CG_K:            10      21              19                          13             29               3
+                                               CG_R:            10      37              36                          38             20              14
+                                            MIR_1_K:             -       7               2                           -              -               1
+                                            MIR_1_R:             4       6               9                           8              2               1
+                                            MIR_2_K:             5       6               7                           4              5               2
+                                            MIR_2_R:             3       5              13                           8              4               5
+                                            MIR_3_K:             4       4               2                           4              -               1
+                                            MIR_3_R:             5       6               7                           9              4               2
+                                            MIR_4_K:             -       -               1                           -              -               1
+                                            MIR_4_R:             1       3               4                           4              1               1
+                                            MIR_5_R:             -       2               2                           1              3               -
+                                            MIR_6_K:             -       -               -                           -              2               -
+                                            MIR_6_R:             1       1               -                           -              3               1
+                  NoOverlapCompletionTimeExhaustive:            42      86              98                          67             60              43
+           NoOverlapCompletionTimeExhaustive_lifted:            35      51              75                          42             49              40
+  NoOverlapCompletionTimeExhaustive_lifted_weighted:            37      26              56                          45             47              33
+         NoOverlapCompletionTimeExhaustive_weighted:            64     100              95                          55             56              55
+                    NoOverlapCompletionTimeQueyrane:            28      23              54                          24             34              42
+             NoOverlapCompletionTimeQueyrane_lifted:            54      44             104                          43             60              53
+                        NoOverlapDetectedPrecedence:             9       3               2                           4              -               1
+                          NoOverlapDisjunctionOnEnd:             -       -               4                           -              -               -
+                        NoOverlapDisjunctionOnStart:           103     119             149                         103            113              87
+                                        ZERO_HALF_R:             6      15              13                           9              5              10
+
+LNS stats                             Improv/Calls  Closed  Difficulty  TimeLimit
+                    'graph_arc_lns':          5/74     31%    5.93e-02       0.10
+                    'graph_cst_lns':         5/102     42%    3.69e-01       0.10
+                    'graph_dec_lns':          4/73     48%    6.63e-01       0.10
+                    'graph_var_lns':          4/56     21%    1.15e-02       0.10
+                     'lb_relax_lns':          5/11     64%    8.55e-01       0.50
+                        'rins/rens':         12/58     48%    6.67e-01       0.10
+                      'rnd_cst_lns':          5/68     28%    5.04e-02       0.10
+                      'rnd_var_lns':          5/84     33%    8.47e-02       0.10
+         'scheduling_intervals_lns':          4/82     18%    4.71e-04       0.10
+       'scheduling_precedences_lns':          4/92     37%    2.26e-02       0.10
+  'scheduling_resource_windows_lns':          4/74      0%    8.24e-07       0.10
+       'scheduling_time_window_lns':          4/61     21%    3.64e-03       0.10
+
+LS stats                                    Batches  Restarts/Perturbs  LinMoves  GenMoves  CompoundMoves  Bactracks  WeightUpdates  ScoreComputed
+              'ls_decay_compound_perturb':      101                  8        12   240'053         14'029    112'422          1'259     41'172'937
+                         'ls_lin_restart':      198                 42     1'137   112'564              0          0        245'856     65'618'191
+                'ls_lin_restart_compound':      106                 53         0   239'114          8'093    115'355          1'730     44'422'549
+        'ls_lin_restart_compound_perturb':      103                 38         0   231'256          6'245    112'369          1'866     43'184'267
+                   'ls_lin_restart_decay':      102                 48       701   165'662              0          0         22'727     38'998'879
+          'ls_lin_restart_decay_compound':       93                 34         0   188'302          7'519     90'265            991     38'248'064
+  'ls_lin_restart_decay_compound_perturb':      102                 48         0   199'944          9'506     95'057          1'057     41'923'284
+           'ls_lin_restart_decay_perturb':      161                 53     1'205   258'470              0          0         34'087     62'421'031
+                 'ls_lin_restart_perturb':      151                 61       842   129'513              0          0        165'825     54'033'742
+                             'ls_restart':      203                 80     1'341   164'733              0          0        227'050     70'468'382
+                    'ls_restart_compound':      217                 80         0   450'291         12'604    218'505          2'713     88'957'141
+            'ls_restart_compound_perturb':      225                 93         0   473'117         13'048    229'732          2'920     92'821'594
+                       'ls_restart_decay':      286                 93     1'969   476'496              0          0         62'029    113'263'629
+              'ls_restart_decay_compound':      222                 73         0   508'391         29'029    239'338          2'222     91'317'646
+      'ls_restart_decay_compound_perturb':      183                 70         0   399'374         18'967    189'918          2'095     76'018'981
+               'ls_restart_decay_perturb':      172                 79     1'247   275'403              0          0         36'885     66'210'292
+                     'ls_restart_perturb':      317                 92     1'781   227'800              0          0        411'369    108'694'280
+
+Solutions (53)                              Num     Rank
+                                   'core':    1    [2,2]
+                          'graph_cst_lns':    2    [5,6]
+                         'ls_lin_restart':    4  [14,28]
+                'ls_lin_restart_compound':    5   [8,35]
+        'ls_lin_restart_compound_perturb':    2  [15,32]
+                   'ls_lin_restart_decay':    1  [18,18]
+          'ls_lin_restart_decay_compound':    2  [12,21]
+  'ls_lin_restart_decay_compound_perturb':    1  [25,25]
+           'ls_lin_restart_decay_perturb':    2  [19,26]
+                 'ls_lin_restart_perturb':    1  [27,27]
+                             'ls_restart':    3  [43,50]
+                    'ls_restart_compound':    3  [11,41]
+            'ls_restart_compound_perturb':    5  [10,52]
+              'ls_restart_decay_compound':    4  [24,46]
+      'ls_restart_decay_compound_perturb':    3  [37,39]
+               'ls_restart_decay_perturb':    4   [7,51]
+                     'ls_restart_perturb':    2   [4,22]
+                                  'no_lp':    1    [1,1]
+                          'quick_restart':    1  [53,53]
+                    'quick_restart_no_lp':    3  [29,48]
+                          'rins_pump_lns':    1  [23,23]
+                            'rnd_cst_lns':    1  [47,47]
+                            'rnd_var_lns':    1    [3,3]
+
+Objective bounds                 Num
+                   'bool_core':  374
+              'initial_domain':    1
+                      'max_lp':    3
+  'objective_lb_search_max_lp':   16
+   'objective_lb_search_no_lp':    2
+                'pseudo_costs':    1
+
+Solution repositories    Added  Queried  Synchro
+  'feasible solutions':    652    2'776      425
+   'fj solution hints':      0        0        0
+        'lp solutions':    701       30      614
+                'pump':    209       34
+
+Improving bounds shared            Num  Sym
+                        'core':    100    0
+                  'default_lp':      8    0
+                       'fixed':    265    0
+              'lb_tree_search':    203    0
+                      'max_lp':  1'442    0
+                       'no_lp':    203    0
+         'objective_lb_search':     37    0
+  'objective_lb_search_max_lp':    559    0
+   'objective_lb_search_no_lp':    393    0
+                     'probing':    299    0
+              'probing_max_lp':    227    0
+               'probing_no_lp':    619    0
+                'pseudo_costs':    792    0
+               'quick_restart':    129    0
+         'quick_restart_no_lp':    354    0
+               'reduced_costs':    197    0
+
+CpSolverResponse summary:
+status: OPTIMAL
+objective: 10899
+best_bound: 10845
+integers: 0
+booleans: 0
+conflicts: 0
+branches: 0
+propagations: 0
+integer_propagations: 0
+restarts: 0
+lp_iterations: 0
+walltime: 7.81584
+usertime: 7.81584
+deterministic_time: 383.446
+gap_integral: 2085.29
+solution_fingerprint: 0x430fa54c44e9e6d5
+
