@@ -87,7 +87,7 @@ class ProductionSimulation:
 
     def run(
             self, schedule_collection: Optional[LiveJobCollection] = None,
-            start_time: int = 0, end_time: int | None = None):
+            start_time: int = 0, end_time: Optional[int] = None):
 
         self.start_time = start_time
         self.pause_time = end_time
