@@ -65,8 +65,9 @@ if __name__ == "__main__":
         shift_length=1440,
         total_shift_number=20,
         logger=logger,
-        time_limit=60 * 24,
-        bound_no_improvement_time=60 * 6,
+        time_limit=60 * 60* 24,
+        bound_warmup_time= 60 * 60 * 6,
+        bound_no_improvement_time=60 * 60* 6
     )
 
 """terminal
