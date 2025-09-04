@@ -49,34 +49,52 @@ class JobQuery:
 
     @classmethod
     def _get_by_source_name_and_field(
-            cls, source_name: str, field_name: str, field_value: Union[str, int, Decimal]) -> List[Job]:
+        cls, source_name: str, field_name: Optional[str] = None,
+        field_value: Optional[Union[str, int, Decimal]] = None) -> List[Job]:
         """
-        Retrieve jobs filtered by a required RoutingSource name and an additional Job field.
+        Retrieve jobs filtered by a required RoutingSource name and (optionally) an additional Job field.
 
         :param source_name: Name of the RoutingSource (via Job.routing.routing_source.name).
-        :param field_name: Name of the Job column to filter on.
-        :param field_value: Value for the Job column filter.
+        :param field_name: (Optional) Name of a Job column to filter on.
+        :param field_value: (Optional) Value for the Job column filter.
         :return: List of Job instances with routing and operations eagerly loaded.
         """
-        if field_name not in Job.__mapper__.columns.keys():  # type: ignore[attr-defined]
-            raise ValueError(f"Field '{field_name}' is not a valid column in Job.")
 
         with SessionLocal() as session:
             query = (
                 session.query(Job)
-                .join(Job.routing)  # Job -> Routing
-                .join(Routing.routing_source)  # Routing -> RoutingSource
+                .join(Job.routing)                 # Job -> Routing
+                .join(Routing.routing_source)      # Routing -> RoutingSource
                 .filter(RoutingSource.name == source_name)
-                .filter(getattr(Job, field_name) == field_value)
                 .options(
                     joinedload(getattr(Job, "routing"))
                     .joinedload(getattr(Routing, "operations"))
                 )
                 .order_by(Job.arrival)
             )
+
+            # Zusätzlichen Filter nur anwenden, wenn beide Parameter vorhanden sind
+            if field_name is not None and field_value is not None:
+                # Validieren nur, wenn wir den Filter tatsächlich anwenden
+                if field_name not in Job.__mapper__.columns.keys():  # type: ignore[attr-defined]
+                    raise ValueError(f"Field '{field_name}' is not a valid column in Job.")
+                query = query.filter(getattr(Job, field_name) == field_value)
+
             jobs = query.all()
             session.expunge_all()
             return list(jobs)
+
+    @classmethod
+    def get_by_source_name(cls, source_name: str) -> List[Job]:
+        """
+        Retrieve all jobs for a given RoutingSource name.
+
+        :param source_name: Name der RoutingSource.
+        """
+        return cls._get_by_source_name_and_field(
+            source_name=source_name,
+
+        )
 
     @classmethod
     def get_by_source_name_and_routing_id(cls, source_name: str, routing_id: str) -> List[Job]:

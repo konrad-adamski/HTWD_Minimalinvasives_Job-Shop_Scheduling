@@ -1,6 +1,9 @@
 import math
 import random
+import re
 from typing import Literal, Optional
+
+from src.domain.orm_models import JobOperation
 
 
 def get_time_str(minutes_in: float) -> str:
@@ -97,6 +100,46 @@ def duration_log_normal(duration: float, sigma: float = 0.2, round_decimal: int 
     return round(result, round_decimal)
 
 
+def _seed_from_op(op: JobOperation) -> int:
+    """
+    Builds a deterministic seed from (Job, Operation).
+
+    Expected job format: <value1>-<value2>-<value3> (e.g. 01-07500-05).
+    Uses only <value1><value3> (e.g. 0105).
+
+    :param op: Operation instance.
+    :return: Deterministic integer seed.
+    """
+    job_id = str(op.job_id)
+
+    # Extract first and last numeric group
+    parts = re.findall(r"\d+", job_id)
+    if len(parts) >= 2:
+        job_digits = f"{parts[0]}{parts[-1]}"
+    else:
+        job_digits = "".join(parts)  # Fallback: take everything
+
+    # Ensure position_number is always 2 digits (01, 02, ..., 10, 11, ...)
+    pos_str = str(op.position_number).zfill(2)
+
+    return int(f"{job_digits}{pos_str}")
+
+
+def simulated_duration(op: JobOperation, sigma: float = 0.2, round_decimal: int = 0, extra_seed: int = 0) -> float:
+    """
+    Generates a simulated duration for an operation via ``duration_log_normal``.
+
+    Uses a stable seed based on (Job, Operation).
+
+    :param op: Operation instance.
+    :param sigma: Standard deviation in log space.
+    :param round_decimal: Number of decimal places to round the result.
+    :param extra_seed: Optional additional offset added to the base seed.
+    """
+    duration = op.duration
+    seed = _seed_from_op(op)
+    return duration_log_normal(duration, sigma=sigma, round_decimal=round_decimal, seed=seed + extra_seed)
+
 if __name__ == "__main__":
-    print(duration_log_normal(100, 0.5))
+    print(duration_log_normal(100, 0.1))
     print(duration_log_normal_by_vc(100, 0.5))
