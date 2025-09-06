@@ -5,10 +5,10 @@ import pandas as pd
 from dataclasses import replace
 from typing import Optional, Dict, Tuple
 
-from config.project_config import get_data_path
+from config.project_config import get_data_path, get_examples_path
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation, LiveJob
-from src.simulation.sim_utils import duration_log_normal,get_duration, get_time_str
+from src.simulation.sim_utils import duration_log_normal, get_duration, get_time_str, get_simulated_duration
 from src.simulation.SimulationMachine import SimulationMachine, SimulationMachineCollection
 
 
@@ -63,7 +63,8 @@ class ProductionSimulation:
                 op.granted_time_on_machine = granted_time
                 self._log_job_started_on_machine(granted_time, job_op = op)
 
-                simulated_duration = duration_log_normal(op.duration, sigma=self.sigma)
+                #simulated_duration = duration_log_normal(op.duration, sigma=self.sigma)
+                simulated_duration = get_simulated_duration(op, sigma=self.sigma)
                 self._register_active_operation(job_op=op, sim_start=granted_time, sim_duration=simulated_duration)
 
                 yield self.env.timeout(simulated_duration)
@@ -193,9 +194,8 @@ class ProductionSimulation:
 
 if __name__ == "__main__":
 
-
-    basic_data_path = get_data_path("examples")
-    df_schedule = pd.read_csv(basic_data_path / "lateness_schedule_day_01.csv")
+    example_file_path = get_examples_path("Lateness_with__w_first", "schedule_day_01.csv")
+    df_schedule = pd.read_csv(example_file_path)
 
     print("\n", "---" * 20, "Schedule", "---" * 20)
     schedule_collection = LiveJobCollection.from_operations_dataframe(df_schedule)

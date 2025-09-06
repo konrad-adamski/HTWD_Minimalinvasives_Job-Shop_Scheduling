@@ -125,7 +125,7 @@ def _seed_from_op(op: JobOperation) -> int:
     return int(f"{job_digits}{pos_str}")
 
 
-def simulated_duration(op: JobOperation, sigma: float = 0.2, round_decimal: int = 0, extra_seed: int = 0) -> float:
+def get_simulated_duration(op: JobOperation, sigma: float = 0.2, round_decimal: int = 0, extra_seed: int = 0) -> float:
     """
     Generates a simulated duration for an operation via ``duration_log_normal``.
 

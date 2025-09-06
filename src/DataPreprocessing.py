@@ -1,21 +1,19 @@
 import math
 import random
 import re
-
+import seaborn as sns
 import numpy as np
 import pandas as pd
 
+from matplotlib import pyplot as plt
 from pathlib import Path
 from typing import Dict, List, Optional, Iterable, Literal
-
-from matplotlib import pyplot as plt
-import seaborn as sns
-from scipy.stats import gaussian_kde
-
-from src.domain.orm_models import Job
 from cycler import cycler
 from matplotlib import rcParams
 from matplotlib.patches import FancyArrowPatch
+
+from src.domain.orm_models import Job
+
 
 class DataPreprocessor:
     def __init__(self):
@@ -254,9 +252,6 @@ class SimulationDataVisualization:
 
         if mono:
             rcParams["axes.prop_cycle"] = cycler(color=["0.15", "0.35", "0.55", "0.75"])
-        else:
-            rcParams["axes.prop_cycle"] = cycler(color=plt.cm.tab10.colors)
-
 
     @classmethod
     def _plot_deviation_kde(
@@ -271,8 +266,9 @@ class SimulationDataVisualization:
         Uses deterministic seeds per (Job, Operation).
         """
         fig, ax = plt.subplots(figsize=(12, 6))
+        palette = get_gray_palette()
 
-        for sigma in sigmas:
+        for sigma, color in zip(sigmas, palette):
             diffs = []
             for _, row in df_jobs.iterrows():
                 d = row["Duration"]
@@ -284,7 +280,7 @@ class SimulationDataVisualization:
                 else:  # absolute
                     diffs.append(sim - d)
 
-            sns.kdeplot(diffs, linewidth=2, cut=0, ax=ax, label=fr"$\sigma={sigma}$")
+            sns.kdeplot(diffs, linewidth=2, cut=0, ax=ax, label=fr"$\sigma={sigma}$", color=color)
             color = ax.get_lines()[-1].get_color()
 
             # Min/Max in gleicher Farbe
@@ -295,11 +291,12 @@ class SimulationDataVisualization:
         # Labels abhängig vom Modus
         if mode == "relative":
             xlabel = r"$\frac{\mathrm{simulierte\ Dauer}\ -\ \mathrm{originale\ Dauer}}{\mathrm{originale\ Dauer}}$"
+            ax.set_ylabel(r"$\mathrm{Dichte}$", fontsize=10)  # keine Einheit
         else:
-            xlabel = r"$\mathrm{simulierte\ Dauer}\ -\ \mathrm{originale\ Dauer}$"
+            xlabel = r"$\mathrm{simulierte\ Dauer}\ -\ \mathrm{originale\ Dauer}\ [\mathrm{min}]$"
+            ax.set_ylabel(r"$\mathrm{Dichte\ [1/min]}$", fontsize=10)
 
         ax.set_xlabel(xlabel, fontsize=x_font_size)
-        ax.set_ylabel(r"$\mathrm{Dichte}$", fontsize=10)
 
         ax.legend(bbox_to_anchor=(0.898, 0.99), loc="upper left")
 
@@ -445,7 +442,14 @@ class SimulationDataVisualization:
 
         # Bins & Labels (Absolute Abweichung)
         bins = [-float("inf"), 0, 5, 10, 30, 60, float("inf")]
-        labels = ["<0", "0–5", "5–10", "10–30", "30–60", ">60"]
+        labels = [
+            r"$<0\,\text{min}$",
+            r"$0\!-\!5\,\text{min}$",
+            r"$5\!-\!10\,\text{min}$",
+            r"$10\!-\!30\,\text{min}$",
+            r"$30\!-\!60\,\text{min}$",
+            r"$>60\,\text{min}$"
+        ]
 
         result = {}
 
@@ -483,9 +487,8 @@ class SimulationDataVisualization:
         data = cls.summarize_duration_differences(df_jobs, sigmas=sigmas, with_negative = with_negative)
 
         # Klassen vorbereiten
-        classes = [c for c in ["0–5", "5–10", "10–30", "30–60", ">60"] if c in data.index]
         classes = data.index
-        data = data.loc[classes]
+        # data = data.loc[classes]
 
         # Sigmas numerisch sortieren
         cols = list(data.columns)
@@ -505,7 +508,9 @@ class SimulationDataVisualization:
         offsets = (np.arange(n_cls) - (n_cls - 1) / 2) * bar_width
 
         fig, ax = plt.subplots(figsize=(12, 6))
-        palette = sns.color_palette("tab10", n_colors=n_cls)
+        palette = sns.color_palette("muted", n_colors=n_cls)
+
+
 
         for k, (value_cls, color) in enumerate(zip(classes, palette)):
             vals = data.loc[value_cls].values.astype(float)
@@ -531,7 +536,7 @@ class SimulationDataVisualization:
         ax.set_xlabel(r"$\sigma$", fontsize=10)
         ax.set_ylabel("Anteil [%]", fontsize=10)
         #ax.legend(title="Abweichung [min]", loc="upper right")
-        ax.legend(title="Abweichung [min]", bbox_to_anchor=(0.898, 0.99), loc="upper left")
+        ax.legend(bbox_to_anchor=(0.898, 0.99), loc="upper left")
 
         # X-Limits passend zu Slotbreite
         ax.set_xlim(x_centers[0] - slot / 2 + gap / 2, x_centers[-1] + slot / 2 - gap / 2)
@@ -549,3 +554,11 @@ class SimulationDataVisualization:
 
 
 
+def get_gray_palette():
+    return [
+    "#4c6a91",  # graublau
+    "#915c5c",  # graurot
+    "#5c7a5c",  # graugrün
+    "#6d5c91",  # grauviolett
+    "#91885c"   # graugelb
+]
