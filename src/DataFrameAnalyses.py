@@ -4,7 +4,7 @@ Dataframe Analyses.py contains
 - DataFrameMetricsAnalyser
 - DataFramePlotGenerator
 """
-
+import math
 from datetime import timedelta
 
 import matplotlib
@@ -583,6 +583,11 @@ class DataFramePlotGenerator:
         return f"{h:02d}:{m:02d}"
 
     @staticmethod
+    def _format_h(seconds: Union[float, int, np.signedinteger]) -> str:
+        """Format seconds as H (nur Stunden)."""
+        return f"{int(int(seconds) // 3600)}"
+
+    @staticmethod
     def _choose_granularity(
             x_max_s: float, granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"]) -> str:
         if granularity != "auto":
@@ -607,9 +612,12 @@ class DataFramePlotGenerator:
             else:
                 return 10
         if gran == "minutes":
-            candidates = [60, 300, 600]  # (1, 5, 10 min)
-            target = max(60, int(x_max // 10))
-            return min(candidates, key=lambda k: abs(k - target))
+            if x_max <= 15 * 60:  # bis 15 Minuten
+                return 60  # 1 Minute
+            elif x_max <= 90 * 60:  # bis 90 Minuten
+                return 300  # 5 Minuten
+            else:
+                return 600  # 10 Minuten
         if gran == "quarter":
             return 15 * 60
         if gran == "half":
@@ -620,8 +628,8 @@ class DataFramePlotGenerator:
 
     @classmethod
     def get_convergence_plot_figure(
-            cls, df: pd.DataFrame, time_col: str = "Time", bestsol_col: str = "BestSol", subtitle: str = "",
-            y_min: float = None, y_max: float = None, x_max_minimum: float = 1.0, df_max_time: float = None,
+            cls, df: pd.DataFrame, time_col: str = "Time", bestsol_col: str = "BestSol", title: Optional[str] = None,
+            y_min: float = None, y_max: float = None, x_max: Optional[float] = None, df_max_time: float = None,
             granularity: Literal["auto", "seconds", "minutes", "quarter", "half", "hours"] = "auto", marker: str = "."):
         """
         Generate a convergence curve plot of the solver's best solution over time.
@@ -629,7 +637,7 @@ class DataFramePlotGenerator:
         :param df: DataFrame containing solver log data.
         :param time_col: Column name for elapsed time values.
         :param bestsol_col: Column name for best solution values.
-        :param subtitle: Optional subtitle to append to the plot title.
+        :param title: Optional title.
         :param y_min: Minimum y-axis value; if None, uses the minimum in `bestsol_col`.
         :param y_max: Maximum y-axis value; if None, uses the maximum in `bestsol_col`.
         :param df_max_time: Maximum time (in seconds) to display on the x-axis.
@@ -650,18 +658,21 @@ class DataFramePlotGenerator:
             return None
 
         # x-axis
-        x_max = float(d[time_col].max())
-        x_max = max(x_max, x_max_minimum)
+        x_max = x_max if x_max else float(d[time_col].max())
         gran = cls._choose_granularity(x_max, granularity)
         step = cls._step_for_granularity(x_max, gran)
-        ticks_s = np.arange(0, int(x_max) + step, step)
+        ticks_s = np.arange(0, x_max +0.001, step)
 
         if gran == "seconds":
             tick_labels = [f"{int(s)}" for s in ticks_s]
-            xlabel = "Time [sec]"
+            xlabel = "Zeit [sec]"
+        elif gran == "hours":
+            # nur Stunden, 00, 01, 02, ...
+            tick_labels = [cls._format_h(s) for s in ticks_s]
+            xlabel = "Zeit [h]"
         else:
             tick_labels = [cls._format_hhmm(s) for s in ticks_s]
-            xlabel = "Time [hh:mm]"
+            xlabel = "Zeit [hh:mm]"
 
         # y axis
         y_step = 60
@@ -685,16 +696,35 @@ class DataFramePlotGenerator:
         ax.set_xticklabels(tick_labels)
 
         ax.set_ylabel("Best Solution")
-        ax.set_ylim(ymin, ymax)
         if y_step:
-            yticks = np.arange(ymin, ymax + y_step, y_step)
+            ymax = round_up_to_multiple(ymax, y_step)
+            yticks = np.arange(ymin, ymax+0.002, y_step)
             ax.set_yticks(yticks)
-
+        ax.set_ylim(ymin, ymax)
         ax.grid(True)
-        title = "Convergence Curve of the OR-Tools CP-SAT Solver"
-        if subtitle:
-            title += f" – {subtitle}"
-        ax.set_title(title)
+        if title: # "Convergence Curve of the OR-Tools CP-SAT Solver"
+            ax.set_title(title)
+
+            # Spines sichtbar
+        ax.spines["bottom"].set_visible(True)
+        ax.spines["left"].set_visible(True)
+        ax.spines["bottom"].set_linewidth(1)
+        ax.spines["left"].set_linewidth(1)
+
+        if y_max:
+            ax.set_ylim(top=y_max)
+
+        # Spines anpassen: linestyle und alpha
+        for side in ["top", "right"]:
+            ax.spines[side].set_linestyle("--")
+            ax.spines[side].set_alpha(0.14)
+            ax.spines[side].set_linewidth(0.8)
+
+
+        if step >= 300:
+            ax.set_xlim(-10, x_max)
+        else:
+            ax.set_xlim(0, x_max)
 
         fig.tight_layout()
         return fig
@@ -775,3 +805,7 @@ class DataFramePlotGenerator:
         fig.tight_layout()
         return fig
 
+def round_up_to_multiple(a, b):
+    if b == 0:
+        raise ValueError("b darf nicht 0 sein.")
+    return math.ceil(a / b) * b

@@ -426,6 +426,7 @@ class Solver:
                     warmup_seconds=bound_warmup_time,
                     relative_change=bound_relative_change,
                 )
+
             if log_file is not None:
                 # Für Log-Ausgabe ins File aktivieren
                 self.solver.parameters.log_search_progress = True

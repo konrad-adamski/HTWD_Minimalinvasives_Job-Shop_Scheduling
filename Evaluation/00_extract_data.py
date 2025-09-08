@@ -7,7 +7,7 @@ max_bottleneck_utilization_list = [0.75, 0.80, 0.85, 0.90, 0.95, 1.0]
 
 for max_utilization in max_bottleneck_utilization_list:
 
-    sub_directory = "2025_09_01"
+    sub_directory = "2025_09_08_limit"
     experiments_file_path = get_data_path(
         sub_directory,
         f"experiments_{max_utilization:.2f}".replace(".", "_")

@@ -8,7 +8,7 @@ from config.project_config import PROJECT_ROOT, get_data_path
 # 🔧 Build path relative to this file
 
 DB_PATH = os.path.join(PROJECT_ROOT, "experiments.db")
-#DB_PATH = get_data_path(sub_directory="2025_09_01", file_name="experiments.db")
+#DB_PATH = get_data_path(sub_directory="2025_09_08_Limit", file_name="experiments.db")
 
 
 # SQLite-Datenbank
