@@ -1,7 +1,7 @@
 import random
 import os
 from collections import defaultdict
-from typing import Optional, Dict, List, Tuple, Literal
+from typing import Optional, Dict, List, Tuple
 
 from deap import base, creator, tools, algorithms
 
@@ -42,23 +42,6 @@ class Solver:
             jobs_ops[job.id] = seq
         return jobs_ops, earliest_start, due_date, machines
 
-    def _priority_score(self, j, k, m, d, rule, due_date, job_free, machine_free):
-        est = max(machine_free[m], job_free[j])  # earliest start this op could begin
-        dd = due_date.get(j, 10 ** 12)  # „weit in der Zukunft“, falls kein Due Date
-        if rule == "SPT":
-            key = (d, est, dd, j, k)  # kurz zuerst
-        elif rule == "EDD":
-            key = (dd, est, d, j, k)  # früheste Fälligkeit zuerst
-        elif rule == "SLACK":
-            slack = dd - est - d
-            key = (slack, est, d, j, k)
-        elif rule == "CR":  # grobe Näherung
-            cr = (dd - est) / max(d, 1)
-            key = (cr, est, d, j, k)
-        else:
-            key = (est, d, dd, j, k)  # fallback: früh startbar
-        return key
-
     def _build_operation_index(self, jobs_ops):
         op_list = []
         for j, ops in jobs_ops.items():
@@ -90,52 +73,15 @@ class Solver:
             next_needed[j] += 1
             schedule.append((j, k, m, start, d, end))
 
-        return schedule
+        makespan = max(e for *_, e in schedule) if schedule else 0
+        return makespan, schedule
 
-    def _decode_priority(self, perm, op_list, earliest_start, due_date, rule=None):
-        next_needed = {j: 0 for j, *_ in op_list}
-        machines = {m for (_, _, m, _) in op_list}
-        machine_free = {m: 0 for m in machines}
-        job_free = defaultdict(int, {j: earliest_start.get(j, 0) for j in next_needed})
-
-        schedule, queue = [], list(perm)
-        while queue:
-            # Kandidaten sammeln, die technologisch bereit sind
-            ready_idxs = [idx for idx in range(len(queue))
-                          if op_list[queue[idx]][1] == next_needed[op_list[queue[idx]][0]]]
-            if not ready_idxs:
-                # wie bisher: rotiere
-                queue.append(queue.pop(0))
-                continue
-            # besten Kandidaten nach Regel wählen
-            best_pos = min(ready_idxs, key=lambda pos: self._priority_score(*op_list[queue[pos]],
-                                                                       rule, due_date, job_free, machine_free))
-            op_id = queue.pop(best_pos)
-            j, k, m, d = op_list[op_id]
-            start = max(machine_free[m], job_free[j])
-            end = start + d
-            machine_free[m] = end
-            job_free[j] = end
-            next_needed[j] += 1
-            schedule.append((j, k, m, start, d, end))
-
-        return schedule
-
-
-    def _evaluate(
-            self, ind, op_list, earliest_start, due_date,
-            objective:Literal["makespan", "sum_tardiness"] ="makespan",
-            decode_mode:Literal["first_feasible", "SPT", "EDD"] = "EDD"):
-
-        if decode_mode == "first_feasible":
-            schedule = self._decode(ind, op_list, earliest_start)
-        else:
-            schedule = self._decode_priority(ind, op_list, earliest_start, due_date, rule=decode_mode)
+    def _evaluate(self, ind, op_list, earliest_start, due_date, objective="makespan"):
+        mk, sched = self._decode(ind, op_list, earliest_start)
         if objective == "makespan":
-            makespan = max((e for *_, e in schedule), default=0)
-            return (makespan,)
+            return (mk,)
         job_end = defaultdict(int)
-        for j, k, m, s, d, e in schedule:
+        for j, k, m, s, d, e in sched:
             job_end[j] = max(job_end[j], e)
         tard = sum(max(0, job_end[j] - due_date.get(j, 0)) for j in job_end)
         return (tard,)
