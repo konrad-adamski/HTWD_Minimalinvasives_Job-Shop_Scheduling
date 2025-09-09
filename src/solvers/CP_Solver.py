@@ -1,8 +1,9 @@
 import contextlib
 import os
 import sys
+from collections import defaultdict
 from fractions import Fraction
-from typing import Optional
+from typing import Optional, Dict, List, Tuple
 from ortools.sat.python import cp_model
 
 from src.Logger import Logger
@@ -102,6 +103,29 @@ class Solver:
                         end=operation.end
                     )
                     self.job_delays.update_delay(job_id=job.id, time_stamp=operation.end)
+
+    def _extract_original_machine_orders_from_previous_via_index_mapper(self) -> Dict[str, List[Tuple[int, int]]]:
+        """
+        Je Maschine: alte Reihenfolge als Liste (job_idx, op_idx), sortiert nach altem Start.
+        Nimmt nur Ops, die via index_mapper ins aktuelle Modell mappbar sind.
+        """
+        orders_idx: Dict[str, List[Tuple[int, int]]] = defaultdict(list)
+        if self.previous_schedule_jobs_collection is None:
+            return orders_idx
+
+        tmp = defaultdict(list)  # m -> [(start, j, o)]
+        for job in self.previous_schedule_jobs_collection.values():
+            for op_prev in job.operations:
+                index = self.index_mapper.get_index_from_operation(op_prev)
+                if index is not None:
+                    j, o = index
+                    tmp[op_prev.machine_name].append((op_prev.start, j, o))
+
+        for m, lst in tmp.items():
+            lst.sort(key=lambda t: t[0])  # nach ursprünglichem Start
+            orders_idx[m] = [(j, o) for _, j, o in lst]
+        return orders_idx
+
 
     # Constraints ---------------------------------------------------------------------------------------------------
 
@@ -256,6 +280,257 @@ class Solver:
             self.tardiness_terms.objective_expr()
             + self.earliness_terms.objective_expr()
             + self.deviation_terms.objective_expr()
+        )
+        self.model_completed = True
+
+    def build_model__absolute_lateness__with_fix_order_on_machines(
+            self,
+            previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
+            active_jobs_collection: Optional[LiveJobCollection] = None,
+            w_t: int = 1, w_e: int = 1
+    ):
+        """
+        Minimal-Variante:
+        - Fixe Alt-Reihenfolge pro Maschine (nur Ketten-Constraints).
+        - Neue Ops pro Maschine erst NACH dem alten Block.
+        - Ziel = Tardiness + Earliness. Kein Deviation, kein start>=original_start.
+        """
+
+        if self.model_completed:
+            self.logger.warning("Model already completed!")
+            return False
+
+        self.logger.info("Building model: minimal fix-order-on-machines + new-after")
+        self.previous_schedule_jobs_collection = previous_schedule_jobs_collection
+        self.active_jobs_collection = active_jobs_collection
+
+        # Basis: aktive Blöcke/Job-Delays, NoOverlap, Technologie
+        self._extract_delays_from_active_operations()
+        self._add_machine_no_overlap_constraints()
+        self._add_technological_operation_constraints_with_transition_times()
+
+        # III) Alte Reihenfolge je Maschine holen und Kettung setzen (einzige „Order“-Constraints)
+        old_idx_by_machine = self._extract_original_machine_orders_from_previous_via_index_mapper()
+
+        old_indices = set()
+        for m, seq in old_idx_by_machine.items():
+            for k in range(len(seq) - 1):
+                j1, o1 = seq[k]
+                j2, o2 = seq[k + 1]
+                self.model.Add(self.start_times[(j2, o2)] >= self.end_times[(j1, o1)])
+            old_indices.update(seq)
+
+        # IV) Neue Ops pro Maschine „danach“ (ein Constraint pro neue Op)
+        last_old_end_by_machine: Dict[str, Optional[cp_model.IntVar]] = {m: None for m in self.machines}
+        for m, seq in old_idx_by_machine.items():
+            if seq:
+                last_job_idx, last_op_idx = seq[-1]
+                last_old_end_by_machine[m] = self.end_times[(last_job_idx, last_op_idx)]
+
+        for (j, o), op in self.index_mapper.items():
+            if (j, o) not in old_indices:
+                last_end = last_old_end_by_machine.get(op.machine_name)
+                if last_end is not None:
+                    self.model.Add(self.start_times[(j, o)] >= last_end)
+
+        # V) Ziel: |Lateness|
+        self.tardiness_terms.set_weight(weight=w_t)
+        self.earliness_terms.set_weight(weight=w_e)
+        for (j, o), op in self.index_mapper.items():
+            if op.position_number == op.job.last_operation_position_number:
+                self._add_tardiness_var(j, o, op)
+                self._add_earliness_var(j, o, op)
+
+        self.model.Minimize(self.tardiness_terms.objective_expr() + self.earliness_terms.objective_expr())
+        self.model_completed = True
+        return True
+
+    def build_model__absolute_lateness__with_fix_order_on_machines0(
+            self,
+            previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
+            active_jobs_collection: Optional[LiveJobCollection] = None,
+            w_t: int = 1, w_e: int = 1
+    ):
+        """
+        Fix-Order-on-Machines (Right-Shift-"nachempfunden"):
+        - Alte Operationen behalten pro Maschine ihre ursprüngliche Reihenfolge (werden ggf. verschoben/komprimiert).
+        - Neue Operationen starten pro Maschine erst NACH dem alten Block.
+        - Ziel: |Lateness| (Tardiness + Earliness), KEIN Start-Deviation-Term.
+
+        Unterschiede zu strengem Right-Shift:
+        - KEIN erzwungenes start >= original_start (d.h. alte Ops dürfen früher beginnen, wenn es ohne Konflikt/Prezedenz geht).
+        - Kein einheitlicher fester Shift je Maschine, sondern nur Reihenfolge-Treue + "neue danach".
+        """
+
+        if self.model_completed:
+            self.logger.warning("Model already completed!")
+            return False
+
+        self.logger.info("Building model: fix order on machines + new after (absolute lateness)")
+        self.previous_schedule_jobs_collection = previous_schedule_jobs_collection
+        self.active_jobs_collection = active_jobs_collection
+
+        # I) Vorbereitungen
+        self._extract_previous_starts_for_deviation()  # nutzt nur für Mapping alt/neu; Deviation nicht im Ziel
+        self._extract_delays_from_active_operations()  # aktive Blöcke und Job-Delays
+
+        # II) Basis-Constraints
+        self._add_machine_no_overlap_constraints()
+        self._add_technological_operation_constraints_with_transition_times()
+
+        # III) Fixe Reihenfolge alter Ops pro Maschine
+        old_indices_by_machine: dict[str, list[tuple[int, int]]] = defaultdict(list)
+        is_old_op: dict[tuple[int, int], bool] = {}
+        original_start_of: dict[tuple[int, int], int] = {}
+
+        if previous_schedule_jobs_collection is not None:
+            for (job_idx, op_idx), operation in self.index_mapper.items():
+                if (job_idx, op_idx) in self.original_operation_starts:
+                    is_old_op[(job_idx, op_idx)] = True
+                    original_start_of[(job_idx, op_idx)] = self.original_operation_starts[(job_idx, op_idx)]
+                    old_indices_by_machine[operation.machine_name].append((job_idx, op_idx))
+                else:
+                    is_old_op[(job_idx, op_idx)] = False
+
+            # Reihenfolge durch Kettung sichern (ohne start >= original_start)
+            for machine, idx_list in old_indices_by_machine.items():
+                # sortiere nach ursprünglichem Start, um die Kettung in der historischen Ordnung zu setzen
+                idx_list.sort(key=lambda ij: original_start_of[ij])
+                for k in range(len(idx_list) - 1):
+                    j1, o1 = idx_list[k]
+                    j2, o2 = idx_list[k + 1]
+                    self.model.Add(self.start_times[(j2, o2)] >= self.end_times[(j1, o1)])
+
+        # IV) Neue Operationen pro Maschine "danach"
+        last_old_end_by_machine: dict[str, Optional[cp_model.IntVar]] = {m: None for m in self.machines}
+        for machine, idx_list in old_indices_by_machine.items():
+            if idx_list:
+                last_j, last_o = idx_list[-1]
+                last_old_end_by_machine[machine] = self.end_times[(last_j, last_o)]
+
+        for (job_idx, op_idx), operation in self.index_mapper.items():
+            if not is_old_op.get((job_idx, op_idx), False):
+                m = operation.machine_name
+                last_end = last_old_end_by_machine.get(m)
+                if last_end is not None:
+                    self.model.Add(self.start_times[(job_idx, op_idx)] >= last_end)
+
+        # V) Ziel (nur Lateness-Bestandteile)
+        self.tardiness_terms.set_weight(weight=w_t)
+        self.earliness_terms.set_weight(weight=w_e)
+
+        for (job_idx, op_idx), operation in self.index_mapper.items():
+            if operation.position_number == operation.job.last_operation_position_number:
+                self._add_tardiness_var(job_idx, op_idx, operation)
+                self._add_earliness_var(job_idx, op_idx, operation)
+
+        self.model.Minimize(
+            self.tardiness_terms.objective_expr()
+            + self.earliness_terms.objective_expr()
+        )
+        self.model_completed = True
+        return True
+
+    def build_model__absolute_lateness__with_right_shift(
+            self,
+            previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
+            active_jobs_collection: Optional[LiveJobCollection] = None,
+            w_t: int = 1, w_e: int = 1
+    ):
+        """
+        Right-Shift-Variante mit fixierter Maschinenreihenfolge für alte Operationen
+        und Einplanung neuer Operationen 'danach'.
+        Ziel: Minimiere absolute Lateness (Tardiness + Earliness), ohne Start-Deviation im Ziel.
+
+        Annahmen:
+        - self.jobs_collection enthält ALLE zu planenden Ops (alte, noch offene + neue).
+        - previous_schedule_jobs_collection enthält die alten Ops mit ihren ursprünglichen Starts.
+        - active_jobs_collection enthält bereits laufende / am Tagesanfang blockierende Ops.
+        """
+
+        if self.model_completed:
+            self.logger.warning("Model already completed!")
+            return False
+
+        self.logger.info("Building model for RIGHT-SHIFT with fixed old order + new after")
+        self.previous_schedule_jobs_collection = previous_schedule_jobs_collection
+        self.active_jobs_collection = active_jobs_collection
+
+        # I. Extractions (vor Constraints)
+        #    - alte Starts für Right-Shift (>= original_start)
+        #    - aktive Blöcke + Job-Delays
+        self._extract_previous_starts_for_deviation()
+        self._extract_delays_from_active_operations()
+
+        # II. Basis-Constraints: Maschinen (inkl. Fixblöcke), Technologie
+        self._add_machine_no_overlap_constraints()
+        self._add_technological_operation_constraints_with_transition_times()
+
+        # Hilfsstruktur: finde (job_idx, op_idx) für alte Ops pro Maschine
+        old_indices_by_machine: dict[str, list[tuple[int, int]]] = defaultdict(list)
+
+        # Map für "ist_alt?" und "original_start" schnell verfügbar
+        is_old_op: dict[tuple[int, int], bool] = {}
+        original_start_of: dict[tuple[int, int], int] = {}
+
+        if previous_schedule_jobs_collection is not None:
+            # Erzeuge Lookup: operation -> (job_idx, op_idx) im aktuellen Modell
+            for (job_idx, op_idx), operation in self.index_mapper.items():
+                # Wenn diese Operation in der previous_collection existierte,
+                # hat _extract_previous_starts_for_deviation() einen Eintrag angelegt.
+                if (job_idx, op_idx) in self.original_operation_starts:
+                    is_old_op[(job_idx, op_idx)] = True
+                    original_start_of[(job_idx, op_idx)] = self.original_operation_starts[(job_idx, op_idx)]
+                    machine = operation.machine_name
+                    old_indices_by_machine[machine].append((job_idx, op_idx))
+                else:
+                    is_old_op[(job_idx, op_idx)] = False
+
+            # pro Maschine die alten Ops nach ursprünglichem Start sortieren (fix order)
+            for machine, idx_list in old_indices_by_machine.items():
+                idx_list.sort(key=lambda ij: original_start_of[ij])
+
+                # Right-Shift: 1) keine frühere Startzeit als der ursprüngliche Start
+                for (job_idx, op_idx) in idx_list:
+                    start_var = self.start_times[(job_idx, op_idx)]
+                    self.model.Add(start_var >= int(original_start_of[(job_idx, op_idx)]))
+
+                # Fixe Reihenfolge: 2) Kette in ursprünglicher Maschinenreihenfolge
+                for k in range(len(idx_list) - 1):
+                    j1, o1 = idx_list[k]
+                    j2, o2 = idx_list[k + 1]
+                    self.model.Add(self.start_times[(j2, o2)] >= self.end_times[(j1, o1)])
+
+        # III. Neue Operationen "danach"
+        #     Für jede Maschine: bestimme Ende der letzten alten Operation (falls vorhanden)
+        last_old_end_by_machine: dict[str, Optional[cp_model.IntVar]] = {m: None for m in self.machines}
+        for machine, idx_list in old_indices_by_machine.items():
+            if idx_list:
+                last_j, last_o = idx_list[-1]
+                last_old_end_by_machine[machine] = self.end_times[(last_j, last_o)]
+
+        # Für jede Operation im aktuellen Modell, die NICHT alt ist: start >= last_old_end (falls vorhanden)
+        for (job_idx, op_idx), operation in self.index_mapper.items():
+            if not is_old_op.get((job_idx, op_idx), False):
+                m = operation.machine_name
+                last_end = last_old_end_by_machine.get(m)
+                if last_end is not None:
+                    self.model.Add(self.start_times[(job_idx, op_idx)] >= last_end)
+
+        # IV. Zielgrößen (nur Lateness-Komponenten, kein Deviation)
+        self.tardiness_terms.set_weight(weight=w_t)
+        self.earliness_terms.set_weight(weight=w_e)
+
+        # Tardiness/Earliness-Variablen hinzufügen (nur auf Job-Ende)
+        for (job_idx, op_idx), operation in self.index_mapper.items():
+            if operation.position_number == operation.job.last_operation_position_number:
+                self._add_tardiness_var(job_idx, op_idx, operation)
+                self._add_earliness_var(job_idx, op_idx, operation)
+
+        # V. Zielfunktion
+        self.model.Minimize(
+            self.tardiness_terms.objective_expr()
+            + self.earliness_terms.objective_expr()
         )
         self.model_completed = True
 

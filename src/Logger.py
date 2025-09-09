@@ -32,7 +32,7 @@ class Logger(logging.Logger):
         if not self.handlers:
             self.log_file_path = get_data_path(file_name=log_file, as_string=True)
 
-            file_handler = RotatingFileHandler(self.log_file_path, maxBytes=100_000_000, backupCount=5)
+            file_handler = RotatingFileHandler(self.log_file_path, maxBytes=100_000_000, backupCount=5, encoding="utf-8")
             file_handler.setLevel(logging.INFO)
 
             console_handler = logging.StreamHandler()
