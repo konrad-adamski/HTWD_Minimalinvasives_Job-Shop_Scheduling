@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from matplotlib import pyplot as plt
-from typing import Dict, List, Optional, Iterable, Literal
+from typing import Optional, Iterable, Literal
 from cycler import cycler
 from matplotlib import rcParams
 
@@ -11,7 +11,7 @@ from src.domain.orm_models import Job
 from src.simulation.LognormalFactorGenerator import LognormalFactorGenerator
 
 
-class SimulationDataPreperation:
+class SimulationDataVisualization:
 
     @staticmethod
     def make_jobs_dataframe(jobs: Iterable[Job]) -> pd.DataFrame:
@@ -93,23 +93,21 @@ class SimulationDataPreperation:
             x_min: Optional[float] = None, x_max: Optional[float] = None, x_step: Optional[float] = None,
             job_column:str = "Job", operation_column: str = "Operation",
             duration_column: str = "Duration", y_max: Optional[float] = None,
-            mode: Literal["relative", "absolute"] = "relative", x_font_size: int = 10):
+            mode: Literal["relative", "absolute"] = "relative", x_font_size: int = 10, seed: int = 42):
         """
         Plot KDEs of deviations for different sigma values.
         - If mode="relative": (sim - orig) / orig
         - If mode="absolute": (sim - orig)
-        Uses deterministic seeds per (Job, Operation).
         """
         fig, ax = plt.subplots(figsize=(12, 6))
         palette = get_gray_palette()
 
+        df_jobs = df_jobs.sort_values(by=[job_column, operation_column]).reset_index(drop=True)
         for sigma, color in zip(sigmas, palette):
-            df_jobs = df_jobs.sort_values(by=[job_column, operation_column]).reset_index(drop=True)
 
-            lognormal_factor_gen = LognormalFactorGenerator(sigma=sigma, seed=42)
+            lognormal_factor_gen = LognormalFactorGenerator(sigma=sigma, seed=seed)
             factors = lognormal_factor_gen.sample_many(len(df_jobs))
             df_jobs[f"Simulation {duration_column}"] = (df_jobs[duration_column] * pd.Series(factors)).round(0).astype(int)
-
 
             diffs = []
             for _, row in df_jobs.iterrows():
@@ -224,7 +222,7 @@ class SimulationDataPreperation:
     @classmethod
     def add_simulated_durations(
             cls, df_jobs: pd.DataFrame,sigmas: list[float], job_column: str = "Job",
-            operation_column: str = "Operation", duration_column: str = "Duration") -> pd.DataFrame:
+            operation_column: str = "Operation", duration_column: str = "Duration", seed: int = 42) -> pd.DataFrame:
         """
         Fügt dem DataFrame zusätzliche Spalten mit simulierten Dauern
         für verschiedene Sigma-Werte hinzu.
@@ -235,7 +233,7 @@ class SimulationDataPreperation:
 
         for sigma in sigmas:
             sim_dur_col = f"Duration_sigma{sigma}"
-            log_normal_factor_gen = LognormalFactorGenerator(sigma=sigma, seed=42)
+            log_normal_factor_gen = LognormalFactorGenerator(sigma=sigma, seed=seed)
             factors = log_normal_factor_gen.sample_many(len(df))
             df[sim_dur_col] = (df[duration_column] * pd.Series(factors)).round(0).astype(int)
 

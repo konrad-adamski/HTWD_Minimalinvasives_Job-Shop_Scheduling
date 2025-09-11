@@ -10,7 +10,7 @@ class LognormalFactorGenerator:
     Diese Faktoren können später mit beliebigen Basisdauern multipliziert werden.
     """
 
-    def __init__(self, sigma: float = 0.2, seed: Optional[int] = None):
+    def __init__(self, sigma: float = 0.4, seed: Optional[int] = None):
         """
         :param sigma: Standardabweichung im Log-Raum (>= 0).
         :param seed: Optionaler Seed für Reproduzierbarkeit.
@@ -42,17 +42,26 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import seaborn as sns
     # Initialisieren (sigma = 0.01, Seed für Reproduzierbarkeit)
-    fgen = LognormalFactorGenerator(sigma=0.3, seed=42)
+    fgen = LognormalFactorGenerator(sigma=0.1, seed=42)
 
-    factors = fgen.sample_many(400)
+    factors = fgen.sample_many(5000)
 
-    # Dichtekurve zeichnen
-    sns.kdeplot(factors, fill=True)
-    plt.title("Dichte der Lognormal Factors")
-    plt.xlabel("Factor")
-    plt.ylabel("Dichte")
+    # Figure & Axes explizit anlegen
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Histogramm
+    sns.histplot(factors, bins=30, stat="density",
+                 color="skyblue", edgecolor="black", ax=ax)
+
+    # KDE nur für x>0
+    sns.kdeplot(factors, color="blue", linewidth=2,
+                cut=0, ax=ax)
+
+    ax.set_title("Lognormal Factors")
+    ax.set_xlabel("Factor")
+    ax.set_ylabel("Dichte")
+
+    plt.tight_layout()
     plt.show()
-
-
-
+    #fig.savefig("lognormal_factors.png", dpi=300)
 
