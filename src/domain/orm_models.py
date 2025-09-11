@@ -26,47 +26,59 @@ class RoutingSource:
         "sa": Column(String(255), nullable=False, unique=True, default="Unknown Routing Set")
     })
 
-    # Routings, die zu dieser Instanz gehören
-    routings: List[Routing] = field(
-        default_factory=list,
-        repr=False,
-        metadata={
-            "sa": relationship(
-                "Routing",
-                back_populates="routing_source",
-                cascade="all, delete-orphan"
-            )
-        }
-    )
-
 @mapper_registry.mapped
 @dataclass
 class Machine:
     __tablename__ = "machine"
     __sa_dataclass_metadata_key__ = "sa"
 
-    def __eq__(self, other):
-        if not isinstance(other, Machine):
-            return False
-        return self.name == other.name
+    id: int = field(init=False, metadata={
+        "sa": Column(Integer, primary_key=True, autoincrement=True)
+    })
 
-    def __hash__(self):
-        return hash(self.name)
+    name: str = field(metadata={
+        "sa": Column(String(100), nullable=False, unique=True)
+    })
+
+    source_id: int = field(init = False, metadata={
+        "sa": Column(Integer, ForeignKey("routing_source.id"), nullable=False)
+    })
+
+    # RoutingSource.machines entsteht automatisch durch backref
+    source: RoutingSource = field(repr=False, metadata={
+        "sa": relationship(
+            "RoutingSource",
+            lazy="joined",
+            backref=backref("machines", cascade="all, delete-orphan")
+        )
+    })
+
+
+    def __post_init__(self):
+        if self.source_id is None and self.source:
+            self.source_id = self.source.id
+
+
+@mapper_registry.mapped
+@dataclass
+class MachineInstance:
+    __tablename__ = "machine_instance"
+    __sa_dataclass_metadata_key__ = "sa"
 
     id: int = field(init=False, metadata={
         "sa": Column(Integer, primary_key=True, autoincrement=True)
     })
 
-    source_id: Optional[int] = field(init= False, metadata={
-        "sa": Column(Integer, ForeignKey("routing_source.id"), nullable=False)
+    machine_id: int = field(init =False, metadata={
+        "sa": Column(Integer, ForeignKey("machine.id"), nullable=False)
     })
 
-    source: RoutingSource = field(repr=False, metadata={
-        "sa": relationship("RoutingSource", lazy="joined")
-    })
-
-    name: str = field(metadata={
-        "sa": Column(String(100), nullable=False)
+    # Machine.instances entsteht automatisch durch backref
+    machine: Machine = field(repr=False, metadata={
+        "sa": relationship(
+            "Machine",
+            backref=backref("instances", cascade="all, delete-orphan")
+        )
     })
 
     max_bottleneck_utilization: Decimal = field(metadata={
@@ -78,14 +90,17 @@ class Machine:
     })
 
     __table_args__ = (
-        UniqueConstraint("name", "max_bottleneck_utilization", name="uq_machine_name_utilization"),
+        UniqueConstraint("machine_id", "max_bottleneck_utilization",
+                         name="uq_machineinstance_utilization"),
     )
 
-    def __post_init__(self):
-        if self.source_id is None and self.source:
-            self.source_id = self.source.id
+    @property
+    def name(self) -> str:
+        return self.machine.name
 
-
+    @property
+    def source_id(self) -> int:
+        return self.machine.source_id
 
 @mapper_registry.mapped
 @dataclass
@@ -101,11 +116,14 @@ class Routing:
         "sa": Column(Integer, ForeignKey("routing_source.id"), nullable=True)
     })
 
+    # backref erzeugt automatisch: RoutingSource.routings
     routing_source: Optional[RoutingSource] = field(
-        default=None,
-        repr=False,
-        metadata={
-            "sa": relationship("RoutingSource", back_populates="routings", lazy="joined")
+        default=None, repr=False, metadata={
+            "sa": relationship(
+                "RoutingSource",
+                lazy="joined",
+                backref=backref("routings", cascade="all, delete-orphan")
+            )
         }
     )
 
@@ -114,10 +132,6 @@ class Routing:
                 cascade="all, delete-orphan", lazy="joined")
     })
 
-    jobs: List[Job] = field(default_factory=list, repr=False, metadata={"sa": relationship(
-                "Job", back_populates="routing",
-                cascade="all, delete-orphan", lazy="joined")
-    })
 
     @property
     def source_name(self) -> str:
@@ -158,14 +172,13 @@ class RoutingOperation:
         "sa": Column(Integer, primary_key=True)
     })
 
-    machine_name: str = field(init=True, metadata={
-        "sa": Column(String(100), ForeignKey("machine.name"), nullable=False)
+    machine_id: int = field(init=False, metadata={
+        "sa": Column(Integer, ForeignKey("machine.id"), nullable=False)
     })
 
     duration: int = field(metadata={
         "sa": Column(Integer, nullable=False)
     })
-
 
     routing: Routing = field(
         default=None,
@@ -174,6 +187,19 @@ class RoutingOperation:
             "sa": relationship("Routing", back_populates="operations")
         }
     )
+
+    machine: Machine = field(
+        default=None,
+        repr=False,
+        metadata={
+            "sa": relationship("Machine", lazy="joined")
+        }
+    )
+
+    @property
+    def machine_name(self) -> str:
+        return self.machine.name
+
 
 
 @mapper_registry.mapped
@@ -218,9 +244,9 @@ class Job:
 
     due_date: Optional[int] = field(default=None, metadata={"sa": Column(Integer, nullable=True)})
 
-
     routing: Routing = field(default=None, repr=False, metadata={
-        "sa": relationship("Routing", back_populates="jobs", lazy="joined")
+        "sa": relationship("Routing", lazy="joined",
+                           backref=backref("jobs", cascade="all, delete-orphan"))
     })
 
     # Kein ORM-Relationship mehr zu JobOperation – stattdessen dynamisch generiert
@@ -280,7 +306,7 @@ class SimulationJob:
     })
 
     # Nur lesen, keine PK-Synchronisation:
-    job: "Job" = field(default=None, repr=False, metadata={
+    job: Job = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Job",
             uselist=False,
@@ -289,7 +315,7 @@ class SimulationJob:
             primaryjoin="foreign(SimulationJob.id) == Job.id",
         )
     })
-    experiment: "Experiment" = field(default=None, repr=False, metadata={
+    experiment: Experiment = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Experiment",
             lazy="joined",
@@ -298,7 +324,7 @@ class SimulationJob:
         )
     })
 
-    operations: list["SimulationOperation"] = field(default_factory=list, repr=False, metadata={
+    operations: list[SimulationOperation] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
             "SimulationOperation",
             back_populates="simulation_job",
@@ -317,20 +343,25 @@ class SimulationJob:
 
     # Convenience
     @property
-    def routing(self) -> "Routing":
+    def routing(self) -> Routing:
         return self.job.routing
+
     @property
     def routing_id(self) -> str:
         return self.job.routing_id
+
     @property
     def arrival(self) -> int:
         return self.job.arrival
+
     @property
     def earliest_start(self) -> int:
         return self.job.earliest_start
+
     @property
     def due_date(self) -> int:
         return self.job.due_date
+
     @property
     def max_bottleneck_utilization(self) -> Decimal:
         return self.job.max_bottleneck_utilization
@@ -356,7 +387,7 @@ class ScheduleJob:
     })
 
     # --- Beziehungen ---
-    experiment: "Experiment" = field(default=None, repr=False, metadata={
+    experiment: Experiment = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Experiment",
             viewonly=True,  # wichtig: verhindert PK-Nullung
@@ -364,7 +395,7 @@ class ScheduleJob:
         )
     })
 
-    operations: List["ScheduleOperation"] = field(default_factory=list, repr=False, metadata={
+    operations: List[ScheduleOperation] = field(default_factory=list, repr=False, metadata={
         "sa": relationship(
             "ScheduleOperation",
             back_populates="schedule_job",
@@ -386,7 +417,7 @@ class ScheduleJob:
         )
     })
 
-    job: "Job" = field(default=None, repr=False, metadata={
+    job: Job = field(default=None, repr=False, metadata={
         "sa": relationship(
             "Job",
             uselist=False,
@@ -398,7 +429,7 @@ class ScheduleJob:
 
     # --- Convenience Properties ---
     @property
-    def routing(self) -> "Routing":
+    def routing(self) -> Routing:
         return self.job.routing
 
     @property
@@ -612,7 +643,7 @@ class SimulationOperation:
     end: int = field(default=0, metadata={"sa": Column(Integer, nullable=False)})
 
     # Child -> Parent, nur lesen (wir sammeln Ops separat, keine PK-Propagation nötig)
-    simulation_job: "SimulationJob" = field(default=None, repr=False, metadata={
+    simulation_job: SimulationJob = field(default=None, repr=False, metadata={
         "sa": relationship(
             "SimulationJob",
             back_populates="operations",
@@ -658,6 +689,16 @@ class LiveJob:
     max_bottleneck_utilization: Optional[Decimal] = None
     operations: List[JobOperation] = field(default_factory=list)
 
+    def __repr__(self) -> str:
+        attrs = {
+            "id": self.id,
+            "routing_id": self.routing_id,
+            "arrival": self.arrival,
+            "earliest_start": self.arrival,
+            "sum_duration":self.sum_duration,
+            "max_bottleneck_utilization": self.max_bottleneck_utilization
+        }
+        return "LiveJob(" + ", ".join(f"{key}={value!r}" for key, value in attrs.items()) + ")"
 
     @property
     def earliest_start(self) -> int:
@@ -747,6 +788,7 @@ class LiveJob:
             routing_id=other.routing_id,
             arrival=other.arrival,
             due_date=other.due_date,
+            max_bottleneck_utilization=other.max_bottleneck_utilization,
             operations=[]
         )
 
@@ -773,17 +815,6 @@ class LiveJob:
         self.operations.append(new_op)
 
 
-    def set_transition_times(self, machines: List[Machine]) -> None:
-        relevant_machines = {
-            machine.name: machine.transition_time
-            for machine in machines
-            if machine.max_bottleneck_utilization == self.max_bottleneck_utilization
-        }
-
-        for op in self.operations:
-            op.transition_time = relevant_machines.get(op.machine_name, 0)
-
-
 @dataclass
 class JobOperation:
     job: Union[Job, LiveJob]
@@ -797,6 +828,8 @@ class JobOperation:
 
     start: Optional[int] = None
     end: Optional[int] = None
+
+    sim_duration: Optional[int] = None
 
     # --- echte Simulationszeiten an der Maschine ---
     request_time_on_machine: Optional[int] = field(default=None, repr=False)

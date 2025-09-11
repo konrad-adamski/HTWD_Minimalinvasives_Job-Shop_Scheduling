@@ -79,6 +79,15 @@ class LiveJobCollection(UserDict[str, LiveJob]):
         sorted_data = {job.id: job for job in jobs_list}
         self.data = sorted_data
 
+    def sort_jobs_by_id(self) -> None:
+        """
+        Sortiert die LiveJobCollection intern ausschließlich nach dem letzten Block der Job-ID.
+        Beispiel: '01-07500-0001' < '01-07500-0010' < '01-07500-1000'
+        """
+        jobs_list = list(self.values())
+        jobs_list.sort(key=lambda job: int(job.id.split("-")[-1]))
+        self.data = {job.id: job for job in jobs_list}
+
 
     def get_all_jobs(self) -> List[LiveJob]:
         return list(self.values())

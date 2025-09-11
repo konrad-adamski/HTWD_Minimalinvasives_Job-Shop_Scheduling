@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import joinedload
 
 from src.domain.orm_models import Routing, RoutingSource, Job, Machine, Experiment, ScheduleOperation, ScheduleJob, \
-    LiveJob, SimulationJob, SimulationOperation
+    LiveJob, SimulationJob, SimulationOperation, RoutingOperation, MachineInstance
 from src.domain.orm_setup import SessionLocal
 
 
@@ -34,7 +34,7 @@ class RoutingQuery:
                 .filter(RoutingSource.name == source_name)
                 .options(
                     joinedload(getattr(Routing, "routing_source")),
-                    joinedload(getattr(Routing, "operations"))
+                    joinedload(getattr(Routing, "operations")).joinedload(getattr(RoutingOperation, "machine"))
                 )
                 .all()
             )
@@ -68,7 +68,7 @@ class JobQuery:
                 .filter(RoutingSource.name == source_name)
                 .options(
                     joinedload(getattr(Job, "routing"))
-                    .joinedload(getattr(Routing, "operations"))
+                    .joinedload(getattr(Routing, "operations")).joinedload(getattr(RoutingOperation, "machine"))
                 )
                 .order_by(Job.arrival)
             )
@@ -220,13 +220,12 @@ class MachineQuery:
         raise NotImplementedError("This class cannot be instantiated.")
 
     @staticmethod
-    def get_machines(source_name: str, max_bottleneck_utilization: Decimal) -> list[Machine]:
+    def get_by_source_name(source_name: str) -> list[Machine]:
         """
-        Retrieve all machines for a given routing source and max bottleneck utilization,
+        Retrieve all machines for a given routing source,
         with the RoutingSource eagerly loaded.
 
         :param source_name: Name of the routing source.
-        :param max_bottleneck_utilization: Max bottleneck utilization to filter machines.
         :return: List of Machine instances.
         """
         with SessionLocal() as session:
@@ -234,10 +233,9 @@ class MachineQuery:
                 session.query(Machine)
                 .join(Machine.source)
                 .filter(
-                    RoutingSource.name == source_name,
-                    Machine.max_bottleneck_utilization == max_bottleneck_utilization
+                    RoutingSource.name == source_name
                 )
-                .options(joinedload(getattr(Machine, "source")))
+                #.options(joinedload(getattr(Machine, "source")))
                 .order_by(Machine.name)
                 .all()
             )
@@ -245,6 +243,34 @@ class MachineQuery:
             session.expunge_all()
             return list(machines)
 
+class MachineInstanceQuery:
+    def __init__(self):
+        raise NotImplementedError("This class cannot be instantiated.")
+
+    @staticmethod
+    def get_by_source_name_and_max_bottleneck_utilization(source_name: str, max_bottleneck_utilization: Decimal) -> list[MachineInstance]:
+        """
+        Retrieve all MachineInstance rows for a given RoutingSource.name and max_bottleneck_utilization,
+        with Machine and RoutingSource eagerly loaded.
+        """
+        with SessionLocal() as session:
+            machine_instances = (
+                session.query(MachineInstance)
+                .join(MachineInstance.machine)
+                .join(Machine.source)
+                .filter(
+                    RoutingSource.name == source_name,
+                    MachineInstance.max_bottleneck_utilization == max_bottleneck_utilization
+                )
+                .options(
+                    joinedload(getattr(MachineInstance, "machine")).joinedload(getattr(Machine, "source"))
+                )
+                .order_by(Machine.name)
+                .all()
+            )
+
+            session.expunge_all()
+            return machine_instances
 
 # ExperimentQuery ---------------------------------------------------------------------------------
 class ExperimentQuery:

@@ -8,17 +8,16 @@ from typing import Optional, Dict, Tuple
 from config.project_config import get_data_path, get_examples_path
 from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation, LiveJob
+from src.simulation.LognormalFactorGenerator import LognormalFactorGenerator
 from src.simulation.sim_utils import duration_log_normal, get_duration, get_time_str, get_simulated_duration
 from src.simulation.SimulationMachine import SimulationMachine, SimulationMachineCollection
 
 
-
 class ProductionSimulation:
-    def __init__(self,shift_length: int = 1440, sigma: float = 0.2, verbose: bool = True,
+    def __init__(self,shift_length: int = 1440, verbose: bool = True,
                  with_earliest_start: bool =False):
 
         self.verbose = verbose
-        self.sigma = sigma
         self.shift_length = shift_length
 
         self.with_earliest_start = with_earliest_start
@@ -63,8 +62,7 @@ class ProductionSimulation:
                 op.granted_time_on_machine = granted_time
                 self._log_job_started_on_machine(granted_time, job_op = op)
 
-                #simulated_duration = duration_log_normal(op.duration, sigma=self.sigma)
-                simulated_duration = get_simulated_duration(op, sigma=self.sigma)
+                simulated_duration = op.sim_duration  #  duration_log_normal(op.duration, sigma=self.sigma)
                 self._register_active_operation(job_op=op, sim_start=granted_time, sim_duration=simulated_duration)
 
                 yield self.env.timeout(simulated_duration)
@@ -200,10 +198,19 @@ if __name__ == "__main__":
     print("\n", "---" * 20, "Schedule", "---" * 20)
     schedule_collection = LiveJobCollection.from_operations_dataframe(df_schedule)
 
-    print(schedule_collection.to_operations_dataframe())
+    print(df_schedule)
+
+    factor_gen = LognormalFactorGenerator(
+        sigma=0.1,
+        seed=42
+    )
+    for job in schedule_collection.values():
+        for operation in job.operations:
+            sim_duration_float = operation.duration * factor_gen.sample()
+            operation.sim_duration = int(sim_duration_float)
 
     print("\n", "---" * 20, "Simulation", "---" * 20)
-    simulation = ProductionSimulation(shift_length=1440, sigma= 0.02)
+    simulation = ProductionSimulation(shift_length=1440)
 
     #simulation.run(schedule_collection, start_time= 1440, end_time=2880)
     simulation.initialize_run(schedule_collection, start_time=1440)

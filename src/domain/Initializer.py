@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError, SAWarning
 from typing import List, Optional, Dict
 
 from src.Logger import Logger
-from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine
+from src.domain.orm_models import Routing, Experiment, Job, RoutingSource, RoutingOperation, Machine, MachineInstance
 from src.domain.orm_setup import SessionLocal
 
 logger = Logger()
@@ -20,7 +20,7 @@ class DataSourceInitializer:
     @staticmethod
     def insert_from_dictionary(routing_dict: Dict[str, List[Dict[str, int]]], source_name: str):
         """
-        Inserts a RoutingSource with Routings and Operations from a structured dictionary.
+        Inserts a RoutingSource with Routings, Machines and Operations from a structured dictionary.
 
         :param routing_dict: e.g. {"0": [{"machine": 4, "duration": 88}, ...], ...}
         :param source_name: Name of the new RoutingSource.
@@ -32,7 +32,22 @@ class DataSourceInitializer:
                 session.add(source)
                 session.flush()
 
-                # 2. Routings + Operationen anlegen
+                # 2) Alle benötigten Maschinen-Namen erzeugen
+                machine_names = {
+                    f"M{op['machine']:02d}"
+                    for ops in routing_dict.values()
+                    for op in ops
+                }
+
+                # 3) Maschinen sofort anlegen (für IDs)
+                machines_by_name: dict[str, Machine] = {}
+                for name in machine_names:
+                    m = Machine(name=name, source=source)
+                    session.add(m)
+                    machines_by_name[name] = m
+                session.flush()
+
+                # 4) Routings + Operationen anlegen
                 for routing_id, ops in routing_dict.items():
                     routing_id_str = f"{source.id:02d}-{int(routing_id):02d}"
                     new_routing = Routing(id=routing_id_str, routing_source=source, operations=[])
@@ -41,11 +56,14 @@ class DataSourceInitializer:
                         machine_idx = op["machine"]
                         duration = op["duration"]
 
+                        machine_name = f"M{machine_idx:02d}"
+                        machine = machines_by_name[machine_name]
+
                         new_routing.operations.append(
                             RoutingOperation(
                                 routing_id=routing_id_str,
                                 position_number=step_nr,
-                                machine_name=f"M{machine_idx:02d}",
+                                machine=machine,
                                 duration=duration
                             )
                         )
@@ -265,7 +283,7 @@ class JobsInitializer:
                     logger.error(f"Jobs Insert with {max_bottleneck_utilization = } failed {e}")
 
 
-class MachineInitializer:
+class MachineInstanceInitializer:
     def __new__(cls, *args, **kwargs):
         raise TypeError("MachineInitializer is a static utility class and cannot be instantiated.")
 
@@ -293,20 +311,26 @@ class MachineInitializer:
             with warnings.catch_warnings():
                 warnings.filterwarnings("error", category=SAWarning)
                 try:
-                    routing_source = (
-                        session.query(RoutingSource)
-                        .filter(RoutingSource.name == source_name)
-                        .one_or_none()
-                    )
+                    #routing_source = (
+                    #    session.query(RoutingSource)
+                    #    .filter(RoutingSource.name == source_name)
+                    #    .one_or_none()
+                    #)
 
                     for _, row in df.iterrows():
-                        machine = Machine(
-                            name=row[machine_column],
+                        machine_name = row[machine_column]
+                        machine = (
+                            session.query(Machine)
+                            .join(Machine.source)
+                            .filter(RoutingSource.name == source_name, Machine.name == machine_name)
+                            .one_or_none()
+                        )
+                        machine_instance = MachineInstance(
+                            machine = machine,
                             transition_time=int(row[average_transition_time_column]),
                             max_bottleneck_utilization= max_bottleneck_utilization,
-                            source= routing_source,
                         )
-                        session.add(machine)
+                        session.add(machine_instance)
                     session.commit()
                     logger.info(f"Machines Insert {source_name = } {max_bottleneck_utilization = } successful")
                 except SAWarning as w:

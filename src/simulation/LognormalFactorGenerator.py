@@ -1,6 +1,9 @@
 import random
 from typing import List, Optional
 
+import random
+from typing import List, Optional
+
 class LognormalFactorGenerator:
     """
     Generator für lognormal-verteilte Faktoren mit Erwartungswert 1.
@@ -13,7 +16,8 @@ class LognormalFactorGenerator:
         :param seed: Optionaler Seed für Reproduzierbarkeit.
         """
         self.sigma = abs(sigma)
-        self.rng = random.Random(seed) if seed is not None else random
+        self.seed = seed
+        self.rng = random.Random(seed)  # eigener RNG, bleibt über die gesamte Instanz gleich
 
     @property
     def mu(self) -> float:
@@ -32,16 +36,23 @@ class LognormalFactorGenerator:
 
 
 
+
+
 if __name__ == "__main__":
-    # Initialisieren (sigma = 0.25, Seed für Reproduzierbarkeit)
-    fgen = LognormalFactorGenerator(sigma=0.25, seed=42)
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    # Initialisieren (sigma = 0.01, Seed für Reproduzierbarkeit)
+    fgen = LognormalFactorGenerator(sigma=0.3, seed=42)
 
-    # Einen Faktor ziehen
-    f1 = fgen.sample()
+    factors = fgen.sample_many(400)
 
-    # Viele Faktoren auf einmal
-    factors = fgen.sample_many(100)
+    # Dichtekurve zeichnen
+    sns.kdeplot(factors, fill=True)
+    plt.title("Dichte der Lognormal Factors")
+    plt.xlabel("Factor")
+    plt.ylabel("Dichte")
+    plt.show()
 
-    # Später kannst du deine Basisdauer multiplizieren:
-    durations = [100 * f for f in factors]
+
+
 

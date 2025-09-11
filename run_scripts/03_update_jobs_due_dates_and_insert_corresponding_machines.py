@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from src.DataFrameEnrichment import DataFrameEnrichment as DataEnrichment, DataFrameEnrichment
 from src.domain.Collection import LiveJobCollection
-from src.domain.Initializer import MachineInitializer
+from src.domain.Initializer import MachineInstanceInitializer
 from src.domain.Query import JobQuery
 from src.simulation.ProductionSimulation import ProductionSimulation
 
@@ -20,8 +20,13 @@ if __name__ == "__main__":
         # Collection with jobs
         jobs_collection = LiveJobCollection(jobs)
 
+        # Add simulation durations to operations
+        for job in jobs_collection.values():
+            for operation in job.operations:
+                operation.sim_duration = operation.duration  # sigma = 0
+
         # Simulation
-        simulation = ProductionSimulation(sigma=0, verbose=False, with_earliest_start=True)
+        simulation = ProductionSimulation(verbose=False, with_earliest_start=True)
         simulation.run(jobs_collection, start_time=0, end_time=None)
 
         finished_operations = simulation.get_finished_operation_collection()
@@ -51,9 +56,8 @@ if __name__ == "__main__":
             value_column="Waiting Time",
             new_column_name="Ø Waiting Time",
         )
-        print()
 
-        MachineInitializer.insert_from_dataframe(
+        MachineInstanceInitializer.insert_from_dataframe(
             df=df_avg_waiting,
             source_name=source_name,
             max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}"),

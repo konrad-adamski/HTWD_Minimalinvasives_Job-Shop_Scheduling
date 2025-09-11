@@ -5,8 +5,9 @@ from config.project_config import get_solver_logs_path
 from src.EmailNotifier import EmailNotifier
 from src.Logger import Logger
 from src.domain.Collection import LiveJobCollection
-from src.domain.Query import JobQuery, ExperimentQuery, MachineQuery
+from src.domain.Query import JobQuery, ExperimentQuery, MachineQuery, MachineInstanceQuery
 from src.domain.orm_models import Experiment
+from src.simulation.LognormalFactorGenerator import LognormalFactorGenerator
 from src.simulation.ProductionSimulation import ProductionSimulation
 from src.solvers.CP_Solver import Solver
 
@@ -23,7 +24,7 @@ def run_experiment(
     w_t, w_e, w_dev = experiment.get_solver_weights()
 
     # Preparation  ----------------------------------------------------------------------------------
-    simulation = ProductionSimulation(sigma=experiment.sim_sigma, verbose=False)
+    simulation = ProductionSimulation(verbose=False)
 
     # Jobs Collection
     jobs = JobQuery.get_by_source_name_max_util_and_lt_arrival(
@@ -34,17 +35,30 @@ def run_experiment(
     jobs_collection = LiveJobCollection(jobs)
 
     # Machines with transition times
-    machines = MachineQuery.get_machines(
+    machines_instances = MachineInstanceQuery.get_by_source_name_and_max_bottleneck_utilization(
         source_name=source_name,
         max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization}"),
     )
 
     # Add transition times to operations
-    for machine in machines:
+    for machine_instance in machines_instances:
         for job in jobs_collection.values():
             for operation in job.operations:
-                if operation.machine_name == machine.name:
-                    operation.transition_time = machine.transition_time
+                if operation.machine_name == machine_instance.name:
+                    operation.transition_time = machine_instance.transition_time
+
+    # Add simulation durations to operations
+    factor_gen = LognormalFactorGenerator(
+        sigma=experiment.sim_sigma,
+        seed=42
+    )
+    jobs_collection.sort_jobs_by_id()
+    jobs_collection.sort_operations()
+    for job in jobs_collection.values():
+        for operation in job.operations:
+            sim_duration_float = operation.duration * factor_gen.sample()
+            operation.sim_duration = int(sim_duration_float)
+
 
     # Collections(empty)
     schedule_jobs_collection = LiveJobCollection()  # pseudo previous schedule
