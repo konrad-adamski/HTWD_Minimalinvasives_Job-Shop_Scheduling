@@ -97,7 +97,7 @@ def run_experiment(
         )
 
         solver.solve_model(
-            gap_limit=0.005,
+            gap_limit=0.002,
             time_limit=time_limit,
             log_file=file_path,
             bound_relative_change= 0.01,

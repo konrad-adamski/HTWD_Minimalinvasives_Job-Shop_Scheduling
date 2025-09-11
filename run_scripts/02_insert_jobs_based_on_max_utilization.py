@@ -17,6 +17,8 @@ if __name__ == "__main__":
         JobsInitializer.insert_jobs(
             routings=routings,
             max_bottleneck_utilization=max_utilization,
-            total_shift_number=400
+            total_shift_number=400,
+            arrival_seed= 120,
+            job_routing_seed= 100 # fix job order
         )
 

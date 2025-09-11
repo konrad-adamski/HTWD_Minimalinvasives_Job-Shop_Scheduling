@@ -480,9 +480,11 @@ class Experiment:
     })
 
     # Cost function parameters
-    absolute_lateness_ratio: float = field(metadata={"sa": Column(Float, nullable=False)})
+    absolute_lateness_ratio: Optional[float] = field(metadata={"sa": Column(Float, nullable=True)})
 
-    inner_tardiness_ratio: float = field(metadata={"sa": Column(Float, nullable=False)})
+    inner_tardiness_ratio: Optional[float] = field(metadata={"sa": Column(Float, nullable=True)})
+
+    type: Optional[str] = field(default="Optimization", repr=False, metadata={"sa": Column(String(100), nullable=True)})
 
     # Other parameters
     max_bottleneck_utilization: Decimal = field(default=Decimal("0.5000"), metadata={
