@@ -44,6 +44,18 @@ class LiveJobCollection(UserDict[str, LiveJob]):
                 job_template = LiveJob.copy_from(job)
                 self.data[job_template.id] = job_template
 
+    def get_operation(self, job_id: str, position_number: int) -> Optional[JobOperation]:
+        """
+        Gibt die Operation zurück, falls vorhanden, sonst None.
+        """
+        job = self.data.get(job_id)
+        if not job:
+            return None
+        for op in job.operations:
+            if op.position_number == position_number:
+                return op
+        return None
+
 
     def add_operation_instance(self, op: JobOperation, new_start: Optional[float] = None,
             new_duration: Optional[float] = None, new_end: Optional[float] = None):
