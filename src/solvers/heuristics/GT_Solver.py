@@ -35,7 +35,7 @@ class Solver:
     def select_by_priority(
             self,
             conflict_ops: List[JobOperation],
-            rule: Literal["SPT", "FCFS", "EDD", "MWKR"] = "SPT"
+            rule: Literal["SPT", "FCFS", "MWKR", "EDD", "SLACK"] = "SPT"
     ) -> Optional[JobOperation]:
         """
         Wählt aus JobOperation-Objekten gemäß Regel:
@@ -62,6 +62,9 @@ class Solver:
         def _job_total_dur(op: JobOperation):
             return op.job.sum_duration
 
+        def _slack(op: JobOperation):
+            return _job_due_date(op) - (op.start + _remaining_work(op))
+
         def _remaining_work(op: JobOperation):
             # inkl. aktueller Operation (deine Methode gibt inkl. Position zurück)
             return op.job.sum_left_duration(op.position_number)
@@ -82,6 +85,12 @@ class Solver:
             # Meiste Restarbeit zuerst
             key = lambda x: (_remaining_work(x), - _job_earliest_start(x), - _duration(x))
             return max(conflict_ops, key=key)
+
+        elif rule == "SLACK":
+            # kleinste Slack zuerst; bei Gleichstand: frühester Start, dann SPT
+            key = lambda x: (_slack(x), _job_earliest_start(x), _duration(x), x.job_id)
+            return min(conflict_ops, key=key)
+
         else:
             raise ValueError("Invalid rule")
 
