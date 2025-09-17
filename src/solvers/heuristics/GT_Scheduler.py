@@ -4,7 +4,7 @@ from src.domain.Collection import LiveJobCollection
 from src.domain.orm_models import JobOperation
 
 
-class Solver:
+class Scheduler:
 
     def __init__(self, jobs_collection: LiveJobCollection, schedule_start: int = 0):
 
@@ -100,7 +100,7 @@ class Solver:
 
 
         def _remaining_work(op: JobOperation):
-            # inkl. aktueller Operation (deine Methode gibt inkl. Position zurück)
+            # inkl. aktueller Operation
             return op.job.sum_left_duration(op.position_number)
 
 
@@ -161,7 +161,8 @@ class Solver:
                 machine_candidates[operation.machine_name].append(operation)
         return dict(machine_candidates)
 
-    def solve(self, priority_rule: Literal["SPT", "FCFS", "EDD", "MWKR", "SLACK", "DEVIATION"] = "SPT", add_overlap_to_conflict: bool = True):
+
+    def get_schedule(self, priority_rule: Literal["SPT", "FCFS", "EDD", "MWKR", "SLACK", "DEVIATION"] = "SPT", add_overlap_to_conflict: bool = True):
         schedule_job_collection = LiveJobCollection()
         planned = 0
         while planned < self.total_ops:
@@ -207,58 +208,4 @@ class Solver:
 
         return schedule_job_collection
 
-
-
-
-
-    def solve_rolling(
-            self, priority_rule: Literal["SPT", "FCFS", "EDD", "MWKR"] = "SPT",
-            previous_schedule_jobs_collection: Optional[LiveJobCollection] = None,
-            active_jobs_collection: Optional[LiveJobCollection] = None,
-            add_overlap_to_conflict: bool = True):
-
-        schedule_job_collection = LiveJobCollection()
-        planned = 0
-        while planned < self.total_ops:
-            machine_candidates = self.get_machine_candidates()
-            all_candidates = [cand for ops in machine_candidates.values() for cand in ops]
-
-            if not all_candidates:
-                # Nichts planbar -> hier ggf. Zeit vorspulen oder sauber abbrechen
-                break
-
-            earliest_end_t = min(op.end for op in all_candidates)
-
-            for machine, ops in machine_candidates.items():
-                ending_at_T = [op for op in ops if op.end == earliest_end_t]
-                if not ending_at_T:
-                    continue
-
-                conflict_ops = ending_at_T.copy()
-
-                if add_overlap_to_conflict:
-                    for o in ops:
-                        if o in ending_at_T:
-                            continue
-                        # überlappt mit mind. einem aus ending_at_T?
-                        if any(self.intervals_overlap(o, ending_op) for ending_op in ending_at_T):
-                            conflict_ops.append(o)
-
-                # Auswahl nach Prioritätsregel
-                selected_op = self.select_by_priority(conflict_ops, priority_rule)
-
-                # print(f"Selected: {selected_op.start = }, {selected_op.end = }")
-
-                if selected_op is not None:
-
-                    job = selected_op.job
-                    job.current_operation = job.get_next_operation(selected_op.position_number)
-                    job.current_operation_earliest_start = selected_op.end
-
-                    planned += 1
-                    self.machine_ready_time[machine] = selected_op.end
-
-                    schedule_job_collection.add_operation_instance(selected_op)
-
-        return schedule_job_collection
 
