@@ -25,6 +25,7 @@ def config_experiment(
         inner_tardiness_ratio=inner_tardiness_ratio,
         max_bottleneck_utilization=Decimal(f"{max_bottleneck_utilization:.2f}"),
         sim_sigma=sim_sigma,
+        experiment_type= "CP_Test"
     )
     return experiment_id
 
