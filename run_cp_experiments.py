@@ -3,7 +3,11 @@ from __future__ import annotations
 import argparse
 from decimal import Decimal
 from itertools import product
-import tomllib  # Python 3.11+
+
+try:
+    import tomllib as pytoml
+except ModuleNotFoundError:
+    import tomli as pytoml
 
 from config.project_config import get_config_path
 from src.Logger import Logger
@@ -47,7 +51,7 @@ def main() -> None:
     # Load config
     config_path = get_config_path("experiments_config.toml", as_string=False)
     with open(config_path, "rb") as f:
-        cfg = tomllib.load(f)
+        cfg = pytoml.load(f)
 
     grid = cfg["grid"]
     run_cfg = cfg["run"]
