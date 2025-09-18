@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=run_single_experiment
+#SBATCH --job-name=run_single_cp_experiment
 #SBATCH --time=6-23:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -26,4 +26,4 @@ echo "CPUs=$MAX_CPU_NUMB, RAM(total/node)=${SLURM_MEM_PER_NODE:-unset}, Time=6d2
 cd "$PROJECT_DIR"
 
 # --- Python starten ---
-python run_single_experiment.py "$@"
+python run_cp_single_experiment.py "$@"

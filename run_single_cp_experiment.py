@@ -71,9 +71,9 @@ if __name__ == "__main__":
     )
 
 """terminal
-python run_single_experiment.py
+python run_single_cp_experiment.py
 """
 
 """terminal
-python run_single_experiment.py --util 1.0 --lateness_ratio 0.5 --tardiness_ratio 0.5 --sim_sigma 0.2
+python run_single_cp_experiment.py --util 1.0 --lateness_ratio 0.5 --tardiness_ratio 0.5 --sim_sigma 0.2
 """
