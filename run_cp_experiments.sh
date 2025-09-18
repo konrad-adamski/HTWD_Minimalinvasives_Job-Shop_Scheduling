@@ -28,7 +28,22 @@ cd "$PROJECT_DIR"
 # --- Pflichtargumente prüfen ---
 if [[ "$@" != *"--time_limit"* ]] || [[ "$@" != *"--bound_no_improvement_time"* ]] || [[ "$@" != *"--bound_warmup_time"* ]]; then
     echo "ERROR: You must provide --time_limit, --bound_no_improvement_time and --bound_warmup_time!"
-    echo "Example: sbatch run_cp_experiments.sh --util 0.75 --time_limit 600 --bound_no_improvement_time 120 --bound_warmup_time 60"
+    echo "Example: sbatch run_cp_experiments.sh --util 0.75 --sigma 0.1 --time_limit 600 --bound_no_improvement_time 120 --bound_warmup_time 60"
+    exit 1
+fi
+
+# Zusätzlich: --sigma erforderlich
+if [[ "$@" != *"--sigma"* ]]; then
+    echo "ERROR: You must provide --sigma!"
+    echo "Example: sbatch run_cp_experiments.sh --util 0.75 --sigma 0.1 --time_limit 600 --bound_no_improvement_time 120 --bound_warmup_time 60"
+    exit 1
+fi
+
+# Zusätzlich: --util erforderlich
+if [[ "$@" != *"--util"* ]]; then
+    echo "ERROR: You must provide --util!"
+    echo 'Allowed: a single value from the config or "all".'
+    echo "Example: sbatch run_cp_experiments.sh --util 0.75 --sigma 0.1 --time_limit 600 --bound_no_improvement_time 120 --bound_warmup_time 60"
     exit 1
 fi
 
