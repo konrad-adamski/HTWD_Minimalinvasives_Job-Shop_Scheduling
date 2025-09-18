@@ -42,7 +42,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import seaborn as sns
     # Initialisieren (sigma = 0.01, Seed für Reproduzierbarkeit)
-    fgen = LognormalFactorGenerator(sigma=0.1, seed=42)
+    fgen = LognormalFactorGenerator(sigma=0.2, seed=42)
 
     factors = fgen.sample_many(5000)
 
@@ -63,5 +63,5 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
-    #fig.savefig("lognormal_factors.png", dpi=300)
+    fig.savefig("lognormal_factors.png", dpi=300)
 

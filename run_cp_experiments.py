@@ -8,7 +8,7 @@ import tomllib  # Python 3.11+
 from config.project_config import get_config_path
 from src.Logger import Logger
 from src.domain.Initializer import ExperimentInitializer
-from src.Experiment_Runner import run_experiment
+from src.CP_Experiment_Runner import run_experiment
 
 
 def main() -> None:
@@ -87,6 +87,7 @@ def main() -> None:
             inner_tardiness_ratio=i_tar,
             max_bottleneck_utilization=Decimal(f"{util:.2f}"),
             sim_sigma=sigma,
+            experiment_type= "CP"
         )
         logger_name = f"experiments_{util:.2f}"
         logger = Logger(name=logger_name, log_file=f"{logger_name}.log")
@@ -104,7 +105,7 @@ def main() -> None:
 if __name__ == "__main__":
     """
     Example usage:
-    python run_experiments.py --util 0.75 --time_limit 300 --bound_no_improvement_time 60 --bound_warmup_time 10
-    python run_experiments.py --util all --time_limit 900 --bound_no_improvement_time 300 --bound_warmup_time 30
+    python run_cp_experiments.py --util 0.75 --time_limit 1800 --bound_no_improvement_time 600 --bound_warmup_time 60
+    python run_cp_experiments.py --util all --time_limit 900 --bound_no_improvement_time 300 --bound_warmup_time 30
     """
     main()

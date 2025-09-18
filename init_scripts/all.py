@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Scripts live in the same folder as this file (run_scripts/)
+# Scripts live in the same folder as this file (init_scripts/)
 SCRIPTS = [
     "00_data_preprocessing.py",
     "01_insert_data_source.py",
@@ -15,7 +15,7 @@ SCRIPTS = [
 
 def main() -> int:
     script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent              # one level up from run_scripts/
+    project_root = script_dir.parent              # one level up from init_scripts/
     python_exe = sys.executable
 
     # Ensure the project root is on PYTHONPATH for `import src...`
@@ -30,7 +30,7 @@ def main() -> int:
     for i, script in enumerate(SCRIPTS, start=1):
         script_path = script_dir / script
         print(f"\n[{i}/{len(SCRIPTS)}] Running: {script_path.name}")
-        # Run with project root as CWD, but execute the script from run_scripts/
+        # Run with project root as CWD, but execute the script from init_scripts/
         result = subprocess.run(
             [python_exe, str(script_path)],
             cwd=str(project_root),

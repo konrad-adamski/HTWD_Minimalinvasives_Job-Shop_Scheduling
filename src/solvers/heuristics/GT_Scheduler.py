@@ -75,7 +75,6 @@ class Scheduler:
         - SPT: kürzeste Bearbeitungszeit
         - FCFS: kleinste Job-Ankunftszeit
         - EDD: früheste Job-Deadline
-        Fallbacks: arrival -> 0, due -> +inf, start -> 0, job_total_dur -> +inf
         """
         if not conflict_ops:
             return None
@@ -135,7 +134,7 @@ class Scheduler:
             return min(conflict_ops, key=key)
 
         elif rule == "DEVIATION":
-            # kleinste Abweichung zuerst, bei Gleichstand kleinste Slack, dann frühester Start, dann SPT
+            # kleinste Abweichung zuerst, bei Gleichstand kleinste Slack, dann frühestmöglicher Start des Jobs, dann SPT
             key = lambda x: (_start_deviation(x), _slack(x), _job_earliest_start(x), _duration(x), x.job_id)
             return min(conflict_ops, key=key)
 

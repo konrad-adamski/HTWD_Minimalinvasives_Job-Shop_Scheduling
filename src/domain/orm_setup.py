@@ -20,7 +20,6 @@ SessionLocal = sessionmaker(bind=my_engine)
 mapper_registry = registry()
 
 
-
 def create_tables():
     mapper_registry.metadata.create_all(my_engine)
 

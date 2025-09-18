@@ -349,7 +349,8 @@ class ExperimentInitializer:
     @staticmethod
     def insert_experiment(
             source_name: str, absolute_lateness_ratio: float, inner_tardiness_ratio: float,
-            max_bottleneck_utilization: Decimal, sim_sigma: float) -> Optional[int]:
+            max_bottleneck_utilization: Decimal, sim_sigma: float,
+            experiment_type: Optional[str] = None) -> Optional[int]:
         """
         Inserts a single Experiment entry into the database.
 
@@ -358,6 +359,7 @@ class ExperimentInitializer:
         :param inner_tardiness_ratio: Ratio for inner tardiness weight.
         :param max_bottleneck_utilization: Maximum bottleneck utilization value.
         :param sim_sigma: Sigma value for simulation variability.
+        :param experiment_type: Type of experiment.
         :return: experiment_id if the entry was inserted successfully
         """
 
@@ -374,6 +376,7 @@ class ExperimentInitializer:
                     inner_tardiness_ratio=inner_tardiness_ratio,
                     max_bottleneck_utilization=max_bottleneck_utilization,
                     sim_sigma=sim_sigma,
+                    type=experiment_type
                 )
                 session.add(experiment)
                 session.flush()

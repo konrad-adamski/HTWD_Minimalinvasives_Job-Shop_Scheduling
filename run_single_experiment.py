@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from decimal import Decimal
 
-from src.Experiment_Runner import run_experiment
+from src.CP_Experiment_Runner import run_experiment
 from src.Logger import Logger
 from src.domain.Initializer import ExperimentInitializer
 
