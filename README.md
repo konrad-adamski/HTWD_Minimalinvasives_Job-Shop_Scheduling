@@ -51,5 +51,5 @@ python3 -m pip install --upgrade pip
 
 ```bash
 # Pakete installieren
-python3 -m pip install pyyaml jupyter ipykernel pandas matplotlib seaborn simpy pulp ortools editdistance scipy sqlalchemy pydantic
+python3 -m pip install pandas matplotlib simpy pulp ortools editdistance scipy sqlalchemy colorama yagmail scikit-learn python-dotenv seaborn tomli
 ```
