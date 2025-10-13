@@ -44,7 +44,7 @@ class ProductionSimulation:
 
     def _job_process(self, job: LiveJob):
 
-        if self.with_earliest_start:      # for FiFo
+        if self.with_earliest_start:      # for FIFO
             delay = max(job.earliest_start - self.env.now, 0)
             yield self.env.timeout(delay)
 
@@ -59,7 +59,7 @@ class ProductionSimulation:
                 yield req
 
                 granted_time = self.env.now
-                op.granted_time_on_machine = granted_time
+                op.granted_time_on_machine = self.env.now
                 self._log_job_started_on_machine(granted_time, job_op = op)
 
                 simulated_duration = op.sim_duration  #  duration_log_normal(op.duration, sigma=self.sigma)

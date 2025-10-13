@@ -413,6 +413,101 @@ class DataFramePlotGenerator:
         return fig
 
     @staticmethod
+    def get_elapsed_time_density_plot_figure_side_by_side(
+            df_times: pd.DataFrame,
+            routing_filter: list[str] | None = None,
+            routing_column: str = "Routing_ID",
+            earliest_start_column: str = "Ready Time",
+            simulated_end_column: str = "End",
+            total_duration_column: str = "Total Processing Time",
+            bins: int = 30,
+            y_max: float = 0.002,
+            x_max: float | None = None):
+        """
+        Plot density histograms of elapsed times per routing group.
+        → Gemeinsame Y-Achse (Skala nur beim ersten Plot)
+        → Jede X-Achse startet bei 0.
+        → Optionaler Routing-Filter.
+        → Nur beim letzten Subplot: X-Achsenbeschriftung & Legende (oben rechts außen).
+        → Optional: globales x_max zur Angleichung der X-Achsenbreite.
+
+        Elapsed time = simulated_end_column - earliest_start_column
+        """
+
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import numpy as np
+        import pandas as pd
+
+        # 🔹 1) Optionaler Filter
+        if routing_filter is not None:
+            df_times = df_times[df_times[routing_column].isin(routing_filter)]
+
+        routings = df_times[routing_column].unique()
+        n_routings = len(routings)
+
+        # 🔹 2) Figure mit gemeinsamer Y-Achse
+        fig, axes = plt.subplots(1, n_routings, figsize=(5 * n_routings, 4), sharey=True)
+        if n_routings == 1:
+            axes = [axes]
+
+        # 🔹 3) Globale Wertebereiche bestimmen
+        elapsed_times_all = df_times[simulated_end_column] - df_times[earliest_start_column]
+        global_y_max = y_max or (0.002 * (n_routings / 2))
+        if x_max is None:
+            x_max = float(elapsed_times_all.max() * 1.1)
+
+        # 🔹 4) Subplots erzeugen
+        for idx, routing in enumerate(routings):
+            ax = axes[idx]
+            dfr = df_times[df_times[routing_column] == routing]
+
+            elapsed_times = dfr[simulated_end_column] - dfr[earliest_start_column]
+            avg_elapsed_time = elapsed_times.mean()
+            duration = dfr[total_duration_column].mean()
+
+            sns.histplot(
+                elapsed_times,
+                bins=bins,
+                kde=True,
+                stat="density",
+                ax=ax,
+                color="cornflowerblue",
+                edgecolor="black"
+            )
+
+            ax.axvline(duration, color="gray", linestyle="--", label="Σ op duration")
+            ax.axvline(avg_elapsed_time, color="orange", linestyle="--", label="Ø elapsed time")
+
+            ax.set_title(f"Routing {routing}")
+
+            # ✅ Nur beim ersten Subplot Y-Achse mit Skala
+            if idx == 0:
+                ax.set_ylabel("Density [1/min]")
+                ax.tick_params(axis="y", left=True, labelleft=True)
+                ax.spines["left"].set_visible(True)
+            else:
+                ax.set_ylabel("")
+                ax.tick_params(axis="y", left=False, labelleft=False)
+                ax.spines["left"].set_visible(True)
+
+            # ✅ Nur beim letzten Subplot X-Label & Legende
+            if idx == n_routings - 1:
+                ax.set_xlabel("Timespan from earliest start [min]", ha="right", x=1.0)
+                ax.legend(loc="upper left", bbox_to_anchor=(1.0, 1.0), frameon=False)
+            else:
+                ax.set_xlabel("")
+
+            # ✅ Einheitliche Achsen
+            ax.set_xlim(0, x_max)
+            ax.set_ylim(0, global_y_max)
+
+        fig.tight_layout()
+        return fig
+
+
+
+    @staticmethod
     def get_scheduling_window_density_plot_figure(
             df_times: pd.DataFrame, routing_column: str = "Routing_ID",
             earliest_start_column: str = "Ready Time", due_date_column: str = "Due Date",
@@ -488,6 +583,77 @@ class DataFramePlotGenerator:
         plt.tight_layout()
         return fig
 
+    @staticmethod
+    def get_scheduling_window_density_plot_figure_side_by_side(
+            df_times: pd.DataFrame,
+            routing_filter: list[str] | None = None,
+            routing_column: str = "Routing_ID",
+            earliest_start_column: str = "Ready Time",
+            due_date_column: str = "Due Date",
+            total_duration_column: str = "Total Processing Time",
+            bins: int = 30,
+            y_max: float = 0.002,
+            x_max: float | None = None):
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import numpy as np
+        import pandas as pd
+
+        if routing_filter is not None:
+            df_times = df_times[df_times[routing_column].isin(routing_filter)]
+
+        routings = df_times[routing_column].unique()
+        n_routings = len(routings)
+
+        fig, axes = plt.subplots(1, n_routings, figsize=(5 * n_routings, 4), sharey=True)
+        if n_routings == 1:
+            axes = [axes]
+
+        all_scheduling_windows = df_times[due_date_column] - df_times[earliest_start_column]
+        global_y_max = y_max or (0.002 * (n_routings / 2))
+        if x_max is None:
+            x_max = float(all_scheduling_windows.max() * 1.1)
+
+        for idx, routing in enumerate(routings):
+            ax = axes[idx]
+            dfr = df_times[df_times[routing_column] == routing]
+
+            scheduling_windows = dfr[due_date_column] - dfr[earliest_start_column]
+            avg_scheduling_window = scheduling_windows.mean()
+            duration = dfr[total_duration_column].mean()
+
+            sns.histplot(
+                scheduling_windows, bins=bins, kde=True, stat="density",
+                ax=ax, color="cornflowerblue", edgecolor="black"
+            )
+
+            ax.axvline(duration, color="gray", linestyle="--", label="Σ op duration")
+            ax.axvline(avg_scheduling_window, color="orange", linestyle="--", label="Ø scheduling window")
+            ax.set_title(f"Routing {routing}")
+
+            # --- Y-Achse: nur beim ersten Subplot Ticks & Label anzeigen ---
+            if idx == 0:
+                ax.set_ylabel("Density [1/min]")
+                ax.tick_params(axis="y", which="both", left=True, labelleft=True)  # ← Ticks/Labels erzwingen
+                ax.spines["left"].set_visible(True)
+            else:
+                ax.set_ylabel("")
+                ax.tick_params(axis="y", which="both", left=False, labelleft=False)  # ← Ticks/Labels aus
+                ax.spines["left"].set_visible(True)  # Rahmen bleibt geschlossen
+
+            # --- X-Achse: nur beim letzten Subplot Label, rechtsbündig ---
+            if idx == n_routings - 1:
+                ax.set_xlabel("Timespan from earliest start [min]", ha="right", x=1.0)
+                ax.legend(loc="upper left", bbox_to_anchor=(1.0, 1.0), frameon=False)
+            else:
+                ax.set_xlabel("")
+
+            # Limits einheitlich
+            ax.set_xlim(0, x_max)
+            ax.set_ylim(0, global_y_max)
+
+        fig.tight_layout()
+        return fig
 
     # Gantt chart for schedule or simulation -------------------------------------------------------------------------
     @classmethod

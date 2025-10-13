@@ -1,3 +1,4 @@
+import random
 from collections import defaultdict
 from typing import Literal, List, Dict, Optional
 from src.domain.Collection import LiveJobCollection
@@ -102,14 +103,16 @@ class Scheduler:
             # inkl. aktueller Operation
             return op.job.sum_left_duration(op.position_number)
 
-
         def _start_deviation(op: JobOperation):
             prev_op_version = self.previous_schedule_jobs_collection.get_operation(op.job_id, op.position_number)
             if prev_op_version is not None:
-                #print(prev_op_version, abs(op.start - prev_op_version.start))
-                return abs(op.start - prev_op_version.start)
+                return prev_op_version.start - op.start
             else:
-                return 100 * (self.schedule_start + 1000)    # big_value (but same for all)
+                return None
+
+        def _random(_: object) -> float:
+            # gibt einen Zufallswert zwischen 0 und 1 zurück
+            return random.random()
 
         if rule == "SPT":
             key = lambda x: (_duration(x), _job_arrival(x), _job_earliest_start(x), _job_total_dur(x))
@@ -124,8 +127,13 @@ class Scheduler:
             return min(conflict_ops, key=key)
 
         elif rule == "MWKR":
+            # Meiste Restarbeit zuerst, Zufall als Tie-Breaker
+            key = lambda x: (_remaining_work(x), _random(x))
+            return max(conflict_ops, key=key)
+
+        elif rule == "MWKR_LPT":
             # Meiste Restarbeit zuerst
-            key = lambda x: (_remaining_work(x), - _job_earliest_start(x), - _duration(x))
+            key = lambda x: (_remaining_work(x), _duration(x))
             return max(conflict_ops, key=key)
 
         elif rule == "SLACK":
@@ -134,9 +142,65 @@ class Scheduler:
             return min(conflict_ops, key=key)
 
         elif rule == "DEVIATION":
-            # kleinste Abweichung zuerst, bei Gleichstand kleinste Slack, dann frühestmöglicher Start des Jobs, dann SPT
-            key = lambda x: (_start_deviation(x), _slack(x), _job_earliest_start(x), _duration(x), x.job_id)
-            return min(conflict_ops, key=key)
+            prev_ops = [op for op in conflict_ops if _start_deviation(op) is not None]
+
+            # previous operations
+            if not prev_ops:
+                previous_operation = None
+            else:
+                key = lambda x: (_start_deviation(x), _slack(x), _job_earliest_start(x), _duration(x))
+                previous_operation = min(prev_ops, key=key)
+
+            # new operations
+            new_ops = [op for op in conflict_ops if _start_deviation(op) is None]
+            if not new_ops:
+                new_operation = None
+            else:
+                key = lambda x: (_slack(x), _job_earliest_start(x), _duration(x))
+                new_operation = min(new_ops, key=key)
+
+            # select between new and previous
+            if previous_operation is None:
+                return new_operation
+            else:
+                return previous_operation
+
+
+        elif rule == "DEVIATION_OPTIMIZE":
+            prev_ops = [op for op in conflict_ops if _start_deviation(op) is not None]
+
+            # previous operations
+            if not prev_ops:
+                previous_operation = None
+            else:
+                key = lambda x: (_start_deviation(x), _slack(x), _job_earliest_start(x), _duration(x))
+                previous_operation = min(prev_ops, key=key)
+
+            # new operations
+            new_ops = [op for op in conflict_ops if _start_deviation(op) is None]
+            if not new_ops:
+                new_operation = None
+            else:
+                key = lambda x: (_slack(x), _job_earliest_start(x), _duration(x))
+                new_operation = min(new_ops, key=key)
+
+            # select between new and previous
+            if new_operation is None:
+                return previous_operation
+            elif previous_operation is None:
+                return new_operation
+            else:
+                next_start = new_operation.end
+                prev_op_version = self.previous_schedule_jobs_collection.get_operation(
+                    job_id=previous_operation.job_id,
+                    position_number = previous_operation.position_number
+                )
+                next_deviation = prev_op_version.start - next_start
+                if next_deviation <= 0:
+                    return new_operation
+                else:
+                    return previous_operation
+
 
         else:
             raise ValueError("Invalid rule")
@@ -206,5 +270,3 @@ class Scheduler:
                     schedule_job_collection.add_operation_instance(selected_op)
 
         return schedule_job_collection
-
-

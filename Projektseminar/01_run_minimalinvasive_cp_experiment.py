@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from decimal import Decimal
+
+sys.path.append("../")
+from src.domain.Query import ExperimentAnalysisQuery
 
 from src.CP_Experiment_Runner import run_experiment
 from src.Logger import Logger
@@ -64,17 +68,27 @@ if __name__ == "__main__":
     run_experiment(
         experiment_id=experiment_id,
         shift_length=1440,
-        total_shift_number=20,
+        total_shift_number=3,       # 3 shifts (days)
         logger=logger,
-        time_limit=60 * 60* 24,
-        bound_warmup_time= 60 * 60 * 6,
-        bound_no_improvement_time=60 * 60* 6
+        time_limit=60 * 60* 6,     # 6 min
+        bound_warmup_time= 60 * 60 * 2,
+        bound_no_improvement_time=60 * 60* 2
     )
 
-"""terminal
-python 01_run_minimalinvasive_cp_experiment.py
-"""
+
+    # Extract as CSV
+    df_experiments = ExperimentAnalysisQuery.get_experiments_dataframe(
+        max_bottleneck_utilization=util
+    )
+
+    df_experiments.to_csv(f"output/minimalinvasive_experiments_{util:.2f}".replace(".", "_") + ".csv", index=False)
+
+    df_schedules = ExperimentAnalysisQuery.get_schedule_jobs_operations_dataframe(
+        max_bottleneck_utilization=util,
+    )
+    df_schedules.to_csv(f"output/minimalinvasive_schedules_{util:.2f}".replace(".", "_")+ ".csv", index=False)
+
 
 """terminal
-python 01_run_minimalinvasive_cp_experiment.py --util 1.0 --lateness_ratio 0.5 --tardiness_ratio 0.5 --sim_sigma 0.2
+python 01_run_minimalinvasive_cp_experiment.py --util 0.80 --lateness_ratio 0.5 --tardiness_ratio 0.5 --sim_sigma 0.15
 """

@@ -6,8 +6,8 @@ import pandas as pd
 from decimal import Decimal
 from typing import List, Union, Iterable, Tuple, Optional
 
-from sqlalchemy import text
-from sqlalchemy.orm import joinedload
+from sqlalchemy import text, create_engine
+from sqlalchemy.orm import joinedload, sessionmaker
 
 from src.domain.orm_models import Routing, RoutingSource, Job, Machine, Experiment, ScheduleOperation, ScheduleJob, \
     LiveJob, SimulationJob, SimulationOperation, RoutingOperation, MachineInstance
@@ -391,13 +391,19 @@ class ExperimentAnalysisQuery:
     def get_experiments(
             experiment_id: Optional[int] = None,
             max_bottleneck_utilization: Optional[float] = None,
+            db_path: Optional[str] = None,
     ) -> List[Experiment]:
         """
         Liefert eine Liste von Experiment-Objekten.
         - experiment_id=None → alle Experimente
         - max_bottleneck_utilization: optionaler Filter auf Experiment.max_bottleneck_utilization
         """
-        with SessionLocal() as session:
+        if db_path:
+            my_engine = create_engine(f"sqlite:///{db_path}")
+            SessionFactory = sessionmaker(bind=my_engine)
+        else:
+            SessionFactory = SessionLocal
+        with SessionFactory() as session:
             query = session.query(Experiment)
 
             if experiment_id is not None:
@@ -416,13 +422,19 @@ class ExperimentAnalysisQuery:
     def get_schedule_jobs(
         experiment_id: Optional[int] = None,
         max_bottleneck_utilization: Optional[float] = None,
+        db_path: Optional[str] = None
     ) -> List[ScheduleJob]:
         """
         Liefert alle ScheduleJobs (inkl. Operations, Job->Routing, Experiment).
         - experiment_id=None → alle Experimente
         - max_bottleneck_utilization: optionaler Filter auf Experiment.max_bottleneck_utilization (exakte Übereinstimmung)
         """
-        with SessionLocal() as session:
+        if db_path:
+            my_engine = create_engine(f"sqlite:///{db_path}")
+            SessionFactory = sessionmaker(bind=my_engine)
+        else:
+            SessionFactory = SessionLocal
+        with SessionFactory() as session:
             query = (
                 session.query(ScheduleJob)
                 .options(
@@ -461,6 +473,8 @@ class ExperimentAnalysisQuery:
             w_t_column: str = "w_t",
             w_e_column: str = "w_e",
             w_dev_column: str = "w_dev",
+            experiment_type_column: str = "Experiment_Type",
+            db_path: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Baut ein DataFrame aus Experimenten:
@@ -471,6 +485,7 @@ class ExperimentAnalysisQuery:
         exps = cls.get_experiments(
             experiment_id=experiment_id,
             max_bottleneck_utilization=max_bottleneck_utilization,
+            db_path=db_path
         )
 
         records = []
@@ -486,6 +501,7 @@ class ExperimentAnalysisQuery:
                 w_t_column: int(w_t),
                 w_e_column: int(w_e),
                 w_dev_column: int(w_dev),
+                experiment_type_column: e.type
             })
 
         ordered_cols = [
@@ -498,6 +514,7 @@ class ExperimentAnalysisQuery:
             w_t_column,
             w_e_column,
             w_dev_column,
+            experiment_type_column
         ]
         df = pd.DataFrame.from_records(records, columns=ordered_cols)
         return df.sort_values([id_column], ignore_index=True)
@@ -519,12 +536,13 @@ class ExperimentAnalysisQuery:
         arrival_column: str = "Arrival",
         earliest_start_column = "Ready Time",
         due_date_column: str = "Due Date",
+        db_path: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Baut ein DataFrame aus ScheduleJobs.
         experiment_id=None → keine Filterung, es werden alle zurückgegeben.
         """
-        jobs = cls.get_schedule_jobs(experiment_id, max_bottleneck_utilization)
+        jobs = cls.get_schedule_jobs(experiment_id, max_bottleneck_utilization, db_path=db_path)
 
         records = []
         for sj in jobs:
