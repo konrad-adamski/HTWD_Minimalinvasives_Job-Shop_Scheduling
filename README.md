@@ -32,7 +32,7 @@ python -m pip install --upgrade pip
 
 ```cmd
 :: Pakete installieren
-pip install pyyaml jupyter ipykernel pandas matplotlib seaborn simpy pulp ortools editdistance scipy sqlalchemy pydantic
+pip install pandas matplotlib simpy pulp ortools editdistance scipy sqlalchemy colorama yagmail scikit-learn python-dotenv seaborn tomli
 ```
 ---
 
