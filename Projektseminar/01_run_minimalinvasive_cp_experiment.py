@@ -7,7 +7,7 @@ from decimal import Decimal
 sys.path.append("../")
 from src.domain.Query import ExperimentAnalysisQuery
 
-from src.CP_Experiment_Runner import run_experiment
+from src.CP_Experiment_Runner_withoutNotify import run_experiment
 from src.Logger import Logger
 from src.domain.Initializer import ExperimentInitializer
 
