@@ -5,12 +5,12 @@ from src.domain.Query import ExperimentAnalysisQuery
 
 # max_bottleneck_utilization_list = [0.75, 0.80, 0.85, 0.90, 0.95, 1.0]
 
-max_bottleneck_utilization_list = [0.75, 0.85]
+max_bottleneck_utilization_list = [0.75, 0.85, 0.95]
 
 for max_utilization in max_bottleneck_utilization_list:
 
     #sub_directory = "2025_09_08_limit"
-    sub_directory = "2025_09_29_Bernard"
+    sub_directory = "2025_10_16_Bernard"
     experiments_file_path = get_data_path(
         sub_directory,
         f"experiments_{max_utilization:.2f}".replace(".", "_")
