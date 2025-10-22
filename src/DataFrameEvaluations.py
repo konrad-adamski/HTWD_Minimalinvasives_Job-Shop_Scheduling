@@ -1,16 +1,13 @@
-
-
-
-from typing import Optional, Tuple, Literal
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.colors import Normalize
+from typing import Optional, Tuple, Literal
+from fractions import Fraction
 
 ExtendType = Literal["auto", "both", "min", "max", None]
 
-from fractions import Fraction
 
 def ratio_label(value: float, max_denominator: int = 10) -> str:
     frac = Fraction(value).limit_denominator(max_denominator)
@@ -27,13 +24,13 @@ def plot_experiment_heatmaps(
         y_col: str,
         col_col: Optional[str] = None,
         row_col: Optional[str] = None,
-        # Anzeigenamen (Labels) – OPTIONAL:
+        # Anzeigenamen (Labels)
         value_as: Optional[str] = None,
         x_col_as: Optional[str] = None,
         y_col_as: Optional[str] = None,
         col_col_as: Optional[str] = None,
         row_col_as: Optional[str] = None,
-        # Darstellung:
+        # Darstellung
         cmap_name: str = "RdYlGn",
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
@@ -49,6 +46,8 @@ def plot_experiment_heatmaps(
         colorbar_pad: float = 0.02,
         title: Optional[str] = None,
         fontsize: int = 13,
+        # NEU: Spaltenindex für x-Achsenlabel
+        xlabel_at_col: int = 0,
 ):
     # 0) Effektive Labels bestimmen
     value_label = value_as or value_col
@@ -57,10 +56,16 @@ def plot_experiment_heatmaps(
     col_label = col_col_as or (col_col if col_col is not None else "")
     row_label = row_col_as or (row_col if row_col is not None else "")
 
-    # 1) Facetten-Keys (optional)
+    # 1) Facetten
     unique_cols = [None] if col_col is None else sorted(df[col_col].unique())
     unique_rows = [None] if row_col is None else sorted(df[row_col].unique())
     n_cols, n_rows = len(unique_cols), len(unique_rows)
+
+    # Bound absichern
+    if n_cols > 1:
+        xlabel_at_col = int(np.clip(xlabel_at_col, 0, n_cols - 1))
+    else:
+        xlabel_at_col = 0
 
     # 2) Wertebereich
     z_all = df[value_col].to_numpy(dtype=float)
@@ -70,7 +75,7 @@ def plot_experiment_heatmaps(
     if vmin > vmax:
         raise ValueError("vmin darf nicht größer als vmax sein.")
 
-    # 3) Colormap + ggf. Richtungsumkehr
+    # 3) Colormap ggf. umkehren
     base_cmap = mpl.colormaps.get_cmap(cmap_name)
     cmap = base_cmap
     if auto_reverse_cmap:
@@ -80,7 +85,7 @@ def plot_experiment_heatmaps(
             cmap = base_cmap.reversed()
     norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
 
-    # 4) Diskrete Stufen
+    # 4) Stufen
     x_levels = list(np.sort(df[x_col].unique()))
     y_levels = list(np.sort(df[y_col].unique()))
 
@@ -123,55 +128,50 @@ def plot_experiment_heatmaps(
             ax.set_xticklabels([ratio_label(x) for x in x_levels])
             ax.set_yticklabels([ratio_label(y) for y in y_levels])
 
-
-            # Spaltentitel (falls vorhanden)
+            # Spaltentitel
             if i == 0 and col_col is not None:
-                #ax.set_title(f"{col_label} = {c}")
                 ax.set_title(
                     f"{col_label} = {c}",
                     fontsize=12,
-                    pad = 10,
+                    pad=10,
                     bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3")
                 )
-
 
             # Y-Label links
             if j == 0:
                 if row_col is not None:
-                    #ax.set_ylabel(f"{row_label} = {r}\n{y_label}")
-                    # 1️⃣ Eingeboxtes Label oberhalb
                     ax.text(
-                        -0.25, 0.5,                    # Position in Achsenkoordinaten (x<0 = links außerhalb)
-                        f"{row_label} = {r}",          # nur der obere Teil
-                        transform=ax.transAxes,        # in Achsenkoordinaten platzieren
+                        -0.25, 0.5,
+                        f"{row_label} = {r}",
+                        transform=ax.transAxes,
                         fontsize=12,
                         ha="center", va="center",
-                        rotation=90,                   # damit es wie ein Achsenlabel wirkt
+                        rotation=90,
                         bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3")
                     )
-
-                    # 2️⃣ Normales y-Label unten drunter
-                    ax.set_ylabel(
-                        y_label,
-                        fontsize=12,
-                        labelpad=15
-                    )
-
+                    ax.set_ylabel(y_label, fontsize=12, labelpad=15)
                 else:
                     ax.set_ylabel(y_label)
 
-            ax.set_xlabel(x_label)
+            # ✅ x-Achsenlabel nur in gewünschter Spalte
+            if j == xlabel_at_col:
+                ax.set_xlabel(x_label)
+            else:
+                ax.set_xlabel("")
 
+            # Annotationen
             if annot:
                 vals = pivot.values
                 for yi in range(ny):
                     for xi in range(nx):
                         v = vals[yi, xi]
                         if np.isfinite(v):
-                            ax.text(xi + 0.5, yi + 0.5, format(v, fmt),
-                                    ha="center", va="center", color=text_color, fontsize=fontsize)
+                            ax.text(
+                                xi + 0.5, yi + 0.5, format(v, fmt),
+                                ha="center", va="center", color=text_color, fontsize=fontsize
+                            )
 
-    # 6) Colorbar + extend (ohne „Spiegeln“)
+    # 6) Colorbar
     if extend == "auto":
         _extend = None
         if data_min < vmin and data_max > vmax:
@@ -199,7 +199,6 @@ def plot_experiment_heatmaps(
     cbar.set_ticks(ticks)
     cbar.ax.set_yticklabels([f"{t:.2f}" for t in ticks])
 
-    # Optionaler Supertitel
     if title is not None:
         fig.suptitle(title, fontsize=fontsize)
 
@@ -210,9 +209,9 @@ def plot_experiment_heatmaps(
 def plot_experiment_heatmaps_kendall_tau(
         df: pd.DataFrame,
         *,
-        value_col: str, value_as: str ="Kendall τ",
+        value_col: str, value_as: str = "Kendall τ",
         x_col: str = "Inner Tardiness Ratio", x_col_as: Optional[str] = None,
-        y_col: str = "Abs Lateness Ratio", y_col_as: Optional[str] = None,  # <- korrigiert
+        y_col: str = "Abs Lateness Ratio", y_col_as: Optional[str] = None,
         col_col: Optional[str] = None, col_col_as: Optional[str] = None,
         row_col: Optional[str] = None, row_col_as: Optional[str] = None,
         vmin: Optional[float] = 0.7,
@@ -222,6 +221,7 @@ def plot_experiment_heatmaps_kendall_tau(
         title: Optional[str] = None,
         fontsize: int = 13,
         legend_steps: int = 6,
+        xlabel_at_col: int = 0,  # NEU
 ):
     return plot_experiment_heatmaps(
         df=df,
@@ -237,12 +237,13 @@ def plot_experiment_heatmaps_kendall_tau(
         higher_is_better=True,
         auto_reverse_cmap=True,
         title=title,
-        fontsize = fontsize,
-        legend_steps = legend_steps
+        fontsize=fontsize,
+        legend_steps=legend_steps,
+        xlabel_at_col=xlabel_at_col,
     )
 
 
-# Wrapper: niedrig = gut (z. B. Tardiness, Loss, Error)
+# Wrapper: niedrig = gut
 def plot_experiment_heatmaps_good_low(
         df: pd.DataFrame,
         *,
@@ -259,6 +260,7 @@ def plot_experiment_heatmaps_good_low(
         fmt: str = ".2f",
         extend: ExtendType = "auto",
         title: Optional[str] = None,
+        xlabel_at_col: int = 0,  # NEU
         **kwargs
 ):
     return plot_experiment_heatmaps(
@@ -275,6 +277,7 @@ def plot_experiment_heatmaps_good_low(
         higher_is_better=False,
         auto_reverse_cmap=True,
         title=title,
+        xlabel_at_col=xlabel_at_col,
         **kwargs
     )
 
@@ -385,7 +388,7 @@ def plot_experiment_boxrow(
                 f"{col_label} = {c}",
                 fontsize=fontsize,
                 bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"),
-                pad=8
+                pad=11
             )
 
         # Mediane beschriften
@@ -406,3 +409,159 @@ def plot_experiment_boxrow(
         fig.suptitle(title, fontsize=fontsize + 1)
 
     return fig, axes
+
+def plot_experiment_lines_compare(
+    df_values: pd.DataFrame,           # z.B. df_shift_dev (Verteilungen je Shift)
+    df_meta: pd.DataFrame,             # z.B. df_experiments (Parameter je Experiment_ID)
+    *,
+    value_col: str,                    # z.B. "Deviation"
+    id_col: str = "Experiment_ID",
+    x_col: str = "Inner Tardiness Ratio",
+    compare_col: str = "Max Bottleneck Utilization",
+    # Labels:
+    value_as: Optional[str] = None,
+    x_col_as: Optional[str] = None,
+    compare_col_as: Optional[str] = None,
+    # Darstellung / Aggregation:
+    agg_method: Literal["mean", "median"] = "mean",
+    show_quantile_band: bool = True,
+    quantile_band: Tuple[float, float] = (0.25, 0.75),  # (unteres, oberes Quantil)
+    figsize: Tuple[float, float] = (7.0, 4.2),
+    linewidth: float = 2.0,
+    marker: Optional[str] = "o",
+    markersize: float = 4.5,
+    alpha_line: float = 0.95,
+    alpha_band: float = 0.20,
+    fontsize: int = 12,
+    title: Optional[str] = None,
+    grid: bool = True,
+    # 🔹 NEU:
+    compare_col_is_ratio: bool = False,
+):
+    """
+    Zeichnet Linien-Kurven über x_col für jede Ausprägung von compare_col.
+    Aggregation pro (compare_col, x_col) via agg_method; optional Quantilband.
+    df_values muss `id_col` enthalten; df_meta enthält `x_col`/`compare_col` je Experiment.
+
+    Parameter:
+    ----------
+    compare_col_is_ratio : bool
+        Wenn True, wird `ratio_label()` auch auf die compare_col-Werte angewendet
+        (z. B. "1:3" statt 0.333...).
+    """
+    # -- Validierung
+    if id_col not in df_values.columns:
+        raise ValueError(f"`df_values` braucht die Spalte `{id_col}`.")
+    for needed in [id_col, x_col, compare_col]:
+        if needed not in df_meta.columns:
+            raise ValueError(f"`df_meta` fehlt Spalte `{needed}`.")
+
+    # -- Merge Werte + Meta
+    meta_cols = [id_col, x_col, compare_col]
+    dfm = df_values.merge(df_meta[meta_cols], on=id_col, how="left")
+
+    # X-Levels & Compare-Levels
+    x_levels = list(np.sort(dfm[x_col].dropna().unique()))
+    cmp_levels = list(np.sort(dfm[compare_col].dropna().unique()))
+
+    # Aggregation (Linienwerte)
+    if agg_method == "mean":
+        df_line = (
+            dfm.groupby([compare_col, x_col], as_index=False)[value_col]
+               .mean()
+               .rename(columns={value_col: "y"})
+        )
+    else:  # "median"
+        df_line = (
+            dfm.groupby([compare_col, x_col], as_index=False)[value_col]
+               .median()
+               .rename(columns={value_col: "y"})
+        )
+
+    # Optional: Quantilband vorbereiten
+    if show_quantile_band:
+        q_lo, q_hi = quantile_band
+        if not (0.0 <= q_lo < q_hi <= 1.0):
+            raise ValueError("quantile_band muss 0.0 <= q_lo < q_hi <= 1.0 erfüllen.")
+        df_q = (
+            dfm.groupby([compare_col, x_col])[value_col]
+               .quantile([q_lo, q_hi])
+               .unstack(level=-1)
+               .reset_index()
+               .rename(columns={q_lo: "y_lo", q_hi: "y_hi"})
+        )
+    else:
+        df_q = None
+
+    # Plot
+    fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
+
+    # Für saubere Linien in fester x-Reihenfolge pivoten
+    line_pivot = (
+        df_line.pivot(index=x_col, columns=compare_col, values="y")
+              .reindex(index=x_levels)
+    )
+
+    # Farben pro compare-Level (Matplotlib Zyklus)
+    colors = plt.rcParams['axes.prop_cycle'].by_key().get('color', None)
+    color_map = {}
+    for idx, cl in enumerate(cmp_levels):
+        color_map[cl] = colors[idx % len(colors)] if colors else None
+
+    # Quantilbänder zeichnen (pro compare-Level)
+    if df_q is not None:
+        band_pivot_lo = (
+            df_q.pivot(index=x_col, columns=compare_col, values="y_lo")
+                .reindex(index=x_levels)
+        )
+        band_pivot_hi = (
+            df_q.pivot(index=x_col, columns=compare_col, values="y_hi")
+                .reindex(index=x_levels)
+        )
+        for cl in cmp_levels:
+            ylo = band_pivot_lo[cl].to_numpy() if cl in band_pivot_lo else None
+            yhi = band_pivot_hi[cl].to_numpy() if cl in band_pivot_hi else None
+            if ylo is None or yhi is None:
+                continue
+            mask = np.isfinite(ylo) & np.isfinite(yhi)
+            if not np.any(mask):
+                continue
+            xs = np.arange(len(x_levels))[mask]
+            ax.fill_between(
+                xs, ylo[mask], yhi[mask],
+                alpha=alpha_band, linewidth=0, color=color_map[cl]
+            )
+
+    # Linien + Marker zeichnen
+    for cl in cmp_levels:
+        y = line_pivot[cl].to_numpy() if cl in line_pivot else None
+        if y is None:
+            continue
+        xs = np.arange(len(x_levels))
+        label_str = ratio_label(cl) if compare_col_is_ratio else str(cl)
+        ax.plot(
+            xs, y,
+            marker=marker, markersize=markersize,
+            linewidth=linewidth, alpha=alpha_line,
+            label=label_str, color=color_map[cl]
+        )
+
+    # Achsen / Ticks / Labels
+    ax.set_xticks(np.arange(len(x_levels)))
+    ax.set_xticklabels([ratio_label(x) for x in x_levels], fontsize=fontsize-1)
+    ax.set_xlabel(x_col_as or x_col, fontsize=fontsize)
+    ax.set_ylabel(value_as or value_col, fontsize=fontsize)
+
+    # Legende
+    leg_title = compare_col_as or compare_col
+    ax.legend(title=leg_title, fontsize=fontsize-1, title_fontsize=fontsize-1, frameon=True)
+
+    # Grid
+    if grid:
+        ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
+
+    # Titel
+    if title:
+        ax.set_title(title, fontsize=fontsize+1)
+
+    return fig, ax
