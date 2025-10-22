@@ -111,6 +111,6 @@ if __name__ == "__main__":
     Example usage:
     python run_gt_experiments.py --util 0.75 --sigma 0.1 --priority_rule SLACK
     python run_gt_experiments.py --util all --sigma 0.2 --priority_rule DEVIATION
-    python run_gt_experiments.py --util all --sigma all --priority_rule SLACK
+    python run_gt_experiments.py --util all --sigma all --priority_rule DEVIATION_OPTIMIZE
     """
     main()
