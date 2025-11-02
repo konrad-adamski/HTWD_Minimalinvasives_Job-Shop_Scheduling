@@ -14,9 +14,9 @@ AggMethod = Literal["mean", "median"]
 def ratio_label(value: float, ratio_label_on: bool = True, max_denominator: int = 10) -> str:
     if ratio_label_on is False:
         if value == "GT_DEVIATION":
-            return "DEV"
+            return "DEVIATION"
         elif value == "GT_DEVIATION_OPTIMIZE":
-            return "DEV 'optimize'"
+            return "DEVIATION_INSERT"
         elif value == "GT_SLACK":
             return "SLACK"
         return value
@@ -65,8 +65,8 @@ def plot_experiment_heatmaps(
 ):
     # 0) Labels
     value_label = value_as or value_col
-    x_label = x_col_as or x_col
-    y_label = y_col_as or y_col
+    x_label = x_col_as #or x_col
+    y_label = y_col_as # or y_col
     col_label = col_col_as or (col_col if col_col is not None else "")
     row_label = row_col_as or (row_col if row_col is not None else "")
 
@@ -332,6 +332,7 @@ def plot_experiment_heatmaps_good_low(
         **kwargs
     )
 
+
 def plot_experiment_boxrow(
     df_values: pd.DataFrame,
     df_meta: pd.DataFrame,
@@ -350,12 +351,16 @@ def plot_experiment_boxrow(
     fontsize: int = 12,
     title: Optional[str] = None,
     median_text_color: str = "#d95f02",
-    # NEU: In welcher Spalte das x-Achsenlabel stehen soll (0-basiert)
     xlabel_at_col: int = 0,
     ratio_label_on: bool = True,
+    ymax: Optional[float] = None,
+    # 🆕: Boxbreite und Text-Verschiebung
+    box_width: float = 0.4,
+    median_text_dx: float = 0.25,
+    x_lim_extra: float = 0.6,
 ):
-    value_label = value_as or value_col
-    x_label = x_col_as or x_col
+    value_label = value_as # or value_col
+    x_label = x_col_as # or x_col
     col_label = col_col_as or (col_col if col_col else "")
 
     meta_cols = [c for c in [id_col, x_col, col_col] if c is not None]
@@ -378,7 +383,6 @@ def plot_experiment_boxrow(
     )
     axes = np.atleast_1d(axes)
 
-    # Stildefinitionen
     boxprops = dict(linewidth=1.2, color="black")
     whiskerprops = dict(linewidth=1.1, color="black")
     capprops = dict(linewidth=1.1, color="black")
@@ -388,7 +392,6 @@ def plot_experiment_boxrow(
         markeredgecolor='gray', alpha=0.6
     )
 
-    # Sicherheitscheck für xlabel_at_col
     if n_cols > 1:
         xlabel_at_col = int(np.clip(xlabel_at_col, 0, n_cols - 1))
     else:
@@ -409,7 +412,7 @@ def plot_experiment_boxrow(
         bp = ax.boxplot(
             data_arrays,
             positions=positions,
-            widths=0.7,
+            widths=box_width,             # 🆕 schlankere Boxen
             showfliers=flier_visible,
             patch_artist=False,
             boxprops=boxprops,
@@ -419,21 +422,20 @@ def plot_experiment_boxrow(
             flierprops=flierprops,
         )
 
-        # ✅ Ticks + Ticklabels bei allen
         ax.set_xticks(positions)
-        ax.set_xticklabels([ratio_label(x, ratio_label_on) for x in x_levels], fontsize=fontsize - 1)
+        ax.set_xticklabels(
+            [ratio_label(x, ratio_label_on) for x in x_levels],
+            fontsize=fontsize - 1
+        )
 
-        # ❌ x-Achsenlabel nur in gewünschter Spalte
         if j == xlabel_at_col:
             ax.set_xlabel(x_label, fontsize=fontsize)
         else:
             ax.set_xlabel("")
 
-        # Y-Achse links
         if j == 0:
             ax.set_ylabel(value_label, fontsize=fontsize)
 
-        # Spaltentitel
         if col_col is not None:
             ax.set_title(
                 f"{col_label} = {c}",
@@ -442,41 +444,49 @@ def plot_experiment_boxrow(
                 pad=11
             )
 
-        # Mediane beschriften
+        # 🆕 Median-Werte RECHTS neben der Box anzeigen
         if show_median_labels:
-            for med_line in bp["medians"]:
+            for k, med_line in enumerate(bp["medians"]):
+                # x-Mitte des Medianstrichs
                 xm = float(np.mean(med_line.get_xdata()))
+                # y-Höhe des Medianstrichs
                 ym = float(np.mean(med_line.get_ydata()))
                 ax.text(
-                    xm, ym, format(ym, median_fmt),
-                    ha="center", va="bottom",
+                    xm + median_text_dx,     # leicht rechts
+                    ym,
+                    format(ym, median_fmt),
+                    ha="left", va="center",  # mittig zur Linie
                     fontsize=fontsize - 2,
-                    color=median_text_color
+                    color=median_text_color,
                 )
 
+        if ymax is not None:
+            ax.set_ylim(top=ymax)
+
         ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
+
+        ax.set_xlim(right=len(x_levels) + x_lim_extra)
 
     if title:
         fig.suptitle(title, fontsize=fontsize + 1)
 
     return fig, axes
 
+
 def plot_experiment_lines_compare(
-    df_values: pd.DataFrame,           # z.B. df_shift_dev (Verteilungen je Shift)
-    df_meta: pd.DataFrame,             # z.B. df_experiments (Parameter je Experiment_ID)
+    df_values: pd.DataFrame,
+    df_meta: pd.DataFrame,
     *,
-    value_col: str,                    # z.B. "Deviation"
+    value_col: str,
     id_col: str = "Experiment_ID",
     x_col: str = "Inner Tardiness Ratio",
     compare_col: str = "Max Bottleneck Utilization",
-    # Labels:
     value_as: Optional[str] = None,
     x_col_as: Optional[str] = None,
     compare_col_as: Optional[str] = None,
-    # Darstellung / Aggregation:
     agg_method: Literal["mean", "median"] = "mean",
     show_quantile_band: bool = True,
-    quantile_band: Tuple[float, float] = (0.25, 0.75),  # (unteres, oberes Quantil)
+    quantile_band: Tuple[float, float] = (0.25, 0.75),
     figsize: Tuple[float, float] = (7.0, 4.2),
     linewidth: float = 2.0,
     marker: Optional[str] = "o",
@@ -486,172 +496,19 @@ def plot_experiment_lines_compare(
     fontsize: int = 12,
     title: Optional[str] = None,
     grid: bool = True,
-    # 🔹 NEU:
     compare_col_is_ratio: bool = False,
-    ratio_label_on: bool = True
-):
-    """
-    Zeichnet Linien-Kurven über x_col für jede Ausprägung von compare_col.
-    Aggregation pro (compare_col, x_col) via agg_method; optional Quantilband.
-    df_values muss `id_col` enthalten; df_meta enthält `x_col`/`compare_col` je Experiment.
-
-    Parameter:
-    ----------
-    compare_col_is_ratio : bool
-        Wenn True, wird `ratio_label()` auch auf die compare_col-Werte angewendet
-        (z. B. "1:3" statt 0.333...).
-    """
-    # -- Validierung
-    if id_col not in df_values.columns:
-        raise ValueError(f"`df_values` braucht die Spalte `{id_col}`.")
-    for needed in [id_col, x_col, compare_col]:
-        if needed not in df_meta.columns:
-            raise ValueError(f"`df_meta` fehlt Spalte `{needed}`.")
-
-    # -- Merge Werte + Meta
-    meta_cols = [id_col, x_col, compare_col]
-    dfm = df_values.merge(df_meta[meta_cols], on=id_col, how="left")
-
-    # X-Levels & Compare-Levels
-    x_levels = list(np.sort(dfm[x_col].dropna().unique()))
-    cmp_levels = list(np.sort(dfm[compare_col].dropna().unique()))
-
-    # Aggregation (Linienwerte)
-    if agg_method == "mean":
-        df_line = (
-            dfm.groupby([compare_col, x_col], as_index=False)[value_col]
-               .mean()
-               .rename(columns={value_col: "y"})
-        )
-    else:  # "median"
-        df_line = (
-            dfm.groupby([compare_col, x_col], as_index=False)[value_col]
-               .median()
-               .rename(columns={value_col: "y"})
-        )
-
-    # Optional: Quantilband vorbereiten
-    if show_quantile_band:
-        q_lo, q_hi = quantile_band
-        if not (0.0 <= q_lo < q_hi <= 1.0):
-            raise ValueError("quantile_band muss 0.0 <= q_lo < q_hi <= 1.0 erfüllen.")
-        df_q = (
-            dfm.groupby([compare_col, x_col])[value_col]
-               .quantile([q_lo, q_hi])
-               .unstack(level=-1)
-               .reset_index()
-               .rename(columns={q_lo: "y_lo", q_hi: "y_hi"})
-        )
-    else:
-        df_q = None
-
-    # Plot
-    fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
-
-    # Für saubere Linien in fester x-Reihenfolge pivoten
-    line_pivot = (
-        df_line.pivot(index=x_col, columns=compare_col, values="y")
-              .reindex(index=x_levels)
-    )
-
-    # Farben pro compare-Level (Matplotlib Zyklus)
-    colors = plt.rcParams['axes.prop_cycle'].by_key().get('color', None)
-    color_map = {}
-    for idx, cl in enumerate(cmp_levels):
-        color_map[cl] = colors[idx % len(colors)] if colors else None
-
-    # Quantilbänder zeichnen (pro compare-Level)
-    if df_q is not None:
-        band_pivot_lo = (
-            df_q.pivot(index=x_col, columns=compare_col, values="y_lo")
-                .reindex(index=x_levels)
-        )
-        band_pivot_hi = (
-            df_q.pivot(index=x_col, columns=compare_col, values="y_hi")
-                .reindex(index=x_levels)
-        )
-        for cl in cmp_levels:
-            ylo = band_pivot_lo[cl].to_numpy() if cl in band_pivot_lo else None
-            yhi = band_pivot_hi[cl].to_numpy() if cl in band_pivot_hi else None
-            if ylo is None or yhi is None:
-                continue
-            mask = np.isfinite(ylo) & np.isfinite(yhi)
-            if not np.any(mask):
-                continue
-            xs = np.arange(len(x_levels))[mask]
-            ax.fill_between(
-                xs, ylo[mask], yhi[mask],
-                alpha=alpha_band, linewidth=0, color=color_map[cl]
-            )
-
-    # Linien + Marker zeichnen
-    for cl in cmp_levels:
-        y = line_pivot[cl].to_numpy() if cl in line_pivot else None
-        if y is None:
-            continue
-        xs = np.arange(len(x_levels))
-        label_str = ratio_label(cl, ratio_label_on) if compare_col_is_ratio else str(cl)
-        ax.plot(
-            xs, y,
-            marker=marker, markersize=markersize,
-            linewidth=linewidth, alpha=alpha_line,
-            label=label_str, color=color_map[cl]
-        )
-
-    # Achsen / Ticks / Labels
-    ax.set_xticks(np.arange(len(x_levels)))
-    ax.set_xticklabels([ratio_label(x, ratio_label_on) for x in x_levels], fontsize=fontsize-1)
-    ax.set_xlabel(x_col_as or x_col, fontsize=fontsize)
-    ax.set_ylabel(value_as or value_col, fontsize=fontsize)
-
-    # Legende
-    leg_title = compare_col_as or compare_col
-    ax.legend(title=leg_title, fontsize=fontsize-1, title_fontsize=fontsize-1, frameon=True)
-
-    # Grid
-    if grid:
-        ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
-
-    # Titel
-    if title:
-        ax.set_title(title, fontsize=fontsize+1)
-
-    return fig, ax
-
-
-def plot_experiment_lines_compare(
-    df_values: pd.DataFrame,           # z.B. df_shift_dev (Verteilungen je Shift)
-    df_meta: pd.DataFrame,             # z.B. df_experiments (Parameter je Experiment_ID)
-    *,
-    value_col: str,                    # z.B. "Deviation"
-    id_col: str = "Experiment_ID",
-    x_col: str = "Inner Tardiness Ratio",
-    compare_col: str = "Max Bottleneck Utilization",
-    # Labels:
-    value_as: Optional[str] = None,
-    x_col_as: Optional[str] = None,
-    compare_col_as: Optional[str] = None,
-    # Darstellung / Aggregation:
-    agg_method: Literal["mean", "median"] = "mean",
-    show_quantile_band: bool = True,
-    quantile_band: Tuple[float, float] = (0.25, 0.75),  # (unteres, oberes Quantil)
-    figsize: Tuple[float, float] = (7.0, 4.2),
-    linewidth: float = 2.0,
-    marker: Optional[str] = "o",
-    markersize: float = 4.5,
-    alpha_line: float = 0.95,
-    alpha_band: float = 0.20,
-    fontsize: int = 12,
-    title: Optional[str] = None,
-    grid: bool = True,
-    # Ratio-Labels für compare_col
-    compare_col_is_ratio: bool = False,
-    # 🔹 Neu gegen Überdeckung:
-    dodge: float = 0.04,               # horizontaler Versatz pro compare-Linie (in „x-Level“-Einheiten)
+    dodge: float = 0.04,
     use_distinct_linestyles: bool = True,
     marker_edgecolor: str = "white",
     marker_edgewidth: float = 0.8,
-    ratio_label_on: bool = True
+    ratio_label_on: bool = True,
+    # ✅ Neu:
+    ymax: Optional[float] = None,
+    ymin: Optional[float] = None,
+    legend_loc: Literal[
+        "best", "upper left", "upper right", "lower left", "lower right",
+        "center"
+    ] = "best"
 ):
     """
     Linien-Plot über x_col, je compare_col eine Linie.
@@ -718,14 +575,13 @@ def plot_experiment_lines_compare(
     color_map = {cl: colors[i % len(colors)] for i, cl in enumerate(cmp_levels)}
     linestyle_map = {cl: next(linestyles) for cl in cmp_levels}
 
-    # Offsets (dodge) rund um die Mitte verteilen
-    # Beispiel: n=1 -> [0]; n=2 -> [-0.5, +0.5]*dodge; n=3 -> [-1,0,1]*dodge; ...
+    # Offsets (dodge)
     base_positions = np.arange(n_cmp) - (n_cmp - 1) / 2.0
     offsets = (base_positions * dodge)
     offset_map = {cl: offsets[i] for i, cl in enumerate(cmp_levels)}
     max_off = abs(offsets).max() if n_cmp > 0 else 0.0
 
-    # Quantilbänder zeichnen (mit Offset)
+    # Quantilbänder zeichnen
     if df_q is not None:
         band_pivot_lo = (
             df_q.pivot(index=x_col, columns=compare_col, values="y_lo")
@@ -750,7 +606,7 @@ def plot_experiment_lines_compare(
                 alpha=alpha_band, linewidth=0, color=color_map[cl]
             )
 
-    # Linien + Marker (mit Offset)
+    # Linien + Marker
     for cl in cmp_levels:
         if cl not in line_pivot:
             continue
@@ -768,25 +624,139 @@ def plot_experiment_lines_compare(
             zorder=3
         )
 
-    # Achsen / Ticks / Labels
+    # Achsen / Labels
     ax.set_xticks(np.arange(len(x_levels)))
     ax.set_xticklabels([ratio_label(x, ratio_label_on) for x in x_levels], fontsize=fontsize-1)
     ax.set_xlim(-0.5 - max_off, (len(x_levels) - 0.5) + max_off)
+    ax.set_xlabel(x_col_as, fontsize=fontsize)
+    ax.set_ylabel(value_as, fontsize=fontsize)
 
-    ax.set_xlabel(x_col_as or x_col, fontsize=fontsize)
-    ax.set_ylabel(value_as or value_col, fontsize=fontsize)
+    # ✅ manuelles Y-Limit
+    if ymin is not None or ymax is not None:
+        ax.set_ylim(bottom=ymin, top=ymax)
 
-    # Legende
+    # Legende, Grid, Titel
     leg_title = compare_col_as or compare_col
-    ax.legend(title=leg_title, fontsize=fontsize-1, title_fontsize=fontsize-1, frameon=True)
+    #ax.legend(title=leg_title, fontsize=fontsize-1, title_fontsize=fontsize-1, frameon=True)
+    leg = ax.legend(
+        title=leg_title,
+        fontsize=fontsize - 1,
+        title_fontsize=fontsize - 1,
+        frameon=True,
+        loc=legend_loc,
+    )
+    leg.get_frame().set_alpha(0.70)
 
-    # Grid
     if grid:
         ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7, zorder=0)
-
-    # Titel
     if title:
         ax.set_title(title, fontsize=fontsize+1)
 
     return fig, ax
 
+def compute_experiment_summary_df(
+    df_values: pd.DataFrame,
+    df_meta: pd.DataFrame,
+    *,
+    value_col: str,
+    value_as: Optional[str] = None,
+    id_col: str = "Experiment_ID",
+    axis_a: str = "Inner Tardiness Ratio",       # ehemals x_col
+    axis_b: str = "Max Bottleneck Utilization",  # ehemals compare_col
+    axis_a_as: Optional[str] = None,             # ✅ neuer Anzeigename für Axis A
+    axis_b_as: Optional[str] = None,             # ✅ neuer Anzeigename für Axis B
+    agg_method: Literal["mean", "median"] = "mean",
+    show_quantile_band: bool = True,
+    quantile_band: Tuple[float, float] = (0.25, 0.75),
+    sort_levels: bool = True,
+    round_digits: Optional[int] = None,          # Rundung
+    round_axes: bool = False,                    # Achsen runden? (Default: nur Werte)
+) -> pd.DataFrame:
+    """
+    Aggregiert `value_col` je (axis_b, axis_a) und liefert ein DataFrame:
+    [AxisBLabel, AxisALabel, <value_as>, <value_as>_Qxx, <value_as>_Qyy]
+
+    - Achsenspalten heißen per Default wie `axis_a`/`axis_b`, oder wie
+      `axis_a_as`/`axis_b_as`, wenn angegeben.
+    - Ergebnis-Spalten erhalten Namen aus `value_as` (oder `value_col`) + Quantil-Suffixe.
+    - Optional Rundung der Ergebnis-Spalten (und auf Wunsch der Achsen).
+    """
+
+    # 1) Validierung
+    if id_col not in df_values.columns:
+        raise ValueError(f"`df_values` braucht die Spalte `{id_col}`.")
+    for needed in [id_col, axis_a, axis_b]:
+        if needed not in df_meta.columns:
+            raise ValueError(f"`df_meta` fehlt Spalte `{needed}`.")
+    if agg_method not in {"mean", "median"}:
+        raise ValueError("agg_method muss 'mean' oder 'median' sein.")
+
+    # 2) Merge
+    meta_cols = [id_col, axis_a, axis_b]
+    dfm = df_values.merge(df_meta[meta_cols], on=id_col, how="left")
+
+    # 3) Sortierung/ Kategorien
+    if sort_levels:
+        a_levels = np.sort(dfm[axis_a].dropna().unique())
+        b_levels = np.sort(dfm[axis_b].dropna().unique())
+        dfm[axis_a] = pd.Categorical(dfm[axis_a], categories=a_levels, ordered=True)
+        dfm[axis_b] = pd.Categorical(dfm[axis_b], categories=b_levels, ordered=True)
+
+    # 4) Aggregation (mean/median)
+    agg_name = value_as or value_col
+    group_keys = [axis_b, axis_a]
+
+    if agg_method == "mean":
+        df_line = (
+            dfm.groupby(group_keys, as_index=False, observed=True)[value_col]
+               .mean()
+               .rename(columns={value_col: agg_name})
+        )
+    else:
+        df_line = (
+            dfm.groupby(group_keys, as_index=False, observed=True)[value_col]
+               .median()
+               .rename(columns={value_col: agg_name})
+        )
+
+    # 5) Quantile
+    if show_quantile_band:
+        q_lo, q_hi = quantile_band
+        if not (0.0 <= q_lo < q_hi <= 1.0):
+            raise ValueError("quantile_band muss 0.0 <= q_lo < q_hi <= 1.0 erfüllen.")
+        df_q = (
+            dfm.groupby(group_keys, observed=True)[value_col]
+               .quantile([q_lo, q_hi])
+               .unstack(level=-1)
+               .reset_index()
+               .rename(columns={
+                   q_lo: f"{agg_name}_Q{int(q_lo*100)}",
+                   q_hi: f"{agg_name}_Q{int(q_hi*100)}"
+               })
+        )
+    else:
+        df_q = pd.DataFrame(columns=group_keys)
+
+    # 6) Merge Linie + Quantile
+    df_out = df_line.merge(df_q, on=group_keys, how="left")
+
+    # 7) Spalten labeln
+    col_a = axis_a_as or axis_a
+    col_b = axis_b_as or axis_b
+    df_out = df_out.rename(columns={axis_a: col_a, axis_b: col_b})
+
+    # 8) Rundung
+    if round_digits is not None:
+        # Ergebnis-Spalten (immer runden)
+        result_cols = [agg_name] + [c for c in df_out.columns if c.startswith(f"{agg_name}_Q")]
+        result_cols = [c for c in result_cols if c in df_out.columns]
+        if result_cols:
+            df_out[result_cols] = df_out[result_cols].round(round_digits)
+        # Optional: Achsen ebenfalls runden (falls numerisch)
+        if round_axes:
+            axis_numeric = [c for c in [col_a, col_b] if c in df_out.columns and np.issubdtype(df_out[c].dtype, np.number)]
+            if axis_numeric:
+                df_out[axis_numeric] = df_out[axis_numeric].round(round_digits)
+
+    # 9) Sortierung & Return
+    return df_out.sort_values([col_b, col_a]).reset_index(drop=True)

@@ -75,9 +75,7 @@ class Solver:
                 interval = self.model.NewIntervalVar(start, operation.duration, end, f"interval_{suffix}")
                 # interval = model.NewIntervalVar(start, operation.duration, start + operation.duration, f"interval_{suffix}")
 
-                self.start_times[(job_idx, op_idx)] = start
-                self.end_times[(job_idx, op_idx)] = end
-                self.intervals[(job_idx, op_idx)] = (interval, operation.machine_name)
+
                 self.index_mapper.add(job_idx, op_idx, operation)
 
 

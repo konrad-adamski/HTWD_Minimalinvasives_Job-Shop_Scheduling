@@ -6,7 +6,7 @@ from src.domain.Initializer import ExperimentInitializer
 from src.domain.Query import JobQuery, MachineInstanceQuery, ExperimentQuery
 from src.simulation.LognormalFactorGenerator import LognormalFactorGenerator
 from src.simulation.ProductionSimulation import ProductionSimulation
-from src.solvers.heuristics.GT_Scheduler import Scheduler
+from src.solvers.GT_Scheduler import Scheduler
 
 
 def run_experiment(
